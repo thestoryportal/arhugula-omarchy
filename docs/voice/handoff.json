@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.9vs",
+  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.ap1",
   "parent_epic": "arhugula-voice-core-b4k",
   "branch": "feat/voice-core-contracts",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
@@ -26,7 +26,9 @@
     "Clip3: 9.856s bounded capture, cleanup proven, services restarted and live config hashes unchanged; playback once succeeded and user verified recording",
     "Clip3 isolated local ASR recognized complete neutral phrase twice in2.04s; final WAV deleted after user review. All3 real recordings deleted; no raw audio/transcripts in repo",
     "Exact tested isolated config and sanitized partial characterization preserved in tests/fixtures/voice-replay/voxtype-isolated.toml and docs/voice/p2-characterization.md",
-    "Task 4a .z5x.9vs: content-free VoiceObservation v1 codec and Memory/SQLite journal replay; no execution/approval authority. User renewed P1 continuation approval."
+    "Task 4a .z5x.9vs CLOSED in9d147f1: content-free VoiceObservation v1 codec and Memory/SQLite journal replay; no execution/approval authority. User renewed P1 continuation approval.",
+    "Task4b implementation4b1b958: coordinator, pinned correlations, fresh-job factories, bounded polling, stale/cancel suppression, trusted confirmation and synthetic replay.",
+    "Independent Astra review found2 Important cancellation bugs; both reproduced RED and fixed in one test-first pass. Review and excluded live-capability rulings in docs/voice/task4-review.md."
   ],
   "verification": [
     "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
@@ -52,7 +54,9 @@
     "Clip3: process.ok ASR, stdout205 bytes/5lines; full expected phrase2 occurrences, all6 unique expected words present; not whole-output exact equality",
     "Final read-only service check: both active/running, Result=success; four original unit/config hashes unchanged. Not sustained-health proof",
     "Fresh python3 -W error::ResourceWarning -m unittest discover -s tests -q:194 tests OK in8.338s; tested config SHA256 matches original and TOML parses",
-    "Task 4a: missing record kind RED, 5 observation tests GREEN; full suite199/199 OK in12.254s, diff check clean; LIT doctor integrity ok, sync still pending"
+    "Task 4a: missing record kind RED, 5 observation tests GREEN; full suite199/199 OK in12.254s, diff check clean; LIT doctor integrity ok, sync still pending",
+    "Task4b pre-review:20 coordinator tests pass,6/6 synthetic coordinator replay cases; full222/222 in8.566s; runtime and zipapp health show simulation/external_execution=false; diff check clean",
+    "Task4b final:24 coordinator and13 session tests; full228/228 in8.628s; replay5/5 PCM and6/6 coordinator; diff check and LIT integrity pass. Scoped-cancel mutation fails handoff regression as intended. Fresh unique-path zipapp/runtime smoke pass after refusing overwrite of earlier artifact."
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
@@ -63,13 +67,15 @@
     "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims",
     "OwnedProcess is trusted process-group lifecycle, not sandboxing; escaped descendants require stronger isolation",
     "WAV-stdin transcriber injection is not installed Voxtype FILE compatibility; backend isolation and bridge unproven",
-    "Task 3 P2 and Tasks 4-7 remain incomplete; no actual live voice release",
+    "Task3 P2 and Task4 recorded replay remain incomplete; Tasks5-7 pending, no actual live voice release",
+    "Ruff unavailable to both sessions; lint and GitHub CI for voice branch unverified. Terra reported PR4 still review-blocked and only test-suite check required; no merge/push.",
+    "Trusted callbacks must be bounded; no live cancellation latency or atomic compositor actuation proof",
     "LIT automatic remote sync is failing; changes remain local. Merge/push deferred while main diagnostics remain",
     "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate",
     "Legacy services do not appear to coexist reliably: before trials default auto-restarted; after restart command service auto-restarts while dictation runs. Start-request restoration is not proof both are healthy. Separate design/repair permission required.",
     "Only one neutral sentence succeeded in an attended trial; broad ASR/VAD/negation/confirmation corpus still unverified. All3 capture slots consumed; fresh audio consent required."
   ],
-  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.ap1",
+  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.u1f",
   "stop_reason": null,
   "worker_stop": false,
   "capture_budget": {

@@ -257,6 +257,33 @@ foreign diagnostics; merge/push still held. Durable stop handoff records actual
 3/3 capture use and deletion. Return pab to OPEN/HIL awaiting further scope.
 # Task 4 P1 continuation, 2026-09-20
 
+Final Task4 verification after the independent review's two Important fixes:
+228/228 full suite in8.628s;24 coordinator tests and13 owner tests; synthetic
+PCM5/5 and coordinator6/6; runtime health, fresh unique-path zipapp health,
+diff check and LIT integrity pass. Reusing the earlier artifact path was refused
+by the build tool; a fresh `mktemp` directory succeeded, with no overwrite.
+Scoped-cancel mutation probe correctly fails the handoff-race regression.
+Review findings, fixes and all excluded-capability rulings are in
+`docs/voice/task4-review.md`. No Critical or Minor findings. Ruff is absent in
+both sessions; do not claim local lint or voice-branch GitHub CI success.
+
+Next P1 unit `.z5x.u1f` implements trusted local controls. P2 `.pab` and live
+acceptance remain open. Terra filed read-only voice-lifecycle display follow-up
+`arhugula-observability-xb8.xug.1x9`; it waits for contract integration.
+
+Task4b code committed `4b1b958`; ticket `.ap1` remains in progress pending an
+independent Astra/high review. Fresh 222/222 tests in 8.566s,20 coordinator tests,
+6/6 coordinator synthetic cases, runtime and built-zipapp health pass in
+simulation mode. No installed microphone/provider/output or live changes.
+The review range is `b2151f2..4b1b958`; final review evidence follows separately.
+
+Native `codex queue` now coordinates with the independent Terra session.
+Terra acknowledged exclusive ownership of CI/projections/views/evaluation and
+no overlap with voice/contracts/journal files. Its report says projections
+safely ignore VoiceObservation while advancing the cursor; visible lifecycle
+status needs a read-only projection follow-up. Do not treat agent-reported
+GitHub status as fresh verification of this voice branch.
+
 User renewed repository implementation authority after the narrow attended P2
 trial. P2 `.pab` remains open: real recordings are deleted, broader corpus and
 FILE/output bridge unproven. No new microphone/provider/service/configuration

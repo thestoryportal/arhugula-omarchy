@@ -48,8 +48,17 @@ class SessionOwner:
             self._state = "owned"
             return self._owner
 
-    def cancel(self) -> int:
+    def cancel(self, *, generation: int | None = None) -> int:
+        """Invalidate globally, or atomically only the named resource owner.
+
+        Adapters sharing an owner must supply their own generation so a late
+        cancel cannot invalidate a successor's dictation/capture lease.
+        """
+        if generation is not None and (type(generation) is not int or generation <= 0):
+            raise ValueError("cancellation requires a positive integer generation")
         with self._lock:
+            if generation is not None and generation != self._owner:
+                return self._generation
             self._generation += 1
             if self._state == "owned":
                 self._state = "canceling"

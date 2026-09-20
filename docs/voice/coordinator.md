@@ -5,6 +5,10 @@ transcription and VM router. It installs nothing and discovers no live backend.
 One foreground caller drives `activate`, `feed`, `poll` and `confirm`.
 `cancel` invalidates ownership before waiting for any in-flight transition;
 dictation cannot acquire the owner until physical cleanup has been proved.
+Cancellation is atomically scoped to the command generation; a late or duplicate
+command cancel cannot invalidate a successor dictation owner. Trusted callback
+cancellation during activation/confirmation preflight is retained, not cleared
+when starting the new turn, and cannot resurrect a canceled preview.
 
 The fourth constructor argument is a **factory** creating a fresh single-use
 `TranscriptionJob` on each turn. Optional `device_factory` and `source` must be

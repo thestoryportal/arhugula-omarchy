@@ -87,8 +87,10 @@ class Coordinator:
 
     def _current(self):
         try:
+            # State suppliers may reenter cancel; check authority AFTER them.
+            current = self._sample() if self._valid else None
             good = (self._valid and not self._cancel_requested.is_set()
-                    and self._sample() == self._snapshot
+                    and current == self._snapshot
                     and not self._snapshot.muted and self._snapshot.mode == 'command'
                     and (self._generation is None or self.owner.accepts(self._generation)))
         except Exception:
@@ -167,7 +169,8 @@ class Coordinator:
         phase = self._phase
         self._valid = False
         self._pending_token = self._confirming = None
-        self.owner.cancel()
+        if self._generation is not None:
+            self.owner.cancel(generation=self._generation)
         clean = self._cleanup()
         self._code = code
         if code != 'journal.unavailable':
@@ -184,48 +187,59 @@ class Coordinator:
         with self._lock:
             if self._busy or self._phase != 'idle':
                 raise BusyError('voice owner is busy or faulted')
-            if confirmation_token is not None and (
-                    confirmation_token != self._pending_token or not self._current()):
-                raise ValueError('no current confirmation')
-            try:
-                snapshot = self._sample()
-                if snapshot.muted or snapshot.mode != 'command':
-                    raise ValueError()
-            except Exception:
-                raise ValueError('trusted voice state unavailable') from None
-            generation = self.owner.begin('command')
             self._busy = True
-            self._generation, self._snapshot = generation, snapshot
-            self._activation_id = self.owner.session_id + ':' + str(generation)
-            if confirmation_token is None:
-                self._correlation_id = str(uuid4())
-                self._pending_token = None
-            self._confirming = confirmation_token
-            self._sequence = 0
-            self._job = self._device = self._device_cleaned = None
-            self._framer = PcmFramer()
-            self._cancel_requested.clear()
-            self._valid = True
-            self._phase, self._code = 'capturing', 'capture.started'
             try:
-                self._deadline = self._clock() + 15.0
-                self._emit('capture.started', 'recording', self._code)
-                self._check()
-                if self.capture.key_equal().status != 'recording':
-                    raise _Stop('capture.device-error')
-                self._check()
-                if self._device_factory is not None:
-                    self._device = self._device_factory()
-                    self._check()
-                    self._device.start(self._source)
-                    self._check()
-            except _Stop as exc:
-                self._fail(str(exc))
-            except Exception:
-                self._fail('capture.device-error')
+                return self._activate(confirmation_token)
             finally:
                 self._busy = False
-            return generation
+
+    def _activate(self, confirmation_token):
+        # Clear a previous turn's cancellation before invoking collaborators,
+        # never erase cancellation delivered by this preflight's callbacks.
+        if confirmation_token is None:
+            self._cancel_requested.clear()
+        if confirmation_token is not None and (
+                confirmation_token != self._pending_token or not self._current()):
+            raise ValueError('no current confirmation')
+        try:
+            snapshot = self._sample()
+            if (snapshot.muted or snapshot.mode != 'command'
+                    or self._cancel_requested.is_set()
+                    or (confirmation_token is not None and (
+                        confirmation_token != self._pending_token or not self._valid
+                        or snapshot != self._snapshot))):
+                raise ValueError()
+        except Exception:
+            raise ValueError('trusted voice state unavailable') from None
+        generation = self.owner.begin('command')
+        self._generation, self._snapshot = generation, snapshot
+        self._activation_id = self.owner.session_id + ':' + str(generation)
+        if confirmation_token is None:
+            self._correlation_id = str(uuid4())
+            self._pending_token = None
+        self._confirming = confirmation_token
+        self._sequence = 0
+        self._job = self._device = self._device_cleaned = None
+        self._framer = PcmFramer()
+        self._valid = True
+        self._phase, self._code = 'capturing', 'capture.started'
+        try:
+            self._deadline = self._clock() + 15.0
+            self._emit('capture.started', 'recording', self._code)
+            self._check()
+            if self.capture.key_equal().status != 'recording':
+                raise _Stop('capture.device-error')
+            self._check()
+            if self._device_factory is not None:
+                self._device = self._device_factory()
+                self._check()
+                self._device.start(self._source)
+                self._check()
+        except _Stop as exc:
+            self._fail(str(exc))
+        except Exception:
+            self._fail('capture.device-error')
+        return generation
 
     def feed(self, generation, frame, *, sequence=None):
         with self._lock:
@@ -355,8 +369,10 @@ class Coordinator:
         return None
 
     def cancel(self):
+        generation = self._generation
         self._cancel_requested.set()
-        self.owner.cancel()  # Invalidate before any journal/transition wait.
+        if generation is not None:
+            self.owner.cancel(generation=generation)  # Before any journal wait.
         with self._lock:
             self._valid = False
             self._pending_token = self._confirming = None
@@ -372,20 +388,26 @@ class Coordinator:
 
     def confirm(self, token, channel, answer):
         with self._lock:
-            if (self._busy or self._phase != 'idle' or token is None
-                    or token != self._pending_token or channel not in {'panel', 'keyboard'}
-                    or type(answer) is not bool or not self._current()):
+            if self._busy:
                 return VoiceReply('blocked', 'confirmation.unavailable')
-            self._generation = self.owner.begin('command')
             self._busy = True
-            self._pending_token = None
             try:
-                reply = self.router.confirm(token, channel, answer)
-                self._code = reply.code
-                self._release(self._cleanup())
-                return reply
-            except Exception:
-                self._fail('context.stale')
-                return VoiceReply('blocked', 'confirmation.unavailable')
+                return self._confirm(token, channel, answer)
             finally:
                 self._busy = False
+
+    def _confirm(self, token, channel, answer):
+        if (self._phase != 'idle' or token is None
+                or token != self._pending_token or channel not in {'panel', 'keyboard'}
+                or type(answer) is not bool or not self._current()):
+            return VoiceReply('blocked', 'confirmation.unavailable')
+        self._generation = self.owner.begin('command')
+        self._pending_token = None
+        try:
+            reply = self.router.confirm(token, channel, answer)
+            self._code = reply.code
+            self._release(self._cleanup())
+            return reply
+        except Exception:
+            self._fail('context.stale')
+            return VoiceReply('blocked', 'confirmation.unavailable')

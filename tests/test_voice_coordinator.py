@@ -56,6 +56,85 @@ class Device:
 
 
 class CoordinatorTests(unittest.TestCase):
+    def test_idle_command_cancel_preserves_dictation_owner(self):
+        coordinator = self.make()
+        coordinator.activate()
+        coordinator.cancel()
+        dictation = self.owner.begin('dictation')
+        coordinator.cancel()
+        self.assertTrue(self.owner.accepts(dictation))
+        self.owner.release(dictation, cleaned=True)
+
+    def test_delayed_command_cancel_cannot_invalidate_racing_dictation_handoff(self):
+        coordinator = self.make()
+        coordinator.activate()
+        entered, resume = threading.Event(), threading.Event()
+        original = self.owner.cancel
+        def delayed_cancel(*, generation=None):
+            if threading.current_thread() is canceling:
+                entered.set()
+                if not resume.wait(2):
+                    raise TimeoutError()
+            return original(generation=generation)
+        self.owner.cancel = delayed_cancel
+        canceling = threading.Thread(target=coordinator.cancel)
+        canceling.start()
+        try:
+            self.assertTrue(entered.wait(2))
+            coordinator.poll()  # Sees cancellation, cleans and releases command.
+            self.assertEqual(coordinator.phase, 'idle')
+            dictation = self.owner.begin('dictation')
+        finally:
+            resume.set()
+            canceling.join(2)
+        self.assertFalse(canceling.is_alive())
+        self.assertTrue(self.owner.accepts(dictation))
+        self.owner.release(dictation, cleaned=True)
+
+    def test_cancel_during_confirmation_preflight_cannot_resurrect_preview(self):
+        for callback_number in (1, 2):
+            with self.subTest(callback_number=callback_number):
+                coordinator = self.make(risk='confirm')
+                generation = coordinator.activate()
+                self.finish_capture(coordinator, generation)
+                preview = self.answer(coordinator)
+                calls = 0
+                def state():
+                    nonlocal calls
+                    calls += 1
+                    if calls == callback_number:
+                        coordinator.cancel()
+                    return self.state
+                coordinator._state_source = state
+                try:
+                    generation = coordinator.activate(confirmation_token=preview.token)
+                except ValueError:
+                    pass
+                else:
+                    self.finish_capture(coordinator, generation)
+                    self.answer(coordinator, b'yes')
+                self.assertEqual(self.calls, [])
+                self.assertEqual(coordinator.phase, 'idle')
+
+    def test_cancel_during_activation_preflight_prevents_capture(self):
+        device = Device()
+        coordinator = self.make(device=device)
+        canceled = False
+        def state():
+            nonlocal canceled
+            if not canceled:
+                canceled = True
+                coordinator.cancel()
+            return self.state
+        coordinator._state_source = state
+        try:
+            coordinator.activate()
+        except ValueError:
+            pass
+        self.assertFalse(device.started)
+        self.assertEqual(coordinator.phase, 'idle')
+        self.assertEqual(self.journal.read(), [])
+
     def make(self, risk='safe', observer=None, device=None):
         self.owner = SessionOwner()
         self.journal = MemoryJournal()
@@ -362,12 +441,19 @@ class CoordinatorTests(unittest.TestCase):
         generation = coordinator.activate()
         self.finish_capture(coordinator, generation)
         self.workers[-1].result = ProcessResult('success', b'show menu', 'process.ok')
+        invalidated = threading.Event()
+        original = self.owner.cancel
+        def cancel_owner(*, generation=None):
+            result = original(generation=generation)
+            invalidated.set()
+            return result
+        self.owner.cancel = cancel_owner
         polling = threading.Thread(target=coordinator.poll)
         polling.start()
         self.assertTrue(entered.wait(2))
         canceling = threading.Thread(target=coordinator.cancel)
         canceling.start()
-        self.assertTrue(coordinator._cancel_requested.wait(2))
+        self.assertTrue(invalidated.wait(2))
         self.assertFalse(self.owner.accepts(generation))
         try:
             with self.assertRaises(BusyError):

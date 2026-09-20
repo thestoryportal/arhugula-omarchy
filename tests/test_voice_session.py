@@ -7,6 +7,28 @@ from runtime.voice.session import BusyError, FaultedError, SessionOwner, StaleOw
 
 
 class OwnerTests(unittest.TestCase):
+    def test_scoped_cancel_never_invalidates_a_successor_owner(self):
+        owner = SessionOwner()
+        old = owner.begin('command')
+        owner.release(old, cleaned=True)
+        current = owner.begin('dictation')
+        owner.cancel(generation=old)
+        self.assertTrue(owner.accepts(current))
+        owner.cancel(generation=current)
+        self.assertFalse(owner.accepts(current))
+        with self.assertRaises(BusyError):
+            owner.begin('command')
+        owner.release(current, cleaned=True)
+        self.assertTrue(owner.accepts(owner.begin('command')))
+
+    def test_invalid_scoped_cancellation_does_not_change_owner(self):
+        owner = SessionOwner()
+        current = owner.begin('command')
+        for invalid in (True, False, 0, -1, '1', 1.0):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                owner.cancel(generation=invalid)
+            self.assertTrue(owner.accepts(current))
+
     def test_cancellation_does_not_release_physical_owner(self):
         owner = SessionOwner()
         generation = owner.begin("command")
