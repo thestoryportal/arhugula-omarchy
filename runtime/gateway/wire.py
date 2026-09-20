@@ -8,7 +8,15 @@ import re
 from types import MappingProxyType
 
 
-_SCHEMA = json.loads(files('schemas').joinpath('gateway-v1.json').read_text())
+def _freeze_schema(value):
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze_schema(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze_schema(item) for item in value)
+    return value
+
+
+_SCHEMA = _freeze_schema(json.loads(files('schemas').joinpath('gateway-v1.json').read_text()))
 # [LAW:one-source-of-truth] Wire shape and bounds derive from the packaged schema.
 LIMITS = MappingProxyType(_SCHEMA['x-limits'])
 
@@ -88,7 +96,8 @@ class RemoteError:
     code: str
 
 
-Reply = LlmOutput | EvaluationOutput | SpeechOutput | RemoteError
+Output = LlmOutput | EvaluationOutput | SpeechOutput
+Reply = Output | RemoteError
 
 
 def _check(value, schema):
@@ -199,6 +208,14 @@ def _text_size(value):
 def _unique(ids):
     if len(set(ids)) != len(ids):
         raise ValueError
+
+
+def catalog_revision(value: int) -> int:
+    try:
+        _check(value, _SCHEMA['$defs']['revision'])
+        return value
+    except (ValueError, TypeError):
+        raise GatewayError('stale_catalog') from None
 
 
 def parse_request(raw: bytes) -> Request:

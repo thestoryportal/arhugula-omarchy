@@ -5,7 +5,7 @@ import re
 from threading import RLock
 
 from runtime.contracts import Provider, decode, encode
-from .wire import GatewayError, LIMITS, Request, parse_request
+from .wire import GatewayError, LIMITS, Request, catalog_revision, parse_request
 
 
 @dataclass(frozen=True)
@@ -67,19 +67,18 @@ class Admitted:
 class Admission:
     def __init__(self, provider: Provider, catalog_version: int, bearer: Bearer):
         self._provider = provider_snapshot(provider, 'host')
-        if type(catalog_version) is not int or not 1 <= catalog_version <= 9007199254740991:
-            raise GatewayError('stale_catalog')
         if type(bearer) is not Bearer:
             raise GatewayError('authentication')
-        self._catalog_version = catalog_version
+        self._catalog_version = catalog_revision(catalog_version)
         self._bearer = bearer
         self._history = ReplayHistory()
 
     def admit(self, authorization: str, raw: bytes) -> Admitted:
         # [LAW:single-enforcer] Authentication precedes parse/provider/replay admission.
         try:
-            supplied = authorization.encode('ascii') if type(authorization) is str else b''
-            accepted = len(supplied) <= 4096 and hmac.compare_digest(supplied, self._bearer.header().encode())
+            supplied = (authorization.encode('ascii')
+                        if type(authorization) is str and len(authorization) <= 263 else b'')
+            accepted = hmac.compare_digest(supplied, self._bearer.header().encode())
         except UnicodeError:
             accepted = False
         if not accepted:

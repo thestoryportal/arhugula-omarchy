@@ -59,6 +59,11 @@ original deadline, only after `unavailable`, `provider_failed`, or an early tran
 cancellation, clock failure, replay, exhausted history and cleanup failure never
 fall back. A degraded success retains primary failure and actual provider/model;
 a failed fallback retains both failures. Full-budget timeout cannot start fallback.
+HTTP 502/503 map to unavailable, 504 to timeout, 401/403 to authentication;
+other non-200 statuses (including redirects) are invalid responses. Their bodies
+are not diagnostic messages. A begin callback returns an owned job or an atomic
+`RemoteError` proving no resource was acquired; an exception lacks that proof and
+latches cleanup failure. Future adapters must honor this distinction.
 // [LAW:no-silent-failure] fallback is an explicit result, not disguised success.
 
 ## Verification and exclusions
@@ -69,7 +74,8 @@ service and catalog mismatch; bounded PCM; peer/redirect denial; timeout, clock
 regression, cancel/late/reentrant/threaded behavior; replay/exhaustion; failed
 fallback and cleanup; and redaction. Negative mutations must be caught by behavioral
 tests. Full ResourceWarning-error suite, Ruff, source/fresh zipapp health and diff
-checks precede the immutable review handoff to Buford.
+checks precede the immutable review handoff to Buford. Local Ruff is unavailable;
+Buford will require actual Ruff CI success on the final PR head before merging.
 // [LAW:behavior-not-structure] check observable outcomes and denied effects.
 
 No live host/network/listener/credentials/model/audio activation, concrete transport,
