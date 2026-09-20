@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "omarchy_commands": [
+    {"id": "omarchy.menu.root", "argv": ["omarchy", "menu", "summon", "root"]}
+  ],
+  "menus": [
+    {"id": "menu.root", "title": "Root menu"}
+  ],
+  "hyprland_bindings": [
+    {"id": "bind.launcher", "keys": "SUPER, SPACE", "action": "menu.root"}
+  ],
+  "custom_bindings": [
+    {"id": "custom.capture", "keys": "SUPER, V", "action": "capture.start"}
+  ],
+  "installed_apps": [
+    {"id": "app.terminal", "desktop_id": "foot.desktop"}
+  ],
+  "state": {"focused_app": "foot", "workspace": "1"}
+}
