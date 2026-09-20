@@ -18,8 +18,25 @@ class ViewTests(unittest.TestCase):
             "cursor": 4, "lane": "lane-1", "action_status": "success",
             "interaction_phase": "voice.preview", "provider_status": "success",
             "active_mode": "command", "muted": False, "health": "healthy",
-            "degraded_capabilities": ["tts"], "pending": False,
+            "degraded_capabilities": ["tts"], "pending": False, "voice_lifecycle": {},
         })
+
+    def test_compact_view_detaches_content_free_voice_lifecycle_only(self):
+        """Would fail if compact voice state leaks content or returns a mutable projection reference."""
+        from runtime.views import compact
+
+        projection = Projection(5, None, None, None, None,
+                                voice_lifecycle={"session-a": {
+                                    "phase": "transcription.finished", "status": "success",
+                                    "code": "transcription.ok",
+                                }})
+        view = compact(projection)
+
+        self.assertEqual(view["voice_lifecycle"], {"session-a": {
+            "phase": "transcription.finished", "status": "success", "code": "transcription.ok",
+        }})
+        view["voice_lifecycle"]["session-a"]["phase"] = "altered"
+        self.assertEqual(projection.voice_lifecycle["session-a"]["phase"], "transcription.finished")
 
     def test_detailed_view_filters_sensitive_diagnostics_by_default(self):
         """Private transcript data must not appear in the normal detail view."""

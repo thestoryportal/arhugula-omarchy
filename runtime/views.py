@@ -24,6 +24,7 @@ def compact(projection):
         "health": projection.health,
         "degraded_capabilities": list(projection.degraded_capabilities),
         "pending": projection.pending,
+        "voice_lifecycle": _detach(projection.voice_lifecycle),
     }
 
 
