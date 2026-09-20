@@ -9,6 +9,7 @@
   "role": "implement",
   "goal": "Land independently reviewed voice P1 units through protected integration; continue other authorized repository work without routine HIL pauses",
   "completed_work": [
+    "VLINT-01 independent review of9a43740..4c760a4: Ready/no findings. Reviewer286 tests/9.606s plus runtime/zipapp/diff pass. Astra accepts narrow test-only disposition; broader voice behavior, combined Ruff CI, GitHub approval and main landing are excluded, not implicitly cleared. Publish reviewed fix and let Terra merge it into PR12 for all-check CI.",
     "PR12 combined-baseline CI exposed four voice-test lint findings (run35516356064): F402 loop variable shadowing mock.patch and three E701 inline with suites. Narrow test-only rename/formatting fix prepared; no production/CI policy changes. Shared desk review and combined Ruff rerun required before treating the lint gate as cleared.",
     "Published clean feat/voice-core-contracts and opened protected-main PR11: https://github.com/thestoryportal/arhugula-omarchy/pull/11. Initial head c6536f8; Python CI started. Expanded workflow awaits PR4 landing; independent GitHub approval/all required checks/post-main CI remain mandatory. No main write or merge performed.",
     "2026-09-20 publication update: Robbo explicitly authorizes clean verified feature pushes and protected PRs while main/diagnostics remain untouched. This supersedes historical merge/push hold for feature publication only; no main write, live authority or protection bypass granted.",
@@ -44,6 +45,7 @@
     "Provided requested Astra/high scoped signoff for Terra evaluation b667e8a..1b84025 after isolated164 tests/7.646s and11 extra denial probes. No source edits or GitHub approval; sent one optional dataclasses.replace ergonomics minor and explicit non-authoritative scope limits."
   ],
   "verification": [
+    "Lead AST comparison confirmed transcription-test AST unchanged and control-test AST identical after normalization of exactly two local loop-variable name nodes. No assertion/input/production change in4c760a4. Combined Ruff result remains pending.",
     "Lint follow-up:23 focused tests in0.395s and full286 in9.451s pass with ResourceWarning errors; runtime, /tmp/arhugula-voice-lint-fix.uFAIbi/control-plane.pyz health and diff check pass. Ruff absent locally; CI failure is RED evidence, not a local lint pass.",
     "Fresh publication preflight at1a5af60:286/286 tests in9.584s with ResourceWarning errors; runtime and /tmp/arhugula-publication-smoke.AGEcEz/control-plane.pyz health pass; diff/status clean. Main protection freshly verified: all three checks and independent approval required; PR4 REVIEW_REQUIRED.",
     "Task7 review disposition: fresh lead full286/286 tests in9.486s with ResourceWarning errors; handoff validated and diff check clean.",
