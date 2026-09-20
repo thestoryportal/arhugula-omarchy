@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-voice-core-b4k.ceb.f5v",
+  "active_ticket": "arhugula-voice-core-b4k.ceb.iz3",
   "parent_epic": "arhugula-voice-core-b4k",
   "branch": "feat/voice-core-contracts",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
-  "model": "gpt-5.6-terra",
-  "effort": "medium",
+  "model": "gpt-6-astra",
+  "effort": "high",
   "role": "implement",
   "goal": "Continue repository-only voice units within approved boundaries",
-  "completed_work": ["Foundation published ec4e9a2", "v1t dictation 1b0fadb closed", "f5v capture 93c6f60 plus reviewed token fix 9245803 closed"],
-  "verification": ["105/105 tests pass", "capture task/scoped review clean", "dictation fake-output and reentrancy regressions pass", "git diff --check passes"],
-  "risks": ["No live capture/transcription/output binding installed", "User authorized ONE menu smoke after offline checks; no configuration/service/audio changes", "Synthetic replay is not real VAD accuracy evidence"],
+  "completed_work": ["Foundation published ec4e9a2", "v1t dictation 1b0fadb closed", "f5v capture 93c6f60/9245803 closed", "iz3 offline routing/confirmation ad686a9 and R1-R3 fixes 8abd0f1 committed; live acceptance pending"],
+  "verification": ["137/137 tests pass in fix wave", "128-test pre-fix clean-clone bootstrap and dry smoke pass", "capture task/scoped review clean", "final security fix scoped review pending", "git diff --check passes"],
+  "risks": ["No live capture/transcription/output binding installed", "ONE approved menu smoke remains unused; final scoped review first", "No configuration/service/audio changes authorized", "Synthetic replay is not real VAD accuracy evidence", "o19 release requires live voice binding outside current authority"],
   "next_ticket": "arhugula-voice-core-b4k.ceb.iz3",
   "stop_reason": null
 }

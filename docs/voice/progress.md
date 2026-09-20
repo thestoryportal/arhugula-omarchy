@@ -29,3 +29,18 @@ RED imports plus context-binding/state-service/inferred-execution regressions.
 Ruling: inferred/fuzzy proposals always preview even at high confidence — lexical
 similarity can misread negation — cost is one extra confirmation, not surprise IO.
 Live smoke is still pending independent review; none has been launched yet.
+
+Whole-branch Astra/high review of ec4e9a2..ad686a9 found R1 shared/reopened
+preview bypass, R2 state freshness after blocking journal operations and before
+speech, and R3 generic context source bypassing voice profile gating. A single
+Astra/high fix wave 8abd0f1 reproduced 13 failing assertions and passed 27 focused
+and 137 full-suite tests. Fixes persist restrictive preview observations, carry
+trusted state guards through dispatch/confirmation, recheck before speech, and
+stamp voice provenance. Final scoped re-review pending; no live action yet.
+
+Review deferrals are explicit: actual mic/VAD/Whisper/TTS, atomic platform output,
+physical-device arbitration, synchronous-transcription interruption and complete
+live speech release are not established by mock/synthetic tests. Network tools
+are not exposed. All remain subject to the original authority boundary. A menu
+smoke establishes the typed executor only; o19 must not claim a live voice release
+without authorized bindings and recorded/live speech acceptance.

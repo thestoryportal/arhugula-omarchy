@@ -39,3 +39,12 @@ The standalone zipapp runs without downloads; choose a new output path when
 building because existing artifacts are never overwritten. Health reports
 simulation mode. No live action adapter, service, microphone or host connection
 is installed or enabled by the foundation.
+
+The [voice adapter contracts](docs/voice/contracts.md),
+[bounded command capture](docs/voice/capture.md), and
+[VM-gated routing/confirmation](docs/voice/routing.md) are tested with injected
+adapters and synthetic replay. `python3 -m ops.voice_smoke` is a dry run by
+default. Its opt-in live mode only opens the root Omarchy menu and requires
+separate approval plus a persistent journal. It does not install live voice
+capture, Whisper, TTS, keybindings or services. Current voice progress and
+remaining acceptance boundaries are in the [voice handoff](docs/voice/handoff.json).
