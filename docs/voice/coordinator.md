@@ -16,6 +16,10 @@ provided together. No default source/provider or typing/clipboard collaborator
 exists. Bind a router exclusively: the coordinator wraps its trusted state
 supplier and correlation generator for its lifetime.
 
+Optional `speech=` supplies the repository speech seam. Before command admission,
+the coordinator calls cancel and requires proven cleanup; failure prevents device
+startup. No provider is inferred. See `panel-speech.md` for trusted backend limits.
+
 `activate()` returns a generation. `feed(generation, frame, sequence=N)` accepts
 one 640-byte frame, rejects sequence gaps and ignores already consumed sequence
 numbers. Unnumbered feed is for a trusted local caller; repeated PCM content is

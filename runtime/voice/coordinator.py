@@ -35,7 +35,7 @@ class Coordinator:
     """
 
     def __init__(self, owner, capture, router, transcriber, observe, *,
-                 device_factory=None, source=None, vad=None, clock=None):
+                 device_factory=None, source=None, vad=None, clock=None, speech=None):
         if not callable(transcriber) or not callable(observe):
             raise ValueError('explicit job factory and observer required')
         if (device_factory is None) != (source is None) or (
@@ -44,6 +44,7 @@ class Coordinator:
         self.owner, self.capture, self.router = owner, capture, router
         self._factory, self._observe = transcriber, observe
         self._device_factory, self._source = device_factory, source
+        self._speech = speech
         self._vad = vad or EnergyVad(0.02)  # Synthetic candidate, not calibrated.
         self._clock = clock or time.monotonic
         self._state_source = router.state
@@ -198,6 +199,14 @@ class Coordinator:
         # never erase cancellation delivered by this preflight's callbacks.
         if confirmation_token is None:
             self._cancel_requested.clear()
+        if self._speech is not None:
+            try:
+                self._speech.cancel()
+                clean = self._speech.cleanup_proven is True
+            except Exception:
+                clean = False
+            if not clean:
+                raise BusyError('speech cleanup unproven')
         if confirmation_token is not None and (
                 confirmation_token != self._pending_token or not self._current()):
             raise ValueError('no current confirmation')

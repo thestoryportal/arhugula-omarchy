@@ -13,6 +13,8 @@ from runtime.voice.process import ProcessResult
 from runtime.voice.router import Action, VoiceRouter, VoiceState
 from runtime.voice.session import BusyError, FaultedError, SessionOwner
 from runtime.voice.transcription import TranscriptResult, TranscriptionJob
+from runtime.voice.speech import SpeechQueue
+from test_voice_speech import AudioBackend
 
 
 def record(kind, **patch):
@@ -56,6 +58,44 @@ class Device:
 
 
 class CoordinatorTests(unittest.TestCase):
+    def test_activation_stops_speech_before_capture_device_starts(self):
+        backend, device = AudioBackend(), Device()
+        speech = SpeechQueue(backend, lambda: self.state)
+        coordinator = self.make(device=device, speech=speech)
+        speech.say('Please repeat the command.', 'external-turn')
+        start = device.start
+        def start_after_cleanup(source):
+            self.assertTrue(speech.cleanup_proven)
+            self.assertIsNone(backend.pending)
+            start(source)
+        device.start = start_after_cleanup
+        coordinator.activate()
+        self.assertTrue(device.started)
+        coordinator.cancel()
+
+    def test_failed_speech_cleanup_blocks_capture_without_acquiring_owner(self):
+        backend, device = AudioBackend(), Device()
+        speech = SpeechQueue(backend, lambda: self.state)
+        coordinator = self.make(device=device, speech=speech)
+        speech.say('Please repeat the command.', 'external-turn')
+        backend.clean = False
+        with self.assertRaises(BusyError):
+            coordinator.activate()
+        self.assertFalse(device.started)
+        self.assertEqual(coordinator.phase, 'idle')
+        self.assertFalse(speech.cleanup_proven)
+
+    def test_cancel_during_speech_preflight_is_not_erased(self):
+        backend, device = AudioBackend(), Device()
+        speech = SpeechQueue(backend, lambda: self.state)
+        coordinator = self.make(device=device, speech=speech)
+        speech.say('Please repeat the command.', 'external-turn')
+        backend.on_cancel = coordinator.cancel
+        with self.assertRaises(ValueError):
+            coordinator.activate()
+        self.assertFalse(device.started)
+        self.assertEqual(coordinator.phase, 'idle')
+
     def test_idle_command_cancel_preserves_dictation_owner(self):
         coordinator = self.make()
         coordinator.activate()
@@ -135,7 +175,7 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(coordinator.phase, 'idle')
         self.assertEqual(self.journal.read(), [])
 
-    def make(self, risk='safe', observer=None, device=None):
+    def make(self, risk='safe', observer=None, device=None, speech=None):
         self.owner = SessionOwner()
         self.journal = MemoryJournal()
         self.calls, self.spoken, self.workers = [], [], []
@@ -155,7 +195,7 @@ class CoordinatorTests(unittest.TestCase):
                            observer or self.journal.append,
                            device_factory=(lambda: device) if device else None,
                            source='approved-test-source' if device else None,
-                           clock=lambda: self.now)
+                           clock=lambda: self.now, speech=speech)
 
     def finish_capture(self, coordinator, generation):
         coordinator.feed(generation, Frame(b'\x00\x10' * 320, True), sequence=0)
