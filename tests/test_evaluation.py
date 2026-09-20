@@ -7,9 +7,9 @@ class EvaluationTests(unittest.TestCase):
         from runtime.evaluation import ReplayRun, promotion
 
         active = ReplayRun("active-v1", "synthetic", "bundle-1", True, True, True,
-                           {"case-1": "pass", "case-2": "pass"})
+                           {"case-1": "pass", "case-2": "pass"}, True)
         candidate = ReplayRun("candidate-v2", "synthetic", "bundle-1", True, True, True,
-                              {"case-1": "pass", "case-2": "pass"})
+                              {"case-1": "pass", "case-2": "pass"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=("approved",), rollback_ready=True), {
             "decision": "promote", "regressions": (), "reasons": (),
@@ -20,9 +20,9 @@ class EvaluationTests(unittest.TestCase):
         from runtime.evaluation import ReplayRun, promotion
 
         active = ReplayRun("active-v1", "recorded", "bundle-2", True, True, True,
-                           {"case-1": "pass", "case-2": "pass"})
+                           {"case-1": "pass", "case-2": "pass"}, True)
         candidate = ReplayRun("candidate-v2", "recorded", "bundle-2", True, True, False,
-                              {"case-1": "pass", "case-2": "fail"})
+                              {"case-1": "pass", "case-2": "fail"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=("approved",), rollback_ready=True), {
             "decision": "hold", "regressions": ("case-2",),
@@ -33,8 +33,8 @@ class EvaluationTests(unittest.TestCase):
         """Live provenance does not grant promotion authority by itself."""
         from runtime.evaluation import ReplayRun, promotion
 
-        active = ReplayRun("active-v1", "live", "bundle-3", True, True, True, {"case-1": "pass"})
-        candidate = ReplayRun("candidate-v2", "live", "bundle-3", True, True, True, {"case-1": "pass"})
+        active = ReplayRun("active-v1", "live", "bundle-3", True, True, True, {"case-1": "pass"}, True)
+        candidate = ReplayRun("candidate-v2", "live", "bundle-3", True, True, True, {"case-1": "pass"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=(), rollback_ready=True)["decision"], "hold")
 
@@ -42,8 +42,8 @@ class EvaluationTests(unittest.TestCase):
         """Promotion compares like-for-like replay evidence, never a substituted baseline."""
         from runtime.evaluation import ReplayRun, promotion
 
-        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True, {"case-1": "pass"})
-        candidate = ReplayRun("candidate-v2", "synthetic", "bundle-b", True, True, True, {"case-1": "pass"})
+        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True, {"case-1": "pass"}, True)
+        candidate = ReplayRun("candidate-v2", "synthetic", "bundle-b", True, True, True, {"case-1": "pass"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=("approved",), rollback_ready=True), {
             "decision": "hold", "regressions": (), "reasons": ("replay-bundle-mismatch",),
@@ -53,9 +53,9 @@ class EvaluationTests(unittest.TestCase):
         """A new failed case and a changed replay source both invalidate comparison evidence."""
         from runtime.evaluation import ReplayRun, promotion
 
-        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True, {"case-1": "pass"})
+        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True, {"case-1": "pass"}, True)
         candidate = ReplayRun("candidate-v2", "recorded", "bundle-a", True, True, True,
-                              {"case-1": "pass", "case-2": "fail"})
+                              {"case-1": "pass", "case-2": "fail"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=("approved",), rollback_ready=True), {
             "decision": "hold", "regressions": (),
@@ -67,9 +67,9 @@ class EvaluationTests(unittest.TestCase):
         from runtime.evaluation import ReplayRun
 
         with self.assertRaisesRegex(ValueError, "outcomes"):
-            ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True, {"case-1": "unknown"})
+            ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True, {"case-1": "unknown"}, True)
         outcomes = {"case-1": "pass"}
-        run = ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True, outcomes)
+        run = ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True, outcomes, True)
         outcomes["case-1"] = "fail"
         self.assertEqual(run.outcomes, {"case-1": "pass"})
 
@@ -78,9 +78,9 @@ class EvaluationTests(unittest.TestCase):
         from runtime.evaluation import ReplayRun, promotion
 
         active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True,
-                           {"case-1": "pass", "case-2": "pass"})
+                           {"case-1": "pass", "case-2": "pass"}, True)
         candidate = ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True,
-                              {"case-1": "pass"})
+                              {"case-1": "pass"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=("approved",), rollback_ready=True), {
             "decision": "hold", "regressions": ("case-2",),
@@ -92,9 +92,9 @@ class EvaluationTests(unittest.TestCase):
         from runtime.evaluation import ReplayRun, promotion
 
         active = ReplayRun("active-v1", "synthetic", "bundle-a", False, False, False,
-                           {"case-1": "pass"})
+                           {"case-1": "pass"}, True)
         candidate = ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True,
-                              {"case-1": "pass"})
+                              {"case-1": "pass"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=("approved",), rollback_ready=True), {
             "decision": "hold", "regressions": (),
@@ -106,14 +106,38 @@ class EvaluationTests(unittest.TestCase):
         """Manual rejection wins over approval and rollback readiness is mandatory."""
         from runtime.evaluation import ReplayRun, promotion
 
-        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True, {"case-1": "pass"})
+        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True, {"case-1": "pass"}, True)
         candidate = ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True,
-                              {"case-1": "pass"})
+                              {"case-1": "pass"}, True)
 
         self.assertEqual(promotion(active, candidate, labels=("approved", "rejected"), rollback_ready=False), {
             "decision": "hold", "regressions": (),
             "reasons": ("rollback-readiness-required", "manual-rejection"),
         })
+
+    def test_promotion_requires_exact_labels_boolean_rollback_and_evaluator_consensus(self):
+        """Substring labels, truthy rollback values, and evaluator disagreement cannot promote."""
+        from runtime.evaluation import ReplayRun, promotion
+
+        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True,
+                           {"case-1": "pass"}, True)
+        candidate = ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True,
+                              {"case-1": "pass"}, False)
+        with self.assertRaisesRegex(ValueError, "labels"):
+            promotion(active, candidate, labels="preapproved", rollback_ready=True)
+        with self.assertRaisesRegex(ValueError, "rollback"):
+            promotion(active, candidate, labels=("approved",), rollback_ready=1)
+        self.assertEqual(promotion(active, candidate, labels=("approved",), rollback_ready=True)["reasons"],
+                         ("independent-evaluator-disagreement",))
+
+    def test_replay_run_requires_nonempty_typed_provenance_and_cases(self):
+        """An empty bundle or result set is not promotable evaluation evidence."""
+        from runtime.evaluation import ReplayRun
+
+        with self.assertRaisesRegex(ValueError, "bundle"):
+            ReplayRun("candidate-v2", "synthetic", "", True, True, True, {"case-1": "pass"}, True)
+        with self.assertRaisesRegex(ValueError, "outcomes"):
+            ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True, {}, True)
 
 
 if __name__ == "__main__":
