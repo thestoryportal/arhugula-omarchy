@@ -49,7 +49,8 @@ delivery. Polling, timeout, cancellation, callback re-entry and late replies can
 start a second attempt or resurrect a result. Injected `begin`, `poll`, `cancel`
 and clock callbacks must be bounded; the client does not preempt arbitrary Python
 code. Cleanup returns an exact boolean proof. Missing/failed cleanup latches the
-client closed. Backward/non-integer clock readings also latch closed. Caller polling
+client closed; a provider's explicit cleanup failure cannot be overridden by
+transport cleanup. Backward/non-integer clock readings also latch closed. Caller polling
 drives timeout observation; there is no background thread or scheduler.
 // [LAW:no-ambient-temporal-coupling] lifecycle ordering belongs to the client.
 

@@ -266,6 +266,9 @@ class GatewayClient:
     def _finish(self, value):
         call = self._active
         clean = self._retire(call)
+        # Transport cleanup cannot overrule a provider's explicit cleanup failure.
+        clean = clean and not (type(value) is Failure and value.code == 'cleanup')
+        self._unclean = not clean
         interrupted = self._interruption(call)
         if interrupted:
             value = self._failure(call, interrupted)

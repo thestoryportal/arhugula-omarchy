@@ -309,6 +309,16 @@ class GatewayClientTests(unittest.TestCase):
             with self.assertRaises(GatewayError):
                 self.client.start(replace(self.request, request_id='second'))
 
+    def test_remote_cleanup_failure_cannot_be_overridden_by_transport_cleanup(self):
+        self.host_error('cleanup')
+        self.client.start(self.request)
+        result = self.client.poll()
+        self.assertEqual(result.failures[-1].code, 'cleanup')
+        self.assertFalse(self.client.cleanup_proven)
+        with self.assertRaises(GatewayError):
+            self.client.start(replace(self.request, request_id='second'))
+        self.assertEqual(self.local_calls, [])
+
     def test_begin_exception_cannot_claim_cleanup_or_leak_diagnostics(self):
         def fail():
             raise RuntimeError('private token ' + self.bearer.value)
