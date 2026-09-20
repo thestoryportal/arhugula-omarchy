@@ -70,3 +70,20 @@ resolve the durable stop explicitly; do not start a model session automatically.
 Retain all worktrees and the private smoke journal for recovery. The complete
 machine-readable continuation context is docs/voice/handoff.json. Publishing
 these verified repository commits is not a claim of a usable live voice release.
+
+hq3 planning authorization: user approved a repository-only integration plan and
+permission checklist, not runtime implementation or deployment. Read-only local
+inventory found an existing legacy KP_EQUAL -> seven-second shell trigger ->
+Voxtype command daemon -> direct menu hook path outside this repository. Thus
+"no installed repository binding" does not mean "no legacy voice configuration".
+No legacy script was executed; no daemon health or clipboard-isolation claim is
+made from configuration presence. Home/End use the separate default Voxtype path.
+
+Proposed foreground-first integration and seven-task plan now distinguish P0
+(authorized planning) from P1 (repository implementation), P2 (consented replay),
+P3 (isolated microphone and explicit capture-owner quiescence), P4 (provider and
+playback), P5 (new one-menu budget), P6 (scoped bindings), P7 (optional user service)
+and P8 (actual confirmation/dictation/rollback acceptance). No TTS executable was
+found on the inspected PATH; provider choice remains explicit. New design/plan
+are PROPOSED, not approved. Keep z5x and parent HIL-required; do not resolve the
+worker stop based on permission to write documents.
