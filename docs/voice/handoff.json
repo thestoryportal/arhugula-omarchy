@@ -18,7 +18,9 @@
     "Reviewed thread/selector startup cleanup regressions; four failure subcases RED then GREEN; no live IO",
     "User granted P2 isolated testing scope; recorded authorization without claiming missing fixture consent or P3-P8 approval",
     "User approved three attended microphone clips of at most 10 seconds, prompt/ready coordination, temporary local storage and deletion afterward; zero clips captured",
-    "User confirmed temporary stop/restart of both legacy Voxtype services and current default host-input source; pab manually claimed under explicit attended approval"
+    "User confirmed temporary stop/restart of both legacy Voxtype services and current default host-input source; pab manually claimed under explicit attended approval",
+    "Clip 1: 9.728 seconds captured from approved source under 10-second deadline; owned capture stopped; both approved services restarted and configuration hashes unchanged",
+    "Clip 1 isolated transcription finished and temporary WAV deleted under original cleanup consent; subsequent playback request cannot be fulfilled from deleted file"
   ],
   "verification": [
     "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
@@ -32,7 +34,10 @@
     "User-level bwrap isolation probe and Voxtype --help succeeded outside tool sandbox; no root, host configuration change, inference or recording",
     "Read-only live inventory: voxtype-commands.service active/running, voxtype.service activating/auto-restart; default source omarchy_host_input_672e782964f78070",
     "Isolated environment assertions passed: no host home/runtime/config, no sound/input/GPU devices, no external IP route, cleared environment",
-    "Synthetic 0.5-second silence transcribed inside bubblewrap: process.ok/success, stdout 115 bytes, 2.143 seconds, cleanup success. No speech-accuracy or silence-rejection claim"
+    "Synthetic 0.5-second silence transcribed inside bubblewrap: process.ok/success, stdout 115 bytes, 2.143 seconds, cleanup success. No speech-accuracy or silence-rejection claim",
+    "Clip 1: 311296 PCM bytes, peak 0.6269, RMS 0.0427; process.timeout was expected hard wall bound, cleanup proven",
+    "Clip 1 isolated ASR: process.ok/success in 2.0s, stdout 132 bytes/5 lines; prompted sentence not present and no exact line match; no speech acceptance claim",
+    "Clip 1 WAV deletion confirmed; no transcript/audio persisted in Git/LIT. Post-restart sample showed both services active/running; no repair or sustained-health claim"
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
@@ -46,15 +51,17 @@
     "Task 3 P2 and Tasks 4-7 remain incomplete; no actual live voice release",
     "LIT automatic remote sync is failing; changes remain local. Merge/push deferred while main diagnostics remain",
     "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate",
-    "First real clip still awaits user Ready; do not pause services until imminent capture. Default dictation already auto-restarts; restore prior start intent, do not repair."
+    "First clip failed expected-phrase comparison; root cause not established. Two capture slots remain; next recording requires explicit Ready",
+    "Playback was requested after clip 1 had been deleted; cannot replay/reconstruct it. Retain next consented clip until playback/review finishes"
   ],
   "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
-  "stop_reason": "attended-ready: permission and source confirmed; await user Ready for clip 1, then recheck idle/source, briefly stop only approved services, record <=10 seconds, prove capture cleanup and restore services. No real clips consumed yet.",
+  "stop_reason": "attended-ready: clip 1 captured/transcribed/deleted under prior cleanup consent; ASR prompt mismatch, not an acceptance pass. User requested playback after cleanup completed. Await Ready for clip 2 with same neutral phrase; retain next clip through playback/review, then delete. No automatic recording.",
   "worker_stop": true,
   "capture_budget": {
     "clips_authorized": 3,
     "max_seconds_per_clip": 10,
-    "clips_consumed": 0,
+    "clips_consumed": 1,
+    "clip_1_stage": "captured, ASR mismatch, deleted; playback unavailable",
     "ready_required": true,
     "source_confirmed": true,
     "temporary_storage": true,
@@ -77,6 +84,20 @@
       "/home/robbo/.config/systemd/user/voxtype-commands.service": "b623ad261415510353d6e8085735aa671518409da423db61b38f67b9800e1f26",
       "/home/robbo/.config/voxtype/config.toml": "d29efa6d8ac05b5206d16e5aea09fb38d2bf4c086a512d5dae620b80fb8be11d",
       "/home/robbo/.config/voxtype/commands.toml": "a6edc3a4bee808e765319a9500181fc8d991db77f35c8aec9a9560eb624fc7f8"
-    }
+    },
+    "clip_1": {
+      "seconds": 9.728,
+      "pcm_bytes": 311296,
+      "capture_code": "process.timeout",
+      "capture_cleanup_proven": true,
+      "asr_code": "process.ok",
+      "expected_phrase_present": false,
+      "deleted": true,
+      "playback_performed": false
+    },
+    "next_clip": 2,
+    "next_prompt": "The blue notebook is beside the window.",
+    "playback_review_requested": true,
+    "services_restored": true
   }
 }

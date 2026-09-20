@@ -181,3 +181,22 @@ not real ASR accuracy, silence rejection or full backend-adapter compatibility.
 Private session directory /tmp/arhugula-voice-p2.SMIIotwE contains only dedicated
 config and generated silence. No raw user audio/transcript enters Git or LIT.
 First neutral prompt: The blue notebook is beside the window.
+
+Clip 1 after explicit Ready: original configuration hashes and command-daemon
+idle state checked; approved source present; only the two approved services
+stopped. Capture emitted 311296 PCM bytes (9.728s), ending at the 10s wall
+deadline (process.timeout). Cleanup was proven. Both services were restarted
+and sampled active/running; config hashes unchanged. This does not repair or
+establish sustained health of the pre-existing retrying dictation service.
+Private WAV geometry 16 kHz mono s16 verified; peak 0.6269, RMS 0.0427.
+Isolated transcription succeeded in 2.0s (132 stdout bytes, five lines), but
+the expected neutral phrase was absent. This is NOT an ASR acceptance pass.
+Only sanitized comparison/geometry evidence retained, not raw audio/transcript.
+
+The originally approved automatic cleanup deleted clip-1.wav after this test.
+User subsequently requested playback; by the time the request could be acted
+on, deletion was confirmed and neither audio nor transcript was recoverable
+from project artifacts. No playback occurred. Proposed next attended slot is
+clip 2 with the same neutral sentence; retain it through playback/review before
+deletion. Wait for Ready; do not start another microphone recording implicitly.
+One of three capture slots consumed; ticket remains in progress, not complete.
