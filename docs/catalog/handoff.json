@@ -1,14 +1,16 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-catalog-gateway-yll.298.din",
+  "active_ticket": "arhugula-catalog-gateway-yll.298.1td",
   "parent_epic": "arhugula-catalog-gateway-yll",
   "branch": "feat/catalog-refresh",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/catalog-refresh",
   "model": "gpt-6-astra",
   "effort": "high",
   "role": "implement",
-  "goal": "Continue repository catalog work with independent review and honest protected-integration closure",
+  "goal": "Publish reviewed catalog units through authorized protected PRs and verify main/post-main CI before final LIT closure",
   "completed_work": [
+    "Execution-catalog replacement .1td eaddca7: trusted monotonic typed catalog CAS, preview invalidation, preserved policy/history and reentrant/threaded protection. ER-01 independent review Ready/no findings; lead accepts scoped result. docs/catalog/execution-review.md records exclusions.",
+    "Combined private-clone rehearsal with Terra lifecycle497d97c and coreeaddca7 passed347 tests; source branches/main untouched. VL-01 independent clearance plus Astra scoped projection/view inspection accepted; Terra notified.",
     "Design/plan ac8c7ba; offline inventory registry56a5511 with deterministic immutable versioned candidates, explicit trusted first-use review and strict stale/candidate rejection.",
     "CR-01 shared independent Terra review Ready/no findings; Astra accepts scoped result and records exclusions in docs/catalog/review.md.",
     "Offline private-clone integration rehearsal of CI91e9579, voice1a5af60, closuree315a9c, catalog56a5511 merged cleanly; no source refs/main/publication changed.",
@@ -16,6 +18,8 @@
     "Filed/ranked .298.1td trusted atomic execution-catalog replacement before host gateway as the next repository integration slice."
   ],
   "verification": [
+    "Replacement unit:12 focused RED then GREEN; full173/173 in10.503s, runtime/fresh zipapp and diff clean. Independent reviewer173/173 in7.666s with runtime/package health.",
+    "Final private combined rehearsal36a8fbee7fb77fae60573faed4c5bc288b952114:347/347 tests in10.091s, runtime and /tmp/arhugula-final-rehearsal.d91mCy/control-plane.pyz health; diff/status clean.",
     "Baseline145/145 in7.171s;16 catalog tests missing-module RED then GREEN; full161/161 in7.188s with ResourceWarning errors; runtime/fresh zipapp health and diff check pass.",
     "Independent reviewer:161/161 in7.237s, runtime/zipapp health and diff check pass.",
     "Private combined rehearsal:332/332 in9.484s; runtime and /tmp/arhugula-rehearsal-package.2skMKu/control-plane.pyz health pass; diff/status clean. Inputs and private merge SHA in review.md."
@@ -23,14 +27,14 @@
   "risks": [
     "Catalog data/review markers do not authorize execution; no live discovery, network or provider access.",
     "Registry is memory-only; restart resets revision. No persistent epoch or in-flight resume guarantee.",
-    "Existing ControlPlane instances retain constructor snapshots; trusted atomic replacement is next unit .1td, not implemented by .din.",
+    "ControlPlane replacement now exists for one trusted owner; registry review does not automatically map inventory to typed executors. Cross-owner cutover, durable epochs/review and live collectors remain release work.",
     "All locally verified units await protected main landing and successful post-main CI; do not lit done from local or stacked evidence.",
     "Main still has foreign diagnostics; no code merge/push under existing hold. Do not stage/delete/overwrite diagnostics.",
     "LIT automatic sync in sandbox can fail; explicit existing-remote sync is authorized, recheck doctor.",
     "Terra owns projections/views/evaluation/CI and closure docs; Astra owns catalog/core and voice. Shared reviewer is read-only01a0bea6.",
     "Older automatic runner closes at local commit; do not invoke it against live tickets with current governance. Manual continuous loop retains explicit claims/evidence/commits/handoff."
   ],
-  "next_ticket": "arhugula-catalog-gateway-yll.298.1td",
-  "stop_reason": null,
-  "worker_stop": false
+  "next_ticket": "arhugula-catalog-gateway-yll.298.ejy",
+  "stop_reason": "publication-scope: awaiting operator clarification for clean feature-branch pushes/PRs while main diagnostics remain; protected main GitHub approval/post-main CI also pending. No code publication or live host scope inferred.",
+  "worker_stop": true
 }
