@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-orchestration-3hx.46x.mgt",
+  "active_ticket": "arhugula-orchestration-3hx.46x.yvy",
   "parent_epic": "arhugula-orchestration-3hx",
   "branch": "feat/orchestration-bootstrap",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/orchestration",
@@ -8,9 +8,9 @@
   "effort": "high",
   "role": "implement",
   "goal": "Complete autonomous orchestration prerequisite before foundation",
-  "completed_work": ["cqh routing policy; ac9c6ef", "6x0 durable handoff and Codex launch plans; 04a24a4", "jl9 bounded supervisor; 9bf0790", "mgt full backlog routing and Terra independent review; 246cf9c"],
-  "verification": ["python3 -W error::ResourceWarning -m unittest discover -s tests -v: 39/39 pass", "git diff --check: pass", "35 open leaves: 27 Astra, 8 Terra, zero ambiguous/conflicting routing", "37 LIT metadata patches; repeat preview: zero patches"],
+  "completed_work": ["cqh routing policy; ac9c6ef", "6x0 durable handoff and Codex launch plans; 04a24a4", "jl9 bounded supervisor; 9bf0790", "mgt full backlog routing and Terra independent review; 246cf9c", "yvy real LIT/Git isolated continuation and fresh-process resume"],
+  "verification": ["python3 -W error::ResourceWarning -m unittest discover -s tests -q: 41/41 pass", "git diff --check: pass", "Real LIT two-ticket completion, two commits, fresh supervisor resume, Astra/high to Terra/medium, clean worktree", "HIL and foreign-worktree integration stops pass"],
   "risks": ["LIT automatic remote sync failed; local changes retained", "Non-bootstrap leaves still require autonomous-scope review; no safety labels invented", "Legacy bare bounded labels require canonical capability: prefix"],
-  "next_ticket": "arhugula-orchestration-3hx.46x.yvy",
+  "next_ticket": "arhugula-orchestration-3hx.8i8",
   "stop_reason": null
 }
