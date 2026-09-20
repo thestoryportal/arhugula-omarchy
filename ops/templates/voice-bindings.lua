@@ -1,0 +1,15 @@
+-- P1 INERT REVIEW TEMPLATE: every prospective binding is commented out.
+-- Do not load/uncomment until owned wrappers, exact diff and live gates pass.
+-- HOME currently forwards voxtype record start; END forwards record stop.
+-- KP_EQUAL currently uses ~/.local/bin/omarchy-voice-command-trigger.
+-- Retain those files; replace only these three entries in bindings.lua.
+-- HOME wrapper: cancel command -> prove cleanup -> existing dictation start.
+-- END wrapper: require dictation owner -> existing dictation stop.
+-- KP_EQUAL wrapper: one owned command activation; no automatic action retry.
+
+-- hl.unbind("HOME")
+-- o.bind("HOME", "Owned dictation start", "/home/robbo/.local/bin/arhugula-voice-home")
+-- hl.unbind("END")
+-- o.bind("END", "Owned dictation stop", "/home/robbo/.local/bin/arhugula-voice-end")
+-- hl.unbind("KP_EQUAL")
+-- o.bind("KP_EQUAL", "Owned voice command", "/home/robbo/.local/bin/arhugula-voice-command")

@@ -1,8 +1,8 @@
 """Read-only rebuildable current-state views of the event journal."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from .contracts import Event, Interaction
+from .contracts import Event, Interaction, VoiceObservation
 
 
 @dataclass(frozen=True)
@@ -17,12 +17,14 @@ class Projection:
     health: str | None = None
     degraded_capabilities: tuple[str, ...] = ()
     pending: bool = False
+    voice_lifecycle: MappingProxyType = field(default_factory=lambda: MappingProxyType({}))
 
 
 def rebuild(journal):
     """Replay a journal into latest action and interaction state without IO."""
     cursor, action, interaction, lane, provider = 0, None, None, None, None
     active_mode, muted, health, degraded_capabilities, pending = None, None, None, (), False
+    voice_lifecycle = {}
     for cursor, item in journal.read():
         if isinstance(item, Event):
             action = MappingProxyType({"status": item.status, "event_type": item.event_type})
@@ -42,8 +44,12 @@ def rebuild(journal):
                 active_mode = item.details["mode"]
             if isinstance(item.details.get("muted"), bool):
                 muted = item.details["muted"]
+        elif isinstance(item, VoiceObservation):
+            voice_lifecycle[item.session_id] = MappingProxyType({
+                "phase": item.phase, "status": item.status, "code": item.code,
+            })
     return Projection(cursor, action, interaction, lane, provider, active_mode, muted,
-                      health, degraded_capabilities, pending)
+                      health, degraded_capabilities, pending, MappingProxyType(voice_lifecycle))
 
 
 def is_stale(projection, journal):

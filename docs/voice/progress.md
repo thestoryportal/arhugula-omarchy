@@ -87,3 +87,279 @@ and P8 (actual confirmation/dictation/rollback acceptance). No TTS executable wa
 found on the inspected PATH; provider choice remains explicit. New design/plan
 are PROPOSED, not approved. Keep z5x and parent HIL-required; do not resolve the
 worker stop based on permission to write documents.
+
+P1 continuation authorized subsequently: user released conflicting LIT work and
+explicitly approved repository-only work in the clean voice-core worktree while
+leaving foreign main diagnostics untouched; merge/push remain deferred.
+Task 1 .z5x.kpp CLOSED, commit 3676cb3: cancellation invalidates logical work but
+retains physical cleanup ownership; failed cleanup latches unavailable. Eleven
+focused tests and 148 full-suite tests pass. No external resources are opened.
+Ruling: SessionOwner is a process-local admission contract, not an OS device
+lease — downstream coordinator must prove cleanup/exclusive IO ownership.
+Task 2 inline routing explicitly promoted to Astra/high for the new device-byte
+admission contract; cost is higher model usage, no change to P1 authority.
+
+Task 2 .z5x.hjr CLOSED in 5e6d60e: bounded immutable PCM framing and uncalibrated
+RMS-energy candidate. Eleven focused tests and 159 full-suite tests pass; replay
+proves synthetic silence/adaptive/max/cancel paths only. Ruling: invalid or partial
+PCM terminates its parser instead of permitting resynchronization — prevents
+ambiguous dropped samples; cost is a new parser/activation after stream failure.
+Next .z5x.7om covers only Task 3 repository seams. P2 backend characterization and
+consented recordings remain a separate human gate before live integration.
+
+Task 3 P1 .z5x.7om implementation committed in 10b922c: bounded trusted-worker
+process supervision, explicitly injected capture/transcription seams and a
+synthetic-only replay CLI. Pre-review verification: 78 focused voice tests and
+192 full-suite tests pass with ResourceWarning as error; five replay cases pass.
+Independent Astra/high review is pending; this is not ticket completion or live
+backend proof. LIT doctor reports integrity ok; LIT sync remains local/pending.
+Ruling: split Task 3 at its explicit P2 STOP — costs an additional handoff, keeps
+unconsented recordings and installed-backend activation outside P1.
+Ruling: require explicit factories; WAV-stdin is an injected protocol, not a
+Voxtype FILE compatibility claim — costs backend bridge/characterization work.
+Ruling: preserve cancel()'s planned None return and expose cleanup_proven — costs
+one extra coordinator check before ownership can be released.
+
+P1 boundary review completed: Astra/high independently reviewed 3dcceed..10b922c
+and passed 78 voice tests. Two Important findings concerned startup/initialization
+exceptions bypassing owned child cleanup. Four regression subcases failed first;
+one fix pass 7604a08 passed 17 process tests and 194 full-suite tests. Fresh
+post-commit full suite passed 194/194 in 8.538s; replay 5/5, explicitly synthetic.
+No Critical findings or deferred Minors. See p1-review.md for exact findings,
+verification and six explicit rulings on capabilities outside this P1 scope.
+.z5x.7om CLOSED; Task 3 as a whole remains partial because P2 is unresolved.
+
+STOP: .z5x.pab is hil-required. Obtain exact consented recording paths and scope
+for isolated local transcription characterization before any real inference.
+P3-P8 remain separate; no new menu approval or live configuration permission.
+lit next suggests .csj circle-back, but the open HIL integration/acceptance gate
+prevents claiming voice release. Parent .ceb/.z5x and release remain open.
+Main still has foreign untracked diagnostics. Keep branch/worktree/scratch;
+do not merge or push. LIT local records are intact but remote sync is failing.
+docs/voice/handoff.json contains the stopped Memento-compatible continuation.
+
+Subsequent user response "Permissions granted" authorizes the requested P2
+isolated local transcription scope, not P3-P8. Exact consented WAV paths are
+still missing and have been requested; do not search personal audio directories.
+Read-only inventory confirms installed bwrap and the existing Voxtype/model
+paths. A five-second bounded bwrap /usr/bin/true probe with private namespaces,
+cleared environment, no host home/run mounts and no capabilities failed before
+the payload: "loopback: Failed to create NETLINK_ROUTE socket: Operation not
+permitted". This is evidence about this tool sandbox, not proof that isolation
+is impossible on the machine. No provider was invoked and no recording read.
+Keep .z5x.pab OPEN/hil-required until fixtures and a usable isolation mechanism
+are established. No privileged escalation, system change or download attempted.
+
+Subsequent attended-capture approval: up to three 10-second clips, explicit
+prompt/ready timing, private temporary local storage and deletion of only those
+clips after testing. Zero clips consumed. No general live P3-P8 approval.
+The approved execution-tool escalation (not root) allowed bwrap /usr/bin/true
+and isolated Voxtype --help to succeed; prior failure was tool-sandbox-specific.
+Neither help nor the probe establishes complete backend compatibility/isolation
+acceptance. No microphone was opened and no inference was run.
+Read-only live inventory found voxtype-commands.service active/running and
+voxtype.service activating/auto-restart; default input is
+omarchy_host_input_672e782964f78070. Service interruption remains unapproved.
+STOP before capture: ask to quiesce both legacy services and restore prior start
+intent afterward, and confirm this input. Do not repair the retrying service or
+alter bindings/configuration. Home/End would be unavailable during quiescence.
+
+User subsequently confirmed that exact temporary service stop/restart and the
+current default host-input source. P2 pab manually claimed for attended work;
+HIL label stays to prevent unattended continuation. No additional authority.
+Services have NOT been paused and zero real clips have been captured. Wait for
+per-clip Ready; recheck idle/source and unchanged config hashes at that point.
+Bound capture to 10 seconds, prove owned child cleanup, then restore service
+start intent before waiting for the next clip. Do not repair pre-existing faults.
+
+Isolation preflight passed outside the tool sandbox: private runtime/home/PID/
+network view, no host Voxtype config or audio/input/GPU devices, no external IP
+route and cleared environment. An explicitly supplied temporary config and the
+existing pinned local model transcribed 0.5 seconds of synthetic silence in
+2.143s; process.ok, 115 stdout bytes, cleanup success. This is CLI execution proof,
+not real ASR accuracy, silence rejection or full backend-adapter compatibility.
+Private session directory /tmp/arhugula-voice-p2.SMIIotwE contains only dedicated
+config and generated silence. No raw user audio/transcript enters Git or LIT.
+First neutral prompt: The blue notebook is beside the window.
+
+Clip 1 after explicit Ready: original configuration hashes and command-daemon
+idle state checked; approved source present; only the two approved services
+stopped. Capture emitted 311296 PCM bytes (9.728s), ending at the 10s wall
+deadline (process.timeout). Cleanup was proven. Both services were restarted
+and sampled active/running; config hashes unchanged. This does not repair or
+establish sustained health of the pre-existing retrying dictation service.
+Private WAV geometry 16 kHz mono s16 verified; peak 0.6269, RMS 0.0427.
+Isolated transcription succeeded in 2.0s (132 stdout bytes, five lines), but
+the expected neutral phrase was absent. This is NOT an ASR acceptance pass.
+Only sanitized comparison/geometry evidence retained, not raw audio/transcript.
+
+The originally approved automatic cleanup deleted clip-1.wav after this test.
+User subsequently requested playback; by the time the request could be acted
+on, deletion was confirmed and neither audio nor transcript was recoverable
+from project artifacts. No playback occurred. Proposed next attended slot is
+clip 2 with the same neutral sentence; retain it through playback/review before
+deletion. Wait for Ready; do not start another microphone recording implicitly.
+One of three capture slots consumed; ticket remains in progress, not complete.
+
+Clip 2 on explicit retry request: same source/idle/hash checks and two-service
+quiescence. Captured 315392 bytes (9.856s), ending at the 10s deadline; cleanup
+proven, both services restarted, hashes unchanged. Played exactly once on the
+then-current default sink omarchy_host_output_fe8f9fe212905612 at unchanged
+volume (1.00); playback and cleanup process.ok. User heard only the beginning
+and reported cutoff at "the blue not". This is failed speech acceptance.
+Isolated ASR process.ok in 2.02s but expected phrase absent (3/6 unique expected
+words found; raw transcript not retained). Energy >=0.02 RMS appears only from
+8.88s to9.84s, supporting late speech/chat-cue timing rather than a full sentence
+being lost by transcription. Energy is not a speech classifier.
+After playback/review and timing analysis, deleted only clip-2.wav under prior
+cleanup consent; no retained real clips. Two of three capture slots consumed.
+Clear safe timing correction for final slot: user sends Ready then immediately
+repeats the neutral sentence until Stop, instead of waiting for the delayed
+Recording chat cue. Keep the <=10s recording bound, no automatic retry or extra
+slot. Await Ready. P2 remains in progress; no successful speech/corpus release.
+
+Next Ready attempt aborted in preflight before any service stop or microphone
+Popen: command state file absent. No clip-3.wav was created; two actual clips
+remain consumed, and the conservatively reserved third slot is released after
+that proof. No automatic retry: told user Stop and await fresh readiness.
+Read-only diagnosis found default dictation active/idle but command service in
+zero-MainPID auto-restart, exit1. Both units' recent logs contain already-running
+markers, consistent with legacy singleton contention. Before the first trial,
+the command service ran and default dictation retried; after restarting both,
+the winning service changed. Restored start intent is NOT both-daemon health.
+No config/repair attempted; record this integration issue separately from ASR.
+The operational preflight incorrectly required a missing idle file even from a
+zero-PID restarting daemon. Revised read-only check passes: live PID requires
+explicit idle; zero PID is allowed only inactive/failed or activating/auto-restart.
+Recheck just before approved two-service quiescence and require both stopped
+before capture. This permits isolated testing without repairing the legacy
+configuration. Fresh Ready still required; final capture stays <=10 seconds.
+
+Final clip3 on fresh Ready: revised preflight passed; approved services quiesced;
+315392 PCM bytes (9.856s) captured at the unchanged 10s wall bound, with cleanup
+proven. Both services restarted; configuration hashes unchanged. Played once on
+the same explicit default sink at unchanged volume; playback/cleanup process.ok.
+User verified the recording. Isolated native ASR completed in 2.04s and included
+the complete neutral phrase twice. Stdout205 bytes/five lines; no whole-output
+plain-transcript protocol or general ASR accuracy claim. Deleted clip-3.wav after
+testing and user review. All three real clips are now deleted, no recoverable
+project copy; original synthetic silence remains in private scratch.
+
+Trial budget exhausted: no further microphone or playback action authorized.
+P2 is PARTIAL, not closed: a reviewed FILE/CLI-output bridge and broader consented
+corpus remain missing. Sanitized evidence, exact config and pinned identities:
+docs/voice/p2-characterization.md. Fresh full suite194/194 passes in8.338s;
+TOML parses and committed fixture hash matches the actually tested config.
+Final read-only snapshot: both services active/running, Result=success, original
+four hashes unchanged. Earlier already-running/restart behavior remains an
+integration risk, not silently declared repaired. Preserve worktree and main
+foreign diagnostics; merge/push still held. Durable stop handoff records actual
+3/3 capture use and deletion. Return pab to OPEN/HIL awaiting further scope.
+# Current boundary, 2026-09-20
+
+Task7 P1 `.z5x.qhp` is locally implemented at `c6b4c8c` and independently
+reviewed Ready with no findings. Reviewer ran286 tests in10.051s, zipapp health
+and diff check in isolation. Lead ran eight focused tests and full286 in9.902s,
+synthetic PCM5/5 and runtime/fresh zipapp health. Review and exclusion rulings:
+`task7-review.md`; planner contract: `install-planning.md`. No installer/live
+cutover or rollback acceptance is claimed. Keep awaiting-integration until main
+and successful post-main CI. LIT sync push succeeded and doctor reported up to
+date at this boundary; automatic sandboxed sync can still fail later.
+
+Robbo renewed continuous cross-unit/arc work without routine HIL pauses.
+Task7's independent P1 slice proceeded while actual P4/live prerequisites stayed
+unresolved. Those prerequisites do not require pausing other authorized safe
+work. Current Terra implementer is `01a0bec6-46e5-7313-b527-cc799f600956` and
+has acknowledged CI/observability ownership; earlier Terra inboxes are historical.
+Do not use the old continuation runner's local-close behavior for real tickets:
+the current workflow requires protected main/post-merge verification first.
+
+Task6 P1 snapshot `3f3be27` received shared Terra review. Both Important findings
+(speech cancellation and within-lifetime clock regression) were reproduced RED
+and fixed in `a735537`. Fresh full278/278 tests in9.841s; focused11 speech,
+15 panel and31 coordinator tests; synthetic replay6/6; runtime/fresh zipapp
+health and diff check pass. Review, fixes and rulings: `task6-review.md`.
+Scope and limitations: `panel-speech.md`. No live audio or desktop panel.
+`.fiw` remains in progress awaiting protected integration, not falsely closed.
+
+Next actual decision is `.z5x.8l3` (P4, HIL/needs-design). User prefers a more
+natural voice; this is not yet a provider/model or acquisition/playback choice.
+Read-only executable check found none of piper/espeak-ng/espeak/festival/spd-say/
+speech-dispatcher. No package/model installation or network research performed.
+Durable stop: a concrete provider/model and scoped acquisition/output decision
+are still needed. Research beyond the existing repository remote also requires
+expanded scope under the original network boundary; no inferred authorization.
+
+Task5 review accepted: no Critical/Important findings; two deferred coverage
+minors and excluded-capability rulings in `task5-review.md`. Fresh resumption
+verification:245/245 tests in9.268s, safe dry-run and clean diff check.
+Task6 P1 `.fiw` is now claimed: injected speech seam and headless panel model
+only. No real TTS/provider selection, playback, microphone or GUI acceptance.
+
+Governance correction: `.kpp`, `.hjr`, `.7om`, `.9vs`, `.ap1` reopened for
+integration only; prior CLOSED statements below are historical. Implementations
+and reviews remain valid and must not be repeated. `.u1f` stays in progress.
+All six carry `awaiting-integration`; final closure needs verified main landing
+and successful post-main CI. At that historical checkpoint, non-Buford workers
+did not merge or push. Preserve main diagnostics; Buford owns authorized
+integration actions on main.
+LIT integrity passes, automatic remote sync currently fails; updates are local.
+
+Shared Terra/medium reviewer: `01a0bea6-e73c-7460-bee3-fc7b543f14d8`, using the
+Superpowers review template. Send scoped immutable ranges via native Codex queue.
+This does not replace Buford's merge authority or Astra/high final review for high risk.
+
+# Task 4 P1 continuation, 2026-09-20 (historical log)
+
+Task5 `.u1f` now in progress: initial code `9097381`,17 focused control tests,
+245/245 full suite in8.933s. Temporary Unix-socket tests ran outside the tool
+sandbox after it denied binding; no installed/live endpoint, microphone or
+desktop service. Dry-run default starts nothing; --live exits2 for missing
+trusted bindings. Independent Astra/high review pending. New transport/handler
+limits are documented in `docs/voice/controls.md`.
+
+Final Task4 verification after the independent review's two Important fixes:
+228/228 full suite in8.628s;24 coordinator tests and13 owner tests; synthetic
+PCM5/5 and coordinator6/6; runtime health, fresh unique-path zipapp health,
+diff check and LIT integrity pass. Reusing the earlier artifact path was refused
+by the build tool; a fresh `mktemp` directory succeeded, with no overwrite.
+Scoped-cancel mutation probe correctly fails the handoff-race regression.
+Review findings, fixes and all excluded-capability rulings are in
+`docs/voice/task4-review.md`. No Critical or Minor findings. Ruff is absent in
+both sessions; do not claim local lint or voice-branch GitHub CI success.
+
+Next P1 unit `.z5x.u1f` implements trusted local controls. P2 `.pab` and live
+acceptance remain open. Terra filed read-only voice-lifecycle display follow-up
+`arhugula-observability-xb8.xug.1x9`; it waits for contract integration.
+
+Task4b code committed `4b1b958`; ticket `.ap1` remains in progress pending an
+independent Astra/high review. Fresh 222/222 tests in 8.566s,20 coordinator tests,
+6/6 coordinator synthetic cases, runtime and built-zipapp health pass in
+simulation mode. No installed microphone/provider/output or live changes.
+The review range is `b2151f2..4b1b958`; final review evidence follows separately.
+
+Native `codex queue` now coordinates with the independent Terra session.
+Terra acknowledged exclusive ownership of CI/projections/views/evaluation and
+no overlap with voice/contracts/journal files. Its report says projections
+safely ignore VoiceObservation while advancing the cursor; visible lifecycle
+status needs a read-only projection follow-up. Do not treat agent-reported
+GitHub status as fresh verification of this voice branch.
+
+User renewed repository implementation authority after the narrow attended P2
+trial. P2 `.pab` remains open: real recordings are deleted, broader corpus and
+FILE/output bridge unproven. No new microphone/provider/service/configuration
+operations are part of this continuation. Main diagnostics and Terra's
+CI/observability work remain untouched; merge/push hold remains.
+
+Task 4 split into atomic `.9vs` observation contracts and `.ap1` coordinator.
+Observation contract is independently versioned `voice-observation` v1, with
+closed lifecycle phases/statuses and finite diagnostic codes, no audio,
+transcript, approval token or generic details bag. The nested context is existing
+trusted VM metadata, not a place for speech content. Memory and SQLite journals
+deduplicate, preserve sequence/correlation and replay it; old execution receipts
+and preview restrictions are unchanged. Older binaries fail closed on the new
+record kind; do not downgrade readers of a journal containing these records.
+
+Fresh `.9vs` evidence: missing-kind RED, 5 focused tests GREEN; full suite 199/199
+in 12.254s; `git diff --check` clean; `lit doctor` integrity ok. LIT remote sync
+is still pending. Synthetic/contract evidence only, not live speech acceptance.

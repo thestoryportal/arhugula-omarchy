@@ -1,0 +1,14 @@
+# P1 INERT REVIEW TEMPLATE. Do not install or enable.
+# Actual ExecStart needs a reviewed voice artifact and trusted live bindings.
+# /usr/bin/false deliberately prevents this template from launching a runtime.
+[Unit]
+Description=Arhugula voice cutover placeholder (not deployable)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/false
+Restart=no
+UMask=0077
+NoNewPrivileges=yes
+
+# No Install section: login enablement is a separate operator decision.

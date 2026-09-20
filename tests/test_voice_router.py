@@ -15,6 +15,21 @@ def record(kind, **patch):
 
 
 class VoiceRouterTests(unittest.TestCase):
+    def test_injected_correlation_keeps_distinct_command_ids_and_default_still_works(self):
+        router = self.make()
+        router.correlation_ids = lambda: 'activation-correlation'
+        first = router.handle('show menu')
+        self.turn()
+        second = router.handle('show menu')
+        self.assertEqual(first.result.correlation_id, 'activation-correlation')
+        self.assertEqual(second.result.correlation_id, 'activation-correlation')
+        self.assertNotEqual(first.result.command_id, second.result.command_id)
+        router = self.make()
+        first = router.handle('show menu')
+        self.turn()
+        second = router.handle('show menu')
+        self.assertNotEqual(first.result.correlation_id, second.result.correlation_id)
+
     def make(self, risk="safe", proposal=None, actions=None, capability_patch=None, voice_enabled=True):
         self.calls, self.spoken = [], []
         self.journal = MemoryJournal()

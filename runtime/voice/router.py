@@ -60,13 +60,15 @@ class VoiceReply:
 
 
 class VoiceRouter:
-    def __init__(self, plane, actions, state, speak, *, proposal=None, identifiers=None):
+    def __init__(self, plane, actions, state, speak, *, proposal=None, identifiers=None,
+                 correlation_ids=None):
         self.plane = plane
         self.actions = {action.capability_id: action for action in actions}
         if not self.actions or len(self.actions) != len(actions):
             raise ValueError("actions must have unique capability IDs")
         self.state, self.speak, self.proposal = state, speak, proposal
         self._identifiers = identifiers or (lambda: str(uuid4()))
+        self.correlation_ids = correlation_ids or (lambda: str(uuid4()))
         self._activations, self._previews = set(), {}
         self._busy = False
         self._lock = threading.RLock()
@@ -107,7 +109,7 @@ class VoiceRouter:
 
     def _command(self, action, state, version=None):
         return decode({"kind": "command", "version": 1,
-                       "command_id": self._identifiers(), "correlation_id": str(uuid4()),
+                       "command_id": self._identifiers(), "correlation_id": self.correlation_ids(),
                        "capability_id": action.capability_id,
                        "catalog_version": action.catalog_version if version is None else version,
                        "requested_at_ms": int(time.time() * 1000),
