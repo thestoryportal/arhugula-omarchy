@@ -65,8 +65,15 @@ class OwnedProcess:
             except OSError:
                 self._result = ProcessResult('failed', b'', 'process.start-failed')
                 return
-            self._thread = threading.Thread(target=self._run, args=(input_bytes or b'',), daemon=True)
-            self._thread.start()
+            try:
+                self._thread = threading.Thread(target=self._run, args=(input_bytes or b'',), daemon=True)
+                self._thread.start()
+            except Exception:
+                # Ownership has not transferred to a running supervisor. Keep
+                # admission locked until this synchronous cleanup is complete.
+                clean = self._cleanup()
+                self._result = ProcessResult('failed' if clean else 'uncertain', b'',
+                                             'process.start-failed' if clean else 'process.cleanup-unproven')
 
     def poll(self) -> ProcessResult | None:
         self._check_owner()
@@ -128,10 +135,11 @@ class OwnedProcess:
         counts = {'stdout': 0, 'stderr': 0}
         offset = 0
         status, code = 'failed', 'process.io-failed'
-        selector = selectors.DefaultSelector()
-        deadline = time.monotonic() + self._timeout
-        last_stdout = time.monotonic()
+        selector = None
         try:
+            selector = selectors.DefaultSelector()
+            deadline = time.monotonic() + self._timeout
+            last_stdout = time.monotonic()
             for name, stream in (('stdout', child.stdout), ('stderr', child.stderr)):
                 os.set_blocking(stream.fileno(), False)
                 selector.register(stream, selectors.EVENT_READ, name)
@@ -191,7 +199,11 @@ class OwnedProcess:
         except Exception:
             status, code = 'failed', 'process.io-failed'
         finally:
-            selector.close()
+            try:
+                if selector is not None:
+                    selector.close()
+            except Exception:
+                status, code = 'failed', 'process.io-failed'
             if not self._cleanup():
                 status, code = 'uncertain', 'process.cleanup-unproven'
             result = ProcessResult(status, bytes(output) if status == 'success' else b'', code)

@@ -193,6 +193,84 @@ time.sleep(60)
         self.assertEqual((result.status, result.stdout), ('uncertain', b''))
         self.assertNotIn('private', repr(result))
 
+    def test_supervisor_start_failure_reaps_child_and_cancel_remains_safe(self):
+        for failure_point in ('threading.Thread', 'threading.Thread.start'):
+            with self.subTest(failure_point=failure_point):
+                children = []
+                real = subprocess.Popen
+                def launch(*args, **kwargs):
+                    child = real(*args, **kwargs)
+                    children.append(child)
+                    return child
+                worker = OwnedProcess((sys.executable, '-c', 'import time; time.sleep(60)'),
+                                      max_output=100, timeout_s=0.05)
+                error = None
+                try:
+                    with patch('runtime.voice.process.subprocess.Popen', side_effect=launch), \
+                         patch('runtime.voice.process.' + failure_point,
+                               side_effect=RuntimeError('private resource failure')):
+                        try:
+                            worker.start(None)
+                        except Exception as caught:
+                            error = type(caught).__name__
+                    self.assertIsNone(error, 'startup failure must publish a sanitized terminal result')
+                    self.assertIsNotNone(children[0].returncode, 'owned child must already be reaped')
+                    result = worker.poll()
+                    self.assertEqual((result.status, result.code, result.stdout),
+                                     ('failed', 'process.start-failed', b''))
+                    self.assertEqual(worker.cancel(), result)
+                    self.assertEqual(worker.cancel(), result)
+                finally:
+                    # Test-only recovery for the RED implementation; no descendants.
+                    for child in children:
+                        if child.returncode is None:
+                            child.kill()
+                            child.wait(timeout=2)
+                        for stream in (child.stdin, child.stdout, child.stderr):
+                            stream.close()
+
+    def test_selector_resource_failures_reap_child_and_publish_terminal_result(self):
+        import selectors
+        for failure_point in ('construct', 'close'):
+            with self.subTest(failure_point=failure_point):
+                children, thread_errors = [], []
+                real = subprocess.Popen
+                def launch(*args, **kwargs):
+                    child = real(*args, **kwargs)
+                    children.append(child)
+                    return child
+                def selector_factory():
+                    if failure_point == 'construct':
+                        raise OSError('private selector resource failure')
+                    selector = selectors.SelectSelector()
+                    close = selector.close
+                    def fail_close():
+                        close()
+                        raise OSError('private selector close failure')
+                    selector.close = fail_close
+                    return selector
+                worker = OwnedProcess((sys.executable, '-c', 'import time; time.sleep(60)'),
+                                      max_output=100, timeout_s=0.05)
+                try:
+                    with patch('runtime.voice.process.subprocess.Popen', side_effect=launch), \
+                         patch('runtime.voice.process.selectors.DefaultSelector', side_effect=selector_factory), \
+                         patch('threading.excepthook', side_effect=lambda args: thread_errors.append(args.exc_type)):
+                        worker.start(None)
+                        result = self.wait(worker)
+                    self.assertEqual(thread_errors, [])
+                    self.assertEqual((result.status, result.code, result.stdout),
+                                     ('failed', 'process.io-failed', b''))
+                    self.assertIsNotNone(children[0].returncode)
+                    self.assertEqual(worker.cancel(), result)
+                    self.assertEqual(worker.cancel(), result)
+                finally:
+                    for child in children:
+                        if child.returncode is None:
+                            child.kill()
+                            child.wait(timeout=2)
+                        for stream in (child.stdin, child.stdout, child.stderr):
+                            stream.close()
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -106,3 +106,16 @@ PCM terminates its parser instead of permitting resynchronization — prevents
 ambiguous dropped samples; cost is a new parser/activation after stream failure.
 Next .z5x.7om covers only Task 3 repository seams. P2 backend characterization and
 consented recordings remain a separate human gate before live integration.
+
+Task 3 P1 .z5x.7om implementation committed in 10b922c: bounded trusted-worker
+process supervision, explicitly injected capture/transcription seams and a
+synthetic-only replay CLI. Pre-review verification: 78 focused voice tests and
+192 full-suite tests pass with ResourceWarning as error; five replay cases pass.
+Independent Astra/high review is pending; this is not ticket completion or live
+backend proof. LIT doctor reports integrity ok; LIT sync remains local/pending.
+Ruling: split Task 3 at its explicit P2 STOP — costs an additional handoff, keeps
+unconsented recordings and installed-backend activation outside P1.
+Ruling: require explicit factories; WAV-stdin is an injected protocol, not a
+Voxtype FILE compatibility claim — costs backend bridge/characterization work.
+Ruling: preserve cancel()'s planned None return and expose cleanup_proven — costs
+one extra coordinator check before ownership can be released.
