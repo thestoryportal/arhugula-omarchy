@@ -40,15 +40,15 @@ Files: modify `runtime/gateway/client.py`; create
 Interfaces: `configuration()` transaction, `reconfigure(host, local=None,
 permit=None)`, `disable()`; permit receives Provider, service and monotonic ms.
 
-- [ ] Write behavioral tests: rebind after completed call rejects replay;
+- [x] Write behavioral tests: rebind after completed call rejects replay;
   active/unconsumed/reentrant changes reject; fault/exhaustion survive; disable
   cancels and blocks primary/fallback; per-attempt permit rejects expired fallback.
   Example: `client.disable(); self.assertRaises(GatewayError, client.start, req)`.
-- [ ] RED: `python -m unittest tests.test_gateway_configuration -q` fails on missing seam.
-- [ ] Implement the public seam under the existing lifecycle lock; invoke permit
+- [x] RED: `python -m unittest tests.test_gateway_configuration -q` fails on missing seam.
+- [x] Implement the public seam under the existing lifecycle lock; invoke permit
   before begin and recheck cancellation after the callback.
-- [ ] GREEN: run gateway configuration/client/wire suites, then full suite.
-- [ ] Commit the tested seam.
+- [x] GREEN: run gateway configuration/client/wire suites, then full suite.
+- [x] Commit the tested seam.
 
 ### Task 2: Immutable provider input boundary
 
@@ -57,13 +57,13 @@ Files: create `runtime/providers/{__init__,records}.py`,
 Interfaces: immutable Manifest, Resources, Policy, Health; strict manifest/policy
 parsers consume JSON-shaped dictionaries; checked records feed Task 3.
 
-- [ ] Write tests: snapshots resist caller mutation; unknown fields/versions,
+- [x] Write tests: snapshots resist caller mutation; unknown fields/versions,
   booleans as numbers, missing policies, invalid digests/units and budgets deny.
   Example: `self.assertRaises(ConfigurationError, parse_policy, {})`.
-- [ ] RED: `python -m unittest tests.test_provider_records -q` fails on missing boundary.
-- [ ] Implement closed records and schema-derived parsing, resource accounting,
+- [x] RED: `python -m unittest tests.test_provider_records -q` fails on missing boundary.
+- [x] Implement closed records and schema-derived parsing, resource accounting,
   canonical digest binding; retain existing Provider codec.
-- [ ] GREEN: records suite and full suite; commit.
+- [x] GREEN: records suite and full suite; commit.
 
 ### Task 3: Trusted configuration owner
 
@@ -75,17 +75,17 @@ opaque receipts; activate/rollback/disable publish revision under the gateway
 transaction. Observe supplies epoch-bound health. Public active snapshots are
 immutable. Existing ReplayRun/promotion and Task 1/2 interfaces are consumed.
 
-- [ ] Write bootstrap/activation/rollback/restart tests with a real gateway and
+- [x] Write bootstrap/activation/rollback/restart tests with a real gateway and
   literal revisions; swapped receipts/evidence, failed evaluation and missing
   policy deny without effects or mutation.
-- [ ] RED: `python -m unittest tests.test_provider_configuration -q`.
-- [ ] Implement trusted receipts and pure eligibility checks; guard uses owned
+- [x] RED: `python -m unittest tests.test_provider_configuration -q`.
+- [x] Implement trusted receipts and pure eligibility checks; guard uses owned
   health and explicit policy immediately before primary/fallback begin.
-- [ ] Add RED/GREEN tests for health expiry/future/regression, exact budget edges,
+- [x] Add RED/GREEN tests for health expiry/future/regression, exact budget edges,
   shared pools, competing/reentrant commits, disable/fallback and fault survival.
-- [ ] GREEN: full suite; run in-memory mutations for review, revision, health,
+- [x] GREEN: full suite; run in-memory mutations for review, revision, health,
   budget, restart, disable and replay retention boundaries.
-- [ ] Run source and fresh zipapp smoke, gateway mutations, Ruff if available,
+- [x] Run source and fresh zipapp smoke, gateway mutations, Ruff if available,
   diff check; record unavailable checks without claiming them passed.
-- [ ] Commit immutable review-ready head. Send evidence to Buford; retain branch
+- [x] Commit immutable review-ready head. Send evidence to Buford; retain branch
   and durable checkpoint, record personal learning. No publication or closure.

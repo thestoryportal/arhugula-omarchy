@@ -159,3 +159,13 @@ class GatewayConfigurationTests(unittest.TestCase):
         self.host_reply()
         self.client.start(self.request)
         self.assertIsInstance(self.client.poll(), Success)
+
+    def test_configuration_transaction_cannot_poll_into_fallback_effect(self):
+        self.transport.job.reply = HttpReply(503, b'', fixtures.PEER)
+        self.client.start(self.request)
+        with self.client.configuration():
+            self.assertIsNone(self.client.poll())
+            self.assertEqual(self.local_calls, [])
+            self.assertEqual(self.transport.job.polls, 0)
+        self.assertIsNone(self.client.poll())
+        self.assertEqual(len(self.local_calls), 1)

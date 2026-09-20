@@ -8,9 +8,8 @@ from tests.test_gateway_wire import host_provider
 
 
 def resources(**changes):
-    return dict(ram_bytes=100, accelerator_bytes=50, disk_bytes=200,
-                cpu_millicores=500, slots=1, **changes) if not changes else {
-                    **resources(), **changes}
+    return {'ram_bytes': 100, 'accelerator_bytes': 50, 'disk_bytes': 200,
+            'cpu_millicores': 500, 'slots': 1, **changes}
 
 
 def manifest_doc(**changes):

@@ -372,7 +372,7 @@ class GatewayClient:
 
     def poll(self) -> Success | Degraded | Failed | None:
         with self._lock:
-            if self._inside_callback:
+            if self._inside_callback or self._configuring:
                 return None
             if self._active is not None:
                 call = self._active
