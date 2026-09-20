@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "active_ticket": "arhugula-control-plane-jat.0db.t78",
+  "parent_epic": "arhugula-control-plane-jat",
+  "branch": "feat/control-plane-foundation",
+  "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/foundation",
+  "model": "gpt-6-astra",
+  "effort": "high",
+  "role": "implement",
+  "goal": "Complete repository-only control-plane foundation",
+  "completed_work": ["t78 stack ADR and offline health/bootstrap/package; 332581c"],
+  "verification": ["57/57 tests pass", "clean temporary clone bootstrap: pass", "isolated zipapp health: pass", "git diff --check: pass"],
+  "risks": ["Foundation is simulation-only; no live execution authorized", "A.4 journal missing from original LIT backlog; added as k39"],
+  "next_ticket": "arhugula-control-plane-jat.0db.c90",
+  "stop_reason": null
+}

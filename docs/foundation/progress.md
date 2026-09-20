@@ -19,3 +19,5 @@ a documented port of the contracts/adapter seams, not a live deployment change.
 
 t78: tests first failed on missing runtime/build modules. Health is explicitly
 simulation-only; zipapp tested from outside the checkout using isolated Python.
+t78 complete: 332581c; full suite and clean temporary clone bootstrap pass
+57/57 tests. Added A.4 as arhugula-control-plane-jat.0db.k39 through LIT.
