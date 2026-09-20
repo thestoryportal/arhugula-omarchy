@@ -9,6 +9,17 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    name: Ruff lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff
+      - run: ruff check . --select E4,E7,E9,F
+
   test:
     name: Python test suite
     runs-on: ubuntu-latest
@@ -18,3 +29,15 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -W error::ResourceWarning -m unittest discover -s tests -q
+
+  runtime-smoke:
+    name: Runtime and package smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m runtime health
+      - run: python -m ops.build /tmp/arhugula-control-plane.pyz
+      - run: python /tmp/arhugula-control-plane.pyz health

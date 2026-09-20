@@ -1,5 +1,7 @@
 """VM-owned synchronous dispatch; no concrete action or transport is installed."""
 from dataclasses import dataclass, field
+from contextlib import contextmanager
+from itertools import islice
 import time
 from collections.abc import Mapping
 from uuid import uuid4
@@ -45,6 +47,22 @@ def _guard_denial(guard):
     return "context.stale"
 
 
+def _catalog_snapshot(catalog):
+    try:
+        entries = [_snapshot(item, Capability) for item in islice(catalog, 257)]
+    except TypeError as error:
+        raise ValueError("catalog.invalid") from error
+    if len(entries) > 256:
+        raise ValueError("catalog.oversize")
+    result = {item.capability_id: item for item in entries}
+    if len(result) != len(entries):
+        raise ValueError("duplicate capability IDs")
+    versions = {item.catalog_version for item in entries}
+    if len(versions) > 1:
+        raise ValueError("catalog.mixed-revisions")
+    return result, next(iter(versions), None)
+
+
 class ControlPlane:
     """A trusted VM owner binds policy/profile/catalog and an injected executor.
 
@@ -57,10 +75,9 @@ class ControlPlane:
 
     def __init__(self, catalog, policy, executor, journal, *, profile,
                  clock=None, identifiers=None):
-        entries = [_snapshot(item, Capability) for item in catalog]
-        self._catalog = {item.capability_id: item for item in entries}
-        if len(entries) != len(self._catalog):
-            raise ValueError("duplicate capability IDs")
+        self._catalog, revision = _catalog_snapshot(catalog)
+        self._catalog_version = revision if revision is not None else 1
+        self._catalog_users = 0
         self._policy = _snapshot(policy, Policy)
         self._profile = _snapshot(profile, Profile)
         self._executor = executor
@@ -69,6 +86,45 @@ class ControlPlane:
         self._identifiers = identifiers or (lambda: str(uuid4()))
         self._seen = set()
         self._confirmations = {}
+
+    @property
+    def catalog_version(self):
+        with self._journal.dispatch_lock:
+            return self._catalog_version
+
+    @contextmanager
+    def _catalog_use(self):
+        # RLock also admits same-thread callbacks. Track active authorization
+        # lifetimes so reentrant refresh cannot change the checked catalog.
+        with self._journal.dispatch_lock:
+            self._catalog_users += 1
+            try:
+                yield
+            finally:
+                self._catalog_users -= 1
+
+    def replace_catalog(self, catalog, *, expected_version, new_version):
+        """Trusted VM-only CAS; never expose as a model/remote mutation tool.
+
+        Replaces this owner's complete typed catalog and invalidates its previews.
+        Does not change policy, clear command history, cancel started actions or
+        synchronize other ControlPlane instances. Callers own cross-owner cutover.
+        """
+        if (type(expected_version) is not int or expected_version < 1
+                or type(new_version) is not int or new_version < 1):
+            raise ValueError("catalog.version")
+        replacement, revision = _catalog_snapshot(catalog)
+        if revision is not None and revision != new_version:
+            raise ValueError("catalog.version")
+        with self._journal.dispatch_lock:
+            if self._catalog_users:
+                raise ValueError("catalog.in-use")
+            if expected_version != self._catalog_version or new_version <= self._catalog_version:
+                raise ValueError("catalog.stale")
+            self._catalog = replacement
+            self._catalog_version = new_version
+            self._confirmations.clear()
+            return new_version
 
     def _error(self, code, message):
         return Error(1, code, message, False)
@@ -133,7 +189,7 @@ class ControlPlane:
         command = _snapshot(command, Command)
         if type(context_key) is not str or not context_key:
             raise ConfirmationError("invalid context key")
-        with self._journal.dispatch_lock:
+        with self._catalog_use():
             if self._denial(command, confirmed=True):
                 raise ConfirmationError("command is not eligible for confirmation")
             now = self._clock()
@@ -158,7 +214,7 @@ class ControlPlane:
         return result
 
     def confirm(self, token, channel, context_key, *, approved=True, guard=None):
-        with self._journal.dispatch_lock:
+        with self._catalog_use():
             if type(token) is not str or token not in self._confirmations:
                 raise ConfirmationError("unknown or already consumed confirmation")
             preview, original_key = self._confirmations.pop(token)
@@ -186,7 +242,7 @@ class ControlPlane:
         command = _snapshot(command, Command)
         if type(canceled) is not bool:
             raise ContractError("canceled must be boolean")
-        with self._journal.dispatch_lock:
+        with self._catalog_use():
             return self._dispatch(command, canceled, guard=guard)
 
     def _dispatch(self, command, canceled, confirmed=False, guard=None):
