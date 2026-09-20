@@ -37,6 +37,9 @@ supplies separate VM/host ceilings. Explicit shared-memory accounting combines
 RAM and accelerator allocations into the RAM ceiling. Estimates account for all
 configured resident providers; this single-call gateway reserves one execution
 slot. No hardware measurements or production defaults are supplied.
+The public budget boundary snapshots its iterable and accepts exact Manifest
+records only; their constructors own resource and placement validity. Lookalikes
+and subclasses cannot silently escape accounting through an unknown placement.
 
 Update policy is explicit metadata: disabled or manual. This slice performs no
 check/download/update; configuration approval grants none of those effects.

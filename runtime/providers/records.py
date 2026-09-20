@@ -142,6 +142,10 @@ def check_budgets(manifests, policy):
     """Account resident allocations conservatively; no hardware measurement."""
     if type(policy) is not Policy:
         raise ConfigurationError('policy-required')
+    manifests = tuple(manifests)
+    # Manifest construction owns resource and placement validity; reject lookalikes.
+    if any(type(m) is not Manifest for m in manifests):
+        raise ConfigurationError('manifest-required')
     for placement, ceiling in (('host', policy.host_budget), ('vm', policy.vm_budget)):
         group = [m.resources for m in manifests if m.provider.placement == placement]
         totals = {f.name: sum(getattr(r, f.name) for r in group) for f in fields(Resources)}

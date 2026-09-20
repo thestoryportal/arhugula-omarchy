@@ -48,6 +48,31 @@ does not retroactively undo an effect admitted before disable acquired ownership
 
 ## Decisions for review
 
+### C4-RECORDS-CODE-REVIEW-1 fix
+
+Hannibal's `forged-unaccounted` finding reproduced against `dcd0a6d`: a
+lookalike manifest with placement `other` and RAM `10**30` passed accounting.
+`check_budgets` now requires exact Manifest records before grouping; their
+constructors already own Resources and Provider placement validation. Subclasses
+can bypass those constructors, so `isinstance` is insufficient. No repeated
+schema checks or gateway/configuration changes were added. The input iterable is
+snapshotted once: previously a one-shot iterable also silently skipped VM totals.
+
+RED: the two budget regressions produced 13 assertion failures (accepted invalid
+items, wrong denial type for missing fields, and accepted excessive VM RAM from an
+iterator). The constructor-contract characterization passed before the fix.
+GREEN: all eight records tests passed; full ResourceWarning-error suite passed
+445 tests in 11.793s with approved temporary Unix-socket access. Provider mutations
+are 17/17, including removed exact-type guard, weakened `isinstance` guard and
+removed iterable snapshot; existing gateway mutations remain 7/7. Tuple/list/
+iterator inputs preserve valid host shared-RAM and VM exact-ceiling totals and
+reject one-byte VM excess. `git diff --check` passed.
+
+This is implementation evidence for bounded Hannibal re-review through Buford,
+not resolution attestation. Full-arc independent review and required CI remain
+pending. The trusted in-process contract does not defend against malicious Python
+using `object.__new__`/`object.__setattr__` to bypass frozen record invariants.
+
 The public gateway claim is exclusive and starts disabled atomically; the token
 protects configuration changes while preserving existing unconfigured callers.
 No private gateway state is copied. Callback reentry rejects configuration edits;

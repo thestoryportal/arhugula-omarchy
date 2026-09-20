@@ -7,6 +7,16 @@ import unittest
 
 
 MUTATIONS = (
+    ('runtime.providers.records',
+     'if any(type(m) is not Manifest for m in manifests):', 'if False:',
+     'tests.test_provider_records.ProviderRecordTests.test_budget_boundary_rejects_non_manifest_items'),
+    ('runtime.providers.records',
+     'if any(type(m) is not Manifest for m in manifests):',
+     'if any(not isinstance(m, Manifest) for m in manifests):',
+     'tests.test_provider_records.ProviderRecordTests.test_budget_boundary_rejects_non_manifest_items'),
+    ('runtime.providers.records',
+     'manifests = tuple(manifests)', 'pass',
+     'tests.test_provider_records.ProviderRecordTests.test_budget_totals_account_for_both_placements_and_one_shot_inputs'),
     ('runtime.providers.configuration',
      'if approval is None or approval.candidate is not candidate:',
      'if approval is None:',

@@ -1,6 +1,7 @@
 """Closed provider inputs cannot smuggle authority or ambiguous resource units."""
 import copy
 import importlib.util
+from types import SimpleNamespace
 import unittest
 
 from runtime.contracts import encode
@@ -89,3 +90,49 @@ class ProviderRecordTests(unittest.TestCase):
         raw['provider']['provider_id'] = 'other'
         with self.assertRaisesRegex(r.ConfigurationError, 'budget'):
             r.check_budgets((manifest, r.parse_manifest(raw)), r.parse_policy(policy_doc()))
+
+    def test_budget_boundary_rejects_non_manifest_items(self):
+        r = self.records()
+        policy = r.parse_policy(policy_doc())
+
+        class UncheckedManifest(r.Manifest):
+            def __post_init__(self):
+                pass
+
+        for placement in ('other', 'host', 'vm'):
+            provider = SimpleNamespace(placement=placement)
+            allocation = SimpleNamespace(**resources(ram_bytes=10**30 if placement == 'other' else -1))
+            forged = SimpleNamespace(provider=provider, resources=allocation)
+            unchecked = UncheckedManifest(provider, 'a' * 64, allocation)
+            for item in (forged, unchecked, None, {}):
+                with self.subTest(placement=placement, item=type(item).__name__):
+                    try:
+                        r.check_budgets((item,), policy)
+                    except Exception as error:
+                        self.assertIsInstance(error, r.ConfigurationError)
+                    else:
+                        self.fail('Malformed budget input was accepted')
+
+    def test_manifest_constructor_owns_resource_and_placement_validation(self):
+        r = self.records()
+        provider = host_provider(enabled=False, health='unavailable')
+        with self.assertRaises(r.ConfigurationError):
+            r.Manifest(provider, 'a' * 64, SimpleNamespace(**resources()))
+        with self.assertRaises(ValueError):
+            r.Manifest(host_provider(enabled=False, health='unavailable', placement='other'),
+                       'a' * 64, r.Resources(**resources()))
+
+    def test_budget_totals_account_for_both_placements_and_one_shot_inputs(self):
+        r = self.records()
+        host = r.parse_manifest(manifest_doc(resources=resources(ram_bytes=974)))
+        vm_provider = encode(host_provider(enabled=False, health='unavailable', placement='vm'))
+        vm = r.parse_manifest(manifest_doc(provider=vm_provider,
+                                         resources=resources(ram_bytes=1024)))
+        vm_excess = r.parse_manifest(manifest_doc(provider=vm_provider,
+                                                resources=resources(ram_bytes=1025)))
+        policy = r.parse_policy(policy_doc())
+        for collection in (tuple, list, iter):
+            with self.subTest(collection=collection.__name__):
+                self.assertIsNone(r.check_budgets(collection((host, vm)), policy))
+                with self.assertRaisesRegex(r.ConfigurationError, 'budget-exceeded'):
+                    r.check_budgets(collection((host, vm_excess)), policy)
