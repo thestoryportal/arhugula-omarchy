@@ -90,6 +90,13 @@ class VoiceRouter:
             return "voice.wrong-mode"
         return None
 
+    def _current(self, state):
+        try:
+            current = self._state()
+            return current == state and self._available(current) is None
+        except (ValueError, TypeError):
+            return False
+
     def _activate(self, state):
         if state.activation_id in self._activations:
             return "activation.reused"
@@ -104,7 +111,8 @@ class VoiceRouter:
                        "capability_id": action.capability_id,
                        "catalog_version": action.catalog_version if version is None else version,
                        "requested_at_ms": int(time.time() * 1000),
-                       "arguments": dict(action.arguments), "context": dict(state.context)})
+                       "arguments": dict(action.arguments),
+                       "context": {**state.context, "source": "voice"}})
 
     def _candidates(self, text):
         normalized = normalize(text)
@@ -133,16 +141,23 @@ class VoiceRouter:
                       for action in self.actions.values()]
         return sorted(candidates, key=lambda value: (-value[1], value[0].capability_id))
 
-    def _prompt(self, command, phase, prompt, details):
-        try:
-            self.plane.observe_interaction(command, phase, details)
-        except Exception:
-            return VoiceReply("blocked", "journal.unavailable")
+    def _speak(self, prompt, state):
+        # Last check after any potentially blocking journal work. The trusted
+        # owner must serialize state changes with the actual speech adapter.
+        if not self._current(state):
+            return VoiceReply("blocked", "context.stale")
         try:
             self.speak(prompt)
         except Exception:
             return VoiceReply("failed", "speech.unavailable")
         return None
+
+    def _prompt(self, command, phase, prompt, details, state):
+        try:
+            self.plane.observe_interaction(command, phase, details)
+        except Exception:
+            return VoiceReply("blocked", "journal.unavailable")
+        return self._speak(prompt, state)
 
     def handle(self, transcript, *, corrected=False):
         with self._lock:
@@ -172,7 +187,7 @@ class VoiceRouter:
         command = self._command(action, state, candidates[0][2] if candidates else None)
         if not candidates or candidates[0][1] < 0.85 or ambiguous:
             prompt = "Please start a new command turn and name the action: " + ", ".join(item.label for item in list(self.actions.values())[:3])
-            failure = self._prompt(command, "voice.clarification", prompt, {"reason": "ambiguous-or-unknown"})
+            failure = self._prompt(command, "voice.clarification", prompt, {"reason": "ambiguous-or-unknown"}, state)
             return failure or VoiceReply("clarify", "clarification.required", prompt=prompt)
         denial = self.plane.assess(command)
         inferred = normalize(transcript) not in {normalize(alias) for alias in action.aliases}
@@ -184,14 +199,13 @@ class VoiceRouter:
             except ConfirmationError:
                 return VoiceReply("blocked", "confirmation.unavailable")
             prompt = ("Correction preview: " if corrected else "Candidate preview: " if inferred else "Confirm: ") + action.label + "?"
-            try:
-                self.speak(prompt)
-            except Exception:
+            failure = self._speak(prompt, state)
+            if failure:
                 self.plane.confirm(preview.token, "panel", self._binding(state), approved=False)
-                return VoiceReply("failed", "speech.unavailable")
-            self._previews[preview.token] = preview
+                return failure
+            self._previews[preview.token] = (preview, self._binding(state))
             return VoiceReply("preview", "confirmation.required", token=preview.token, prompt=prompt)
-        result = self.plane.dispatch(command)
+        result = self.plane.dispatch(command, guard=lambda: self._current(state))
         return VoiceReply(result.status, result.error.code if result.error else "command.success", result=result)
 
     def confirm(self, token, channel, answer):
@@ -206,6 +220,11 @@ class VoiceRouter:
                     return VoiceReply("blocked", denial)
                 if type(token) is not str or token not in self._previews:
                     return VoiceReply("blocked", "confirmation.unknown")
+                preview, original_binding = self._previews[token]
+                if self._binding(state) != original_binding:
+                    self._previews.pop(token)
+                    result = self.plane.confirm(token, channel, self._binding(state), approved=False)
+                    return VoiceReply(result.status, result.error.code if result.error else "context.stale", result=result)
                 if channel == "voice":
                     denial = self._activate(state)
                     if denial:
@@ -213,7 +232,7 @@ class VoiceRouter:
                     normalized = normalize(answer)
                     if normalized not in ("yes", "confirm", "no", "cancel"):
                         prompt = "Start a new command turn and say yes or no."
-                        failure = self._prompt(self._previews[token].command, "voice.clarification", prompt, {"reason": "confirmation-answer"})
+                        failure = self._prompt(preview.command, "voice.clarification", prompt, {"reason": "confirmation-answer"}, state)
                         return failure or VoiceReply("clarify", "confirmation.answer", token=token, prompt=prompt)
                     approved = normalized in ("yes", "confirm")
                 elif channel in ("panel", "keyboard") and type(answer) is bool:
@@ -221,7 +240,8 @@ class VoiceRouter:
                 else:
                     return VoiceReply("blocked", "confirmation.invalid")
                 self._previews.pop(token)
-                result = self.plane.confirm(token, channel, self._binding(state), approved=approved)
+                result = self.plane.confirm(token, channel, self._binding(state), approved=approved,
+                                            guard=lambda: self._current(state))
                 return VoiceReply(result.status, result.error.code if result.error else "command." + result.status, result=result)
             except (ValueError, TypeError):
                 return VoiceReply("blocked", "confirmation.invalid")

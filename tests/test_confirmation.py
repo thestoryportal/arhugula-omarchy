@@ -74,6 +74,45 @@ class ConfirmationTests(unittest.TestCase):
         self.assertEqual(plane.confirm(preview.token, "panel", "focus-1").status, "blocked")
         self.assertEqual(self.calls, [])
 
+    def test_safe_preview_requires_approval_across_shared_planes(self):
+        calls, journal = [], MemoryJournal()
+        def plane():
+            return ControlPlane([record("capability")], record("policy"),
+                                lambda command: calls.append(command) or Outcome("success"),
+                                journal, profile=record("profile"))
+        preview = plane().request_confirmation(record("command"), "focus-1")
+        result = plane().dispatch(preview.command)
+        self.assertEqual(result.error.code if result.error else None, "confirmation.required")
+        self.assertEqual(calls, [])
+
+    def test_safe_preview_requires_approval_after_sqlite_reopen(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.sqlite"
+            def plane(journal):
+                return ControlPlane([record("capability")], record("policy"),
+                                    lambda command: calls.append(command) or Outcome("success"),
+                                    journal, profile=record("profile"))
+            with SQLiteJournal(path) as journal:
+                preview = plane(journal).request_confirmation(record("command"), "focus-1")
+            with SQLiteJournal(path) as journal:
+                reopened = plane(journal)
+                with self.assertRaises(ConfirmationError):
+                    reopened.confirm(preview.token, "panel", "focus-1")
+                result = reopened.dispatch(preview.command)
+                self.assertEqual(result.error.code if result.error else None, "confirmation.required")
+                self.assertEqual(calls, [])
+
+    def test_clarification_observation_does_not_reserve_execution(self):
+        calls = []
+        plane = ControlPlane([record("capability")], record("policy"),
+                             lambda command: calls.append(command) or Outcome("success"),
+                             MemoryJournal(), profile=record("profile"))
+        command = record("command")
+        plane.observe_interaction(command, "voice.clarification", {"reason": "unknown"})
+        self.assertEqual(plane.dispatch(command).status, "success")
+        self.assertEqual(len(calls), 1)
+
     def test_mixed_interaction_and_execution_records_reopen_without_poisoning_dispatch(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "events.sqlite"

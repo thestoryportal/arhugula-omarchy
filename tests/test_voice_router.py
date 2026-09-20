@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
+import threading
 import unittest
 
-from runtime.contracts import decode
+from runtime.contracts import Event, Interaction, decode
 from runtime.core import ControlPlane, Outcome
 from runtime.journal import MemoryJournal
 from runtime.voice.router import Action, VoiceRouter, VoiceState
@@ -14,13 +15,13 @@ def record(kind, **patch):
 
 
 class VoiceRouterTests(unittest.TestCase):
-    def make(self, risk="safe", proposal=None, actions=None, capability_patch=None):
+    def make(self, risk="safe", proposal=None, actions=None, capability_patch=None, voice_enabled=True):
         self.calls, self.spoken = [], []
         self.journal = MemoryJournal()
         self.state = VoiceState(dict(record("command").context), "focus-1", "turn-1")
         self.plane = ControlPlane([record("capability", risk=risk, **(capability_patch or {}))], record("policy"),
                                   lambda command: self.calls.append(command) or Outcome("success"),
-                                  self.journal, profile=record("profile", voice_enabled=True))
+                                  self.journal, profile=record("profile", voice_enabled=voice_enabled))
         action = Action("menu.open", 1, {"name": "main"}, ("open omarchy menu", "show menu"), "Open Omarchy menu")
         return VoiceRouter(self.plane, actions or [action], lambda: self.state, self.spoken.append, proposal=proposal)
 
@@ -135,6 +136,98 @@ class VoiceRouterTests(unittest.TestCase):
         router.state = lambda: (_ for _ in ()).throw(OSError("private state"))
         self.assertEqual(router.handle("show menu").status, "blocked")
         self.assertEqual(self.calls, [])
+
+    def test_journal_contention_rechecks_state_for_dispatch_and_confirmation(self):
+        for confirming in (False, True):
+            with self.subTest(confirming=confirming):
+                router = self.make(risk="confirm" if confirming else "safe")
+                preview = router.handle("show menu") if confirming else None
+                self.spoken.clear()
+                sampled = threading.Event()
+                reads, replies = [], []
+                def state():
+                    snapshot = self.state
+                    reads.append(snapshot)
+                    if len(reads) == (1 if confirming else 2):
+                        sampled.set()
+                    return snapshot
+                router.state = state
+                operation = (lambda: router.confirm(preview.token, "panel", True)) if confirming else (lambda: router.handle("show menu"))
+                worker = threading.Thread(target=lambda: replies.append(operation()))
+                with self.journal.dispatch_lock:
+                    worker.start()
+                    self.assertTrue(sampled.wait(2), "worker did not sample state")
+                    self.turn(key="focus-2", muted=True)
+                worker.join(2)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual(replies[0].status, "blocked")
+                self.assertEqual(self.calls, [])
+                self.assertEqual(self.spoken, [])
+
+    def test_intent_persistence_state_change_prevents_execution(self):
+        for confirming in (False, True):
+            with self.subTest(confirming=confirming):
+                router = self.make(risk="confirm" if confirming else "safe")
+                preview = router.handle("show menu") if confirming else None
+                append = self.journal.append
+                def append_and_change(event):
+                    sequence = append(event)
+                    if isinstance(event, Event) and event.event_type == "command.started":
+                        self.turn(key="focus-2", muted=True)
+                    return sequence
+                self.journal.append = append_and_change
+                reply = router.confirm(preview.token, "panel", True) if confirming else router.handle("show menu")
+                self.assertEqual(reply.code, "context.stale")
+                self.assertEqual(self.calls, [])
+
+    def test_speech_rechecks_state_after_preview_or_clarification_persistence(self):
+        for phase in ("voice.preview", "voice.clarification", "confirmation-answer"):
+            with self.subTest(phase=phase):
+                router = self.make(risk="confirm" if phase != "voice.clarification" else "safe")
+                preview = router.handle("show menu") if phase == "confirmation-answer" else None
+                if preview:
+                    self.turn()
+                self.spoken.clear()
+                append = self.journal.append
+                def append_and_change(event):
+                    sequence = append(event)
+                    if isinstance(event, Interaction):
+                        self.turn(key="focus-2", muted=True)
+                    return sequence
+                self.journal.append = append_and_change
+                reply = (router.confirm(preview.token, "voice", "maybe") if preview else
+                         router.handle("unrecognized phrase" if phase == "voice.clarification" else "show menu"))
+                self.assertEqual(reply.code, "context.stale")
+                self.assertEqual(self.spoken, [])
+                self.assertEqual(self.calls, [])
+
+    def test_stale_preview_cannot_speak_ambiguous_confirmation_prompt(self):
+        router = self.make(risk="confirm")
+        preview = router.handle("show menu")
+        self.spoken.clear()
+        self.turn(key="focus-2")
+        reply = router.confirm(preview.token, "voice", "maybe")
+        self.assertEqual(reply.code, "context.stale")
+        self.assertEqual(self.spoken, [])
+        self.assertEqual(self.calls, [])
+
+    def test_voice_boundary_overrides_generic_source_and_enforces_profile(self):
+        router = self.make(voice_enabled=False)
+        self.state = VoiceState({**self.state.context, "source": "terminal"}, "focus-1", "turn-1")
+        self.assertEqual(router.handle("show menu").code, "voice.disabled")
+        self.assertEqual(self.calls, [])
+        self.assertTrue(all(event.context["source"] == "voice" for _, event in self.journal.read()))
+
+    def test_voice_execution_and_preview_journal_have_voice_provenance(self):
+        for risk in ("safe", "confirm"):
+            with self.subTest(risk=risk):
+                router = self.make(risk=risk)
+                self.state = VoiceState({**self.state.context, "source": "terminal"}, "focus-1", "turn-1")
+                router.handle("show menu")
+                self.assertTrue(self.journal.read())
+                self.assertTrue(all(event.context["source"] == "voice" for _, event in self.journal.read()))
+                if self.calls:
+                    self.assertEqual(self.calls[0].context["source"], "voice")
 
     def test_capture_to_fake_transcription_to_vm_dispatch(self):
         from runtime.voice.capture import CommandCapture, Frame

@@ -33,6 +33,18 @@ def _snapshot(value, expected):
     return result
 
 
+def _guard_denial(guard):
+    """Trusted adapter callback only; missing/nontrue state fails closed."""
+    if guard is None:
+        return None
+    try:
+        if guard() is True:
+            return None
+    except Exception:
+        pass
+    return "context.stale"
+
+
 class ControlPlane:
     """A trusted VM owner binds policy/profile/catalog and an injected executor.
 
@@ -145,7 +157,7 @@ class ControlPlane:
             return self._result(command, "blocked", error=self._error("journal.unavailable", "Cannot record confirmation rejection"))
         return result
 
-    def confirm(self, token, channel, context_key, *, approved=True):
+    def confirm(self, token, channel, context_key, *, approved=True, guard=None):
         with self._journal.dispatch_lock:
             if type(token) is not str or token not in self._confirmations:
                 raise ConfirmationError("unknown or already consumed confirmation")
@@ -157,32 +169,44 @@ class ControlPlane:
                 return self._confirmation_blocked(command, "context.stale")
             if self._clock() >= preview.expires_at_ms:
                 return self._confirmation_blocked(command, "confirmation.expired")
+            if denial := _guard_denial(guard):
+                return self._confirmation_blocked(command, denial)
             try:
                 self.observe_interaction(command, "voice.confirmation", {"channel": channel, "approved": approved})
             except Exception:
                 return self._confirmation_blocked(command, "journal.unavailable")
-            return self._dispatch(command, canceled=not approved, confirmed=approved)
+            return self._dispatch(command, canceled=not approved, confirmed=approved, guard=guard)
 
-    def dispatch(self, command, *, canceled=False):
+    def dispatch(self, command, *, canceled=False, guard=None):
+        """Guard is trusted state validation, rechecked after intent persistence.
+
+        The adapter must own state transitions through final actuation; this
+        callback cannot make an external platform operation atomic by itself.
+        """
         command = _snapshot(command, Command)
         if type(canceled) is not bool:
             raise ContractError("canceled must be boolean")
         with self._journal.dispatch_lock:
-            return self._dispatch(command, canceled)
+            return self._dispatch(command, canceled, guard=guard)
 
-    def _dispatch(self, command, canceled, confirmed=False):
+    def _dispatch(self, command, canceled, confirmed=False, guard=None):
         # Read failures fail closed, before any executor invocation. Re-read while
         # holding the journal's shared lock to cover multiple dispatcher objects.
         try:
-            self._seen.update(event.command_id for _, event in self._journal.read() if isinstance(event, Event))
+            history = self._journal.read()
+            self._seen.update(event.command_id for _, event in history if isinstance(event, Event))
+            # Preview observations impose a durable restriction, never approval
+            # or an execution receipt. A lost token cannot lift this restriction.
+            pending = any(isinstance(event, Interaction) and event.phase == "voice.preview"
+                          and event.interaction_id == command.command_id for _, event in history)
         except Exception:
             return self._result(command, "blocked", error=self._error("journal.unavailable", "Cannot read execution history"))
         start = self._clock()
         duplicate = command.command_id in self._seen
         self._seen.add(command.command_id)
-        pending = any(item[0].command.command_id == command.command_id for item in self._confirmations.values())
         denial = ("command.duplicate" if duplicate else
-                  "confirmation.required" if pending and not confirmed else self._denial(command, confirmed))
+                  "confirmation.required" if pending and not confirmed else
+                  _guard_denial(guard) or self._denial(command, confirmed))
         if canceled and not duplicate:
             result = self._result(command, "canceled")
         elif denial:
@@ -192,13 +216,17 @@ class ControlPlane:
                 self._journal.append(self._event(command, None, start))
             except Exception:
                 return self._result(command, "blocked", error=self._error("journal.unavailable", "Cannot persist execution intent"))
-            try:
-                outcome = self._executor(command)
-                if not isinstance(outcome, Outcome) or outcome.status not in ("success", "failed", "canceled", "uncertain"):
-                    raise ContractError("invalid executor outcome")
-                result = self._result(command, outcome.status, outcome.output, outcome.error)
-            except Exception:
-                result = self._result(command, "uncertain", error=self._error("executor.uncertain", "Executor did not produce a valid outcome; reconcile before retry"))
+            denial = _guard_denial(guard)
+            if denial:
+                result = self._result(command, "blocked", error=self._error(denial, "Current state no longer authorizes execution"))
+            else:
+                try:
+                    outcome = self._executor(command)
+                    if not isinstance(outcome, Outcome) or outcome.status not in ("success", "failed", "canceled", "uncertain"):
+                        raise ContractError("invalid executor outcome")
+                    result = self._result(command, outcome.status, outcome.output, outcome.error)
+                except Exception:
+                    result = self._result(command, "uncertain", error=self._error("executor.uncertain", "Executor did not produce a valid outcome; reconcile before retry"))
         try:
             self._journal.append(self._event(command, result, start))
         except Exception:
