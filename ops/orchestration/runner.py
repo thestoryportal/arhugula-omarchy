@@ -31,9 +31,10 @@ def main():
         state = adapter.common_dir() / "orchestration"
         with Lease(state / "runner.lock"):
             handoff = state / "handoff.json"
-            if handoff.exists() and read_handoff(handoff)["stop_reason"] == "interrupted":
+            prior = read_handoff(handoff) if handoff.exists() else None
+            if prior and prior["stop_reason"] == "interrupted":
                 raise Stop("recovery-required: inspect previous handoff and LIT/Git before retry")
-            result = continue_work(adapter, worker, handoff, goal=config["goal"], limit=args.tickets, seconds=args.seconds)
+            result = continue_work(adapter, worker, handoff, goal=config["goal"], limit=args.tickets, seconds=args.seconds, prior=prior)
             print(json.dumps(result, indent=2))
         return 0 if result["stop_reason"] in {"ticket-limit", "queue-empty"} else 2
     except (Stop, ValueError, KeyError, OSError) as error:

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import time
 
-from .handoff import write_handoff
+from .handoff import validate, write_handoff
 from .routing import index_backlog, route
 
 
@@ -85,7 +85,7 @@ def receipt_files(receipt):
     return files
 
 
-def continue_work(adapter, worker, handoff_path, *, goal, limit=1, seconds=1800):
+def continue_work(adapter, worker, handoff_path, *, goal, limit=1, seconds=1800, prior=None):
     """Caller must hold Lease through this loop and every child process lifetime."""
     if type(limit) is not int or not 1 <= limit <= 100 or seconds <= 0:
         raise ValueError("finite positive bounds required (1..100 tickets)")
@@ -94,7 +94,13 @@ def continue_work(adapter, worker, handoff_path, *, goal, limit=1, seconds=1800)
                   worktree=str(getattr(adapter, "cwd", Path.cwd())), model="gpt-6-astra",
                   effort="high", role="implement", goal=goal, completed_work=[],
                   verification=[], risks=[], next_ticket=None, stop_reason=None)
+    if prior is not None:
+        validate(prior)
+        for field in ("completed_work", "verification", "risks"):
+            record[field] = list(prior[field])
     try:
+        if prior is not None and prior["stop_reason"] == "interrupted":
+            raise Stop("recovery-required")
         pending = adapter.next()
         for iteration in range(limit):
             if time.monotonic() - began >= seconds:
@@ -110,6 +116,8 @@ def continue_work(adapter, worker, handoff_path, *, goal, limit=1, seconds=1800)
                 raise Stop(assignment["stop_reason"])
             record.update(model=assignment["model"], effort=assignment["effort"], role=assignment["role"])
             state = adapter.inspect()
+            if prior is not None and (state["worktree"] != prior["worktree"] or state["branch"] != prior["branch"]):
+                raise Stop("handoff-worktree-mismatch")
             record.update(branch=state["branch"], worktree=state["worktree"])
             # Persist intent before claim: interruption never looks like a closed unit.
             record["stop_reason"] = "interrupted"

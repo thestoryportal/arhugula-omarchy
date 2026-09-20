@@ -65,6 +65,10 @@ record, Git history and LIT before resolving the stop. Do not rerun committed
 work blindly. An OS crash releases flock; it does not transfer a LIT claim.
 Keep the previous handoff when starting a fresh session. A new process must
 revalidate all authority and model metadata before consuming queued context.
+The runner loads prior completed work, evidence and risks and passes them to
+the next worker; branch/worktree mismatch refuses resume. The goal comes from
+the explicit run configuration. `lit next` exit 1 with the exact LIT 0.14
+"no ready work" diagnostic is normal exhaustion, not a command failure.
 
 Known LIT 0.14.0 behavior: `lit next` may return a container, and `--type task`
 may surface a leaf despite an ancestor prerequisite. The adapter descends
@@ -81,3 +85,11 @@ they return before the editing process finishes.
 
 Disable by not invoking `run`. No live Omarchy, service, audio, host, package
 or network configuration changes are required.
+
+Integration validation: `python3 -m unittest discover -s tests -v` includes
+real LIT stores in temporary repositories (no remote, hooks disabled), linked
+worktrees, subprocess workers, commits and closes, then a fresh supervisor
+process consuming the durable handoff. An offline worker records routed
+model/effort and prior evidence. This proves transport/continuation mechanics;
+it does not claim a paid model-provider session was launched or evaluated.
+Codex launch argv is separately tested against the installed CLI contract.

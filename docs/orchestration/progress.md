@@ -64,3 +64,15 @@ more conservative dry-run output, no expansion of authority.
 Minor (deferred): legacy bare labels recognize high capabilities and validation
 but not all bounded capabilities. Use canonical capability: labels; broadening
 legacy aliases is not needed for the materialized backlog.
+
+Task yvy: baseline 7b47fab. Real LIT temporary stores, linked Git worktrees,
+subprocess fixture workers, and a fresh Python supervisor process exercised
+claim -> verification -> commit -> close -> durable handoff -> next claim.
+First route Astra/high, second Terra/medium; prior completed work and evidence
+survived the process boundary. Both tickets closed, two scoped commits, clean
+Git state. HIL/foreign-tree cases left work unclaimed and unchanged.
+Regression discovery: resume initially lacked a prior-record input (RED);
+implemented validated history carryover with branch/worktree check (GREEN).
+Real LIT queue exhaustion returns exit 1; exact diagnostic is now normalized.
+Fresh suite 41/41 pass with resource warnings as errors; diff check passes.
+No provider credentials/network or live configuration used.

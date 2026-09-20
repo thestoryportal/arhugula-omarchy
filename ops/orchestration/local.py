@@ -45,7 +45,13 @@ class LocalAdapter:
         return self.checked([*self.lit_argv, *args])
 
     def next(self):
-        return self.lit("next")
+        result = command([*self.lit_argv, "next"], self.cwd, timeout=self.timeout)
+        if result.returncode == 0:
+            return result.stdout
+        # LIT 0.14 uses exit 1, not an empty successful result, for exhaustion.
+        if result.returncode == 1 and result.stderr.splitlines()[:1] == ["error (code=1): no ready work"]:
+            return ""
+        raise Stop(f"lit-next-failed: {result.stderr.strip()}")
 
     def export(self):
         return json.loads(self.lit("export"))
