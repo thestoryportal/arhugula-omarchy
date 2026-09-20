@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-control-plane-jat.0db.t78",
+  "active_ticket": "arhugula-control-plane-jat.0db.c90",
   "parent_epic": "arhugula-control-plane-jat",
   "branch": "feat/control-plane-foundation",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/foundation",
@@ -8,9 +8,9 @@
   "effort": "high",
   "role": "implement",
   "goal": "Complete repository-only control-plane foundation",
-  "completed_work": ["t78 stack ADR and offline health/bootstrap/package; 332581c"],
-  "verification": ["57/57 tests pass", "clean temporary clone bootstrap: pass", "isolated zipapp health: pass", "git diff --check: pass"],
+  "completed_work": ["t78 stack/bootstrap; 332581c", "c90 strict immutable contracts, schemas and fixtures; 3717ca7"],
+  "verification": ["63/63 tests pass", "t78 clean temporary clone bootstrap: pass", "isolated zipapp health: pass", "git diff --check: pass"],
   "risks": ["Foundation is simulation-only; no live execution authorized", "A.4 journal missing from original LIT backlog; added as k39"],
-  "next_ticket": "arhugula-control-plane-jat.0db.c90",
+  "next_ticket": "arhugula-control-plane-jat.0db.gsk",
   "stop_reason": null
 }
