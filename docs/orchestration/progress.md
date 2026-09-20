@@ -32,3 +32,14 @@ Installed Codex exec/resume help inspected; no external documentation or model
 network access used under this session's restriction.
 Task 6x0: complete; fresh full suite 18/18 pass, tmux plan CLI smoke passed,
 diff check clean. Ticket closed after implementation commit.
+
+Task jl9: baseline ae419d1. State-machine and real Git adapter tests first
+failed on absent modules. Added exclusive shared lease, selection/ancestor
+dependency validation, fresh verification, scoped commits, LIT close and
+durable crash/stop handoff. Real temporary Git worktrees exercise foreign
+dirt, changed HEAD, deletion, symlinks, scoped commits and worker timeout.
+Ruling: unfiltered lit next plus explicit hierarchy/dependency validation is
+required by observed 0.14.0 behavior; --type task can bypass an ancestor block.
+Cost if wrong: conservative stops rather than out-of-order implementation.
+Timeout test exposed unclosed process pipes; draining communicate after
+process-group termination fixes the resource leak without changing policy.
