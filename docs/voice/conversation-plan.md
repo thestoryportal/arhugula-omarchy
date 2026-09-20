@@ -12,6 +12,10 @@ SessionOwner remains the single admission/cancellation/cleanup authority.
 
 **Spec:** [conversation-design.md](conversation-design.md).
 
+Buford attested design and inline plan at `a09605a3af800d58e069a94d12252685f0c14c64`.
+Records/admission: `c535438d12b54d12967b609a60aff9476ecbf15f`.
+Controller: `486a1f47679e167bb2733fb679ddb2e1557d4aff`.
+
 ## Global constraints
 
 - Base `91cfb7a5a193ddee21dcd95564fc5b5a3361e985`; dedicated assigned worktree.
@@ -40,9 +44,9 @@ Produces: Entry, ContextState, Display, Code enums; Limits, SetupEvidence,
 ConversationPolicy, ContextItem, Context, Snapshot, TurnToken, Request, Response,
 Exchange, Clarification, Notice. SessionOwner accepts `conversation`.
 
-- [ ] Add constructor rejection tables (bad bool/count/type/enum, excessive
+- [x] Add constructor rejection tables (bad bool/count/type/enum, excessive
   sizes, illegal context combinations, mutable sets) and collision/binding tests.
-- [ ] Add bidirectional admission and cleanup-latch tests:
+- [x] Add bidirectional admission and cleanup-latch tests:
 
 ```python
 owner = SessionOwner()
@@ -55,11 +59,11 @@ with self.assertRaises(FaultedError):
     owner.begin('command')
 ```
 
-- [ ] Run `python -m unittest discover -s tests -p 'test_conversation_records.py' -v`
+- [x] Run `python -m unittest discover -s tests -p 'test_conversation_records.py' -v`
   and the session tests. Expected: missing records/conversation mode rejected.
-- [ ] Implement frozen records with constructor parsing and exact type bounds;
+- [x] Implement frozen records with constructor parsing and exact type bounds;
   add `conversation` to the existing admission mode set.
-- [ ] Repeat targeted tests. Expected: all pass. Commit records/admission slice.
+- [x] Repeat targeted tests. Expected: all pass. Commit records/admission slice.
 
 ## Task 2: Lifecycle and trusted boundaries
 
@@ -69,7 +73,7 @@ Produces: Conversation(owner, snapshot, jobs), `enter(channel)`, `submit(text)`,
 `poll()`, `clarify(clarification)`, `exit_key(key)`, `cancel_turn()`, `end()`,
 `handoff()`, derived `notice`, `history`, `pending`.
 
-- [ ] Add real-owner/fake-job continuity, entry, exit, context, limit and token
+- [x] Add real-owner/fake-job continuity, entry, exit, context, limit and token
   tests. Successful response contract:
 
 ```python
@@ -83,15 +87,15 @@ self.assertNotEqual(first, second)
 self.assertEqual(job.request.history[0].response, 'answer')
 ```
 
-- [ ] Run `python -m unittest discover -s tests -p 'test_conversation.py' -v`.
+- [x] Run `python -m unittest discover -s tests -p 'test_conversation.py' -v`.
   Expected: missing Conversation. Implement the documented state transitions.
-- [ ] Add callback/cross-thread cancellation, reentry, cleanup and drift tests
+- [x] Add callback/cross-thread cancellation, reentry, cleanup and drift tests
   for all five Review Focus cases before adding their guards. Expected: each
   newly uncovered boundary fails before its production change.
-- [ ] Run targeted tests after each change. Expected: all pass. Run full suite
+- [x] Run targeted tests after each change. Expected: all pass. Run full suite
   with `python -W error::ResourceWarning -m unittest discover -s tests -q`.
   Expected: no regressions. Temporary Unix-socket fixtures need sandbox escalation.
-- [ ] Commit the controller and behavioral tests.
+- [x] Commit the controller and behavioral tests.
 
 ## Task 3: Adversarial verification and handoff
 
@@ -99,14 +103,44 @@ Files: create `tests/probe_conversation_mutations.py` and
 `docs/voice/conversation.md`; update this checklist with measured results.
 Consumes: completed Task 1/2 interfaces; produces repeatable review evidence.
 
-- [ ] Add isolated in-memory mutation probes: remove token equality, freshness,
+- [x] Add isolated in-memory mutation probes: remove token equality, freshness,
   conflict binding, cleanup fault, exact phrase comparison and generation checks.
   Each mutant must fail a named behavioral test; restored baseline must pass.
-- [ ] Run `python tests/probe_conversation_mutations.py`. Expected: all detected.
-- [ ] Run full regression, `git diff --check`, `python -m runtime health`,
+- [x] Run `python tests/probe_conversation_mutations.py`. Expected: all detected.
+- [x] Run full regression, `git diff --check`, `python -m runtime health`,
   `python -m ops.build <fresh-temp-dir>/conversation.pyz`, and packaged health.
   Smoke-import the conversation from the zipapp and exercise a two-turn session.
 - [ ] Record exact commands/results, local lint availability and scoped limits.
   Commit and derive `git rev-parse HEAD` and `git diff --name-only <base> HEAD`.
 - [ ] Read back docs; send pins/evidence/paths and writer release to Buford for
   Hannibal review. Preserve worktree. Save personal learnings and await transition.
+
+## Measured local evidence
+
+The RED records/admission run rejected the missing module and conversation mode.
+GREEN: 21 targeted tests and 458 full-suite tests. Controller initial RED was the
+missing module; the first implementation passed 18 lifecycle tests. Later boundary
+tests confirmed callback cancellation, cleanup, drift, contention and reentry.
+A deterministic publication interleaving exposed canceled response retention in
+history; the regression failed before the final publication gate and passed after.
+No plan-scope changes or deferred findings were introduced by the implementer.
+
+- `python -m unittest tests.test_conversation tests.test_conversation_records tests.test_voice_session -q`:
+  57 tests pass; 36 controller, six record, 15 owner tests.
+- `python tests/probe_conversation_mutations.py`: 11/11 mutations detected by
+  assertion failures; each unmodified baseline passes; no source files modified.
+- `python -W error::ResourceWarning -m unittest discover -s tests -q`:
+  494 tests pass in 11.866s. Sandbox run initially failed seven preexisting socket
+  tests; minimal AF_UNIX bind reproduced EPERM. Escalated offline runs pass.
+- `git diff --check`: pass.
+- `python -m runtime health`: simulation, state ok, external_execution false.
+- `python -m ops.build /tmp/henrietta-conversation-package-9CdPGL/conversation.pyz`
+  and packaged health: pass.
+- `python /tmp/henrietta-conversation-package-9CdPGL/smoke.py`: imported runtime
+  from `.pyz`, completed two turns, preserved continuity, cleaned and handed
+  admission to a command client. No checkout fixture imports.
+- Local `ruff` command and Python module unavailable. Required CI Ruff has not
+  been claimed; Buford owns final review/integration/CI and post-main evidence.
+
+The final handoff is an immutable commit plus exact-head evidence sent through
+Buford. This checklist does not attest independent review or live acceptance.
