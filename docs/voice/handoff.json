@@ -9,6 +9,7 @@
   "role": "implement",
   "goal": "Land independently reviewed voice P1 units through protected integration; continue other authorized repository work without routine HIL pauses",
   "completed_work": [
+    "Published clean feat/voice-core-contracts and opened protected-main PR11: https://github.com/thestoryportal/arhugula-omarchy/pull/11. Initial head c6536f8; Python CI started. Expanded workflow awaits PR4 landing; independent GitHub approval/all required checks/post-main CI remain mandatory. No main write or merge performed.",
     "2026-09-20 publication update: Robbo explicitly authorizes clean verified feature pushes and protected PRs while main/diagnostics remain untouched. This supersedes historical merge/push hold for feature publication only; no main write, live authority or protection bypass granted.",
     "Task7 P1 qhp implemented c6b4c8c: pure exact-path/hash cutover proposal and inert templates, no installer or live effects. Independent Terra review Ready/no findings; rulings docs/voice/task7-review.md. Awaiting protected integration, not final LIT closure.",
     "Robbo renewed continuous cross-unit/arc execution for authorized repository work; HIL labels alone do not pause it. Task7 proceeded independently of unresolved live P4 scope. Do not bypass actual safety, ownership or protected-integration boundaries.",
