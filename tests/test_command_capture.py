@@ -39,10 +39,42 @@ class CommandCaptureTests(unittest.TestCase):
 
     def test_initial_silence_discards_empty_audio(self):
         capture = CommandCapture(CaptureConfig(initial_silence_ms=100))
-        capture.key_equal()
+        token = capture.key_equal().token
         result = capture.feed(Frame(pcm(100), False))
-        self.assertEqual((result.status, result.reason, result.audio), ("idle", "initial-silence", b""))
+        self.assertEqual((result.status, result.reason, result.token, result.audio),
+                         ("idle", "initial-silence", token, b""))
         self.assertEqual(capture.buffered_bytes, 0)
+
+    def test_observer_failures_retain_the_terminal_session_token(self):
+        def fail_on(call_number):
+            calls = []
+            def observe(notice):
+                calls.append(notice)
+                if len(calls) == call_number:
+                    raise OSError("sink")
+            return observe
+
+        start_notices = []
+        def fail_start(notice):
+            start_notices.append(notice)
+            raise OSError("sink")
+        start = CommandCapture(observe=fail_start)
+        start_result = start.key_equal()
+        self.assertEqual((start_result.status, start_result.reason, start_result.token),
+                         ("failed", "observation-failed", start_notices[0].token))
+
+        feed = CommandCapture(observe=fail_on(2))
+        feed_token = feed.key_equal().token
+        feed_result = feed.feed(Frame(pcm(1), True))
+        self.assertEqual((feed_result.status, feed_result.reason, feed_result.token),
+                         ("failed", "observation-failed", feed_token))
+
+        finish = CommandCapture(observe=fail_on(3))
+        finish_token = finish.key_equal().token
+        finish.feed(Frame(pcm(1), True))
+        finish_result = finish.feed(Frame(pcm(700), False))
+        self.assertEqual((finish_result.status, finish_result.reason, finish_result.token),
+                         ("failed", "observation-failed", finish_token))
 
     def test_long_utterance_uses_the_shorter_long_silence_bound(self):
         capture = CommandCapture(CaptureConfig(max_ms=1000, initial_silence_ms=500,

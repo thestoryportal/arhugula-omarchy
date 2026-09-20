@@ -79,11 +79,13 @@ class CommandCapture:
         return CaptureResult(status, reason, self._token, bytes(audio))
 
     def _discard(self):
+        token = self._token
         self._state = "idle"
         self._token = None
         self._buffer.clear()
         self._speech_ms = self._silence_ms = 0
         self._heard_speech = False
+        return token
 
     def _blocked(self, reason):
         return self._result("blocked", reason)
@@ -102,7 +104,7 @@ class CommandCapture:
         if self._notify(phase, result):
             return result
         self._discard()
-        return CaptureResult("failed", "observation-failed")
+        return CaptureResult("failed", "observation-failed", result.token)
 
     def key_equal(self):
         with self._lock:
@@ -138,8 +140,8 @@ class CommandCapture:
             if len(self._buffer) == self.config.max_ms * BYTES_PER_MS:
                 return self._finish("max-duration")
             if not self._heard_speech and self._silence_ms >= self.config.initial_silence_ms:
-                self._discard()
-                return self._observed("capture.finished", CaptureResult("idle", "initial-silence"))
+                token = self._discard()
+                return self._observed("capture.finished", CaptureResult("idle", "initial-silence", token))
             limit = (self.config.long_silence_ms if self._speech_ms >= self.config.long_utterance_ms
                      else self.config.short_silence_ms)
             if self._heard_speech and self._silence_ms >= limit:
@@ -148,8 +150,8 @@ class CommandCapture:
 
     def _finish(self, reason):
         if not self._heard_speech:
-            self._discard()
-            return self._observed("capture.finished", CaptureResult("idle", "initial-silence"))
+            token = self._discard()
+            return self._observed("capture.finished", CaptureResult("idle", "initial-silence", token))
         self._state = "processing"
         return self._observed("capture.finished", self._result("processing", reason, self._buffer))
 
