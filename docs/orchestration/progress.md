@@ -23,3 +23,10 @@ inherited safety floor, fail-closed conflicts and backlog dry-run.
 Verification: `python3 -m unittest discover -s tests -v` passes 10 tests;
 live `lit export` report covers 38 leaves (5 eligible, 21 missing autonomy,
 12 ambiguous). `git diff --check` passes. Ambiguities are the planned mgt unit.
+
+Task 6x0: baseline 0aab894. Handoff/launch-plan tests first fail because the
+module is absent. Required fields, model/effort pairing, stop refusal,
+corruption, symlink refusal, private atomic persistence and argv boundaries.
+Memento compatibility is semantic durable context, not an undocumented API.
+Installed Codex exec/resume help inspected; no external documentation or model
+network access used under this session's restriction.
