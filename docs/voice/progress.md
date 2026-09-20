@@ -255,7 +255,33 @@ four hashes unchanged. Earlier already-running/restart behavior remains an
 integration risk, not silently declared repaired. Preserve worktree and main
 foreign diagnostics; merge/push still held. Durable stop handoff records actual
 3/3 capture use and deletion. Return pab to OPEN/HIL awaiting further scope.
-# Task 4 P1 continuation, 2026-09-20
+# Current boundary, 2026-09-20
+
+Task5 review accepted: no Critical/Important findings; two deferred coverage
+minors and excluded-capability rulings in `task5-review.md`. Fresh resumption
+verification:245/245 tests in9.268s, safe dry-run and clean diff check.
+Task6 P1 `.fiw` is now claimed: injected speech seam and headless panel model
+only. No real TTS/provider selection, playback, microphone or GUI acceptance.
+
+Governance correction: `.kpp`, `.hjr`, `.7om`, `.9vs`, `.ap1` reopened for
+integration only; prior CLOSED statements below are historical. Implementations
+and reviews remain valid and must not be repeated. `.u1f` stays in progress.
+All six carry `awaiting-integration`; final closure needs verified main landing
+and successful post-main CI. Main diagnostics remain untouched; no merge/push.
+LIT integrity passes, automatic remote sync currently fails; updates are local.
+
+Shared Terra/medium reviewer: `01a0bea6-e73c-7460-bee3-fc7b543f14d8`, using the
+Superpowers review template. Send scoped immutable ranges via native Codex queue.
+This does not replace GitHub approval or Astra/high final review for high risk.
+
+# Task 4 P1 continuation, 2026-09-20 (historical log)
+
+Task5 `.u1f` now in progress: initial code `9097381`,17 focused control tests,
+245/245 full suite in8.933s. Temporary Unix-socket tests ran outside the tool
+sandbox after it denied binding; no installed/live endpoint, microphone or
+desktop service. Dry-run default starts nothing; --live exits2 for missing
+trusted bindings. Independent Astra/high review pending. New transport/handler
+limits are documented in `docs/voice/controls.md`.
 
 Final Task4 verification after the independent review's two Important fixes:
 228/228 full suite in8.628s;24 coordinator tests and13 owner tests; synthetic
