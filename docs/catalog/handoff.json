@@ -9,6 +9,7 @@
   "role": "implement",
   "goal": "Publish reviewed catalog units through authorized protected PRs and verify main/post-main CI before final LIT closure",
   "completed_work": [
+    "Published clean feat/catalog-refresh and opened protected-main PR10: https://github.com/thestoryportal/arhugula-omarchy/pull/10. Initial head aae1b5a; Python CI passed. Expanded lint/smoke workflow awaits PR4 landing, independent GitHub approval and post-main CI remain gates. No main write or merge performed.",
     "Robbo explicitly authorized clean verified feature-branch pushes and protected PRs on 2026-09-20; prior publication hold is lifted for those branches only. Main and foreign diagnostics remain untouched. Astra publishes catalog/voice; Terra publishes closure evidence/lifecycle projection.",
     "Execution-catalog replacement .1td eaddca7: trusted monotonic typed catalog CAS, preview invalidation, preserved policy/history and reentrant/threaded protection. ER-01 independent review Ready/no findings; lead accepts scoped result. docs/catalog/execution-review.md records exclusions.",
     "Combined private-clone rehearsal with Terra lifecycle497d97c and coreeaddca7 passed347 tests; source branches/main untouched. VL-01 independent clearance plus Astra scoped projection/view inspection accepted; Terra notified.",
@@ -37,6 +38,6 @@
     "Older automatic runner closes at local commit; do not invoke it against live tickets with current governance. Manual continuous loop retains explicit claims/evidence/commits/handoff."
   ],
   "next_ticket": "arhugula-catalog-gateway-yll.298.ejy",
-  "stop_reason": null,
-  "worker_stop": false
+  "stop_reason": "awaiting-protected-integration: PR10 published; PR4 expanded workflow landing, required checks, independent GitHub approval and post-main CI pending. No main write or live host authority inferred.",
+  "worker_stop": true
 }
