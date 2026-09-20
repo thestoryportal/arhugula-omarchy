@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-orchestration-3hx.46x.yvy",
+  "active_ticket": "arhugula-orchestration-3hx.8i8",
   "parent_epic": "arhugula-orchestration-3hx",
   "branch": "feat/orchestration-bootstrap",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/orchestration",
   "model": "gpt-6-astra",
   "effort": "high",
-  "role": "implement",
+  "role": "review",
   "goal": "Complete autonomous orchestration prerequisite before foundation",
-  "completed_work": ["cqh routing policy; ac9c6ef", "6x0 durable handoff and Codex launch plans; 04a24a4", "jl9 bounded supervisor; 9bf0790", "mgt full backlog routing and Terra independent review; 246cf9c", "yvy real LIT/Git isolated continuation and fresh-process resume"],
-  "verification": ["python3 -W error::ResourceWarning -m unittest discover -s tests -q: 41/41 pass", "git diff --check: pass", "Real LIT two-ticket completion, two commits, fresh supervisor resume, Astra/high to Terra/medium, clean worktree", "HIL and foreign-worktree integration stops pass"],
-  "risks": ["LIT automatic remote sync failed; local changes retained", "Non-bootstrap leaves still require autonomous-scope review; no safety labels invented", "Legacy bare bounded labels require canonical capability: prefix"],
-  "next_ticket": "arhugula-orchestration-3hx.8i8",
-  "stop_reason": null
+  "completed_work": ["cqh routing policy; ac9c6ef", "6x0 durable handoff and Codex launch plans; 04a24a4", "jl9 bounded supervisor; 9bf0790", "mgt full backlog routing and Terra independent review; 246cf9c", "yvy isolated real LIT/Git and fresh-process resume; 831faf6", "8i8 Astra final review and seven safety/functionality fixes; 7c89844", "All three orchestration arcs and parent epic closed in LIT"],
+  "verification": ["python3 -W error::ResourceWarning -m unittest discover -s tests -q: 54/54 pass", "git diff --check: pass", "lit doctor: integrity ok; zero foreign keys, rank inversions or dependency cycles", "Offline synchronous Codex adapter completes real LIT tickets with Astra/high then Terra/medium", "live runner plan: foundation t78 stops autonomy-unclassified"],
+  "risks": ["Next foundation ticket lacks autonomous-safe eligibility; review its scope before claiming", "Legacy bare bounded labels require canonical capability: prefix", "Paid-provider, live Omarchy, detached tmux lifecycle and malicious-worker isolation were not validated; see progress ledger", "Check Git remote and LIT sync status for publication evidence"],
+  "next_ticket": "arhugula-control-plane-jat.0db.t78",
+  "stop_reason": "autonomy-unclassified"
 }

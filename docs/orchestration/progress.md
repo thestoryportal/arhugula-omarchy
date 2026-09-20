@@ -109,4 +109,9 @@ session scope, detached sessions require an external lease owner, and trusted
 workers still need process sandboxing. Cost if wrong: additional integration
 validation before enabling those deployment modes. No paid/live success claimed.
 
-Release verification and publication remain pending until the final boundary.
+Task 8i8: complete in commit 7c89844. All orchestration arcs and the epic are
+closed in LIT. Final suite 54/54, diff check clean, LIT integrity clean.
+Next: arhugula-control-plane-jat.0db.t78, Astra/high architecture. Fresh
+runner plan stops autonomy-unclassified; all 32 remaining leaves lack reviewed
+autonomous-safe scope. Preserve this boundary rather than silently granting
+backlog-wide eligibility. Git remote/LIT sync are checked separately at publish.
