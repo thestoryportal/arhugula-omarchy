@@ -49,6 +49,18 @@ class LocalAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(Stop, "git-head-changed"):
             self.adapter.inspect(expected_head="wrong", allowed=["foreign.txt"])
 
+    def test_foreign_index_blob_cannot_hide_behind_clean_worktree_content(self):
+        (self.tree / "base.txt").write_text("foreign staged content\n")
+        git(self.tree, "add", "base.txt")
+        (self.tree / "base.txt").write_text("base\n")
+        self.assertEqual(git(self.tree, "diff", "HEAD", "--name-only"), "")
+        with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
+            self.adapter.inspect()
+        (self.tree / "own.txt").write_text("owned\n")
+        with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
+            self.adapter.commit("unit-1", ["own.txt"])
+        self.assertEqual(git(self.tree, "show", ":base.txt"), "foreign staged content")
+
     def test_deletion_and_symlink_changes_stop(self):
         (self.tree / "base.txt").unlink()
         with self.assertRaisesRegex(Stop, "destructive"):

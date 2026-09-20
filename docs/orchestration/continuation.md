@@ -25,6 +25,14 @@ bodies, and supervisor instructions. Output is one JSON receipt:
 {"files":["tests/new_fixture.json"],"summary":"Added the requested fixture; no new decisions","risks":[],"stop_reason":null}
 ```
 
+For the synchronous Codex adapter, replace `worker_argv` with `"worker": "codex"`
+in the trusted configuration. Every invocation uses the current ticket's model
+and effort, a workspace-write sandbox, a JSON output schema and a dedicated
+receipt file. Prompts travel over stdin. Codex receives worker-only instructions;
+the supervisor retains LIT/Git transitions. Selecting this adapter entails
+provider access and must be within the session's authorization. Tests use an
+offline executable implementing the same argv/stdin/output-file contract.
+
 The worker implements only the selected unit. It cannot authorize work. It
 must report privilege, destructive actions, human decisions, external access,
 or context exhaustion as stop_reason and leave the unit open. Follow-up work
@@ -93,3 +101,34 @@ process consuming the durable handoff. An offline worker records routed
 model/effort and prior evidence. This proves transport/continuation mechanics;
 it does not claim a paid model-provider session was launched or evaluated.
 Codex launch argv is separately tested against the installed CLI contract.
+
+Circle-back safety refinements:
+
+- Inspect both index and working tree, including staged changes canceled by
+  unstaged changes. Recheck the staged path set before committing.
+- Re-export the ticket and ancestors before launching, after worker output,
+  before commit and before close. Recheck dependencies, scope, routing and
+  in-progress state; renew the native LIT claim without `--take` to check
+  ownership. A changed safety label prevents completion.
+- Resolve epic completion from exported child rollups; LIT omits epic status.
+- `worker_stop` and `recovery_required` are additive handoff v1 fields. Worker
+  safety stops retain the reason, summary and risks across restarts. A commit
+  attempt is marked recovery-required before it starts, and only successful
+  close clears that flag. Interrupted/uncertain work is never replayed silently.
+- Initial preflight failures may revalidate after conditions change. A known
+  branch/worktree identity survives failed resume attempts; an uninspected
+  placeholder is not treated as a real branch identity.
+- `--context-bytes` defaults to 65536. Complete history stays durable; large
+  active contexts use recent entries plus a handoff reference and counts.
+  Required ticket/epic context that still exceeds the cap stops explicitly.
+
+Resolve a latched stop only after checking LIT, Git and the underlying issue:
+
+```sh
+python3 -m ops.orchestration.handoff resolve /absolute/git-common-dir/orchestration/handoff.json --evidence 'Reference the verified resolution or human decision here'
+```
+
+This command takes the shared lease and records the previous stop, timestamp
+and explicit evidence before clearing the latch. It never launches work or
+grants authority; the next run repeats all current checks. An agent must not
+resolve a human-required decision on its own.

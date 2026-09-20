@@ -300,6 +300,31 @@ Every epic includes a circle-back unit for reconciliation, refactoring, design
 updates, full regression, and release preparation. Decisions and discoveries are
 captured in issue comments; follow-up work is filed while context is fresh.
 
+### Repository-only autonomous bootstrap
+
+The initial orchestration implementation lives under `ops/orchestration/` as
+dependency-free Python tooling. This does not select the later control-plane
+stack. LIT labels carry capability, model, reasoning effort, role, and safety
+eligibility; explicit metadata resolves ambiguous default classifications.
+Ancestor HIL/security constraints cannot be bypassed by a leaf's safe marker.
+See `docs/orchestration/routing.md` for the versioned routing contract.
+
+Memento compatibility uses durable project context rather than a Claude-only
+launcher: active ticket/epic, branch/worktree, model/effort/role, goal, completed
+work, verification, risks, next ticket and stop reason. Fresh supervisors must
+revalidate LIT/Git authority and retain prior evidence. Codex fresh-process and
+tmux launch plans are inspectable, with no automatic detached writer.
+
+The bounded supervisor uses a repository-wide exclusive lease and validates
+all linked worktrees. A trusted local worker implements one unit; the supervisor
+owns verification, evidence, scoped commit, LIT close and durable handoff.
+Worker commands come from explicit local configuration, never ticket prose.
+This is an orchestration boundary for cooperating agents, not a replacement
+for process sandboxing or the future VM policy executor. Provider access and
+live system integration require separate authority. Offline integration tests
+exercise real LIT/Git and fresh processes without contacting model providers.
+See `docs/orchestration/continuation.md` and `docs/orchestration/handoff.md`.
+
 ## Configuration and lifecycle
 
 Configuration composes as base, hardware/VM, context, voice, workspace,

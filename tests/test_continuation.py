@@ -75,6 +75,10 @@ class FakeAdapter:
         self.events.append("done:" + ticket)
         next(i for i in self.data["issues"] if i["id"] == ticket)["status"] = "closed"
 
+    def assert_claim(self, ticket):
+        if self.claimed != ticket:
+            raise Stop("claim-conflict")
+
 
 def worker(adapter, **changes):
     def implement(context):
@@ -170,3 +174,74 @@ class ContinuationTests(unittest.TestCase):
                         pass
             with Lease(path):
                 pass
+
+    def test_worker_safety_stop_survives_restart_with_its_risks(self):
+        adapter = FakeAdapter()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "handoff.json"
+            first = continue_work(adapter, worker(adapter, stop_reason="hil-required", risks=["Needs human design"]), path, goal="Safety")
+            self.assertIn("Needs human design", first["risks"])
+            self.assertTrue(first["worker_stop"])
+            adapter.files = []
+            adapter.events.clear()
+            second = continue_work(adapter, worker(adapter), path, goal="Safety", prior=first)
+            self.assertEqual(second["stop_reason"], "hil-required")
+            self.assertFalse(any(e.startswith("work:") for e in adapter.events))
+
+    def test_corrected_preflight_stop_can_revalidate_uninspected_branch(self):
+        adapter = FakeAdapter()
+        adapter.foreign = True
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "handoff.json"
+            first = continue_work(adapter, worker(adapter), path, goal="Safety")
+            adapter.foreign = False
+            second = continue_work(adapter, worker(adapter), path, goal="Safety", prior=first)
+            self.assertEqual(second["stop_reason"], "ticket-limit")
+            self.assertEqual(len(second["completed_work"]), 1)
+
+    def test_context_ceiling_hands_off_without_starting_another_worker(self):
+        adapter = FakeAdapter()
+        adapter.data["issues"][2]["description"] = "x" * 5000
+        adapter.show = lambda ticket: "x" * 5000
+        with tempfile.TemporaryDirectory() as directory:
+            result = continue_work(adapter, worker(adapter), Path(directory) / "handoff.json", goal="Bound context", context_bytes=2000)
+        self.assertEqual(result["stop_reason"], "context-limit")
+        self.assertFalse(any(e.startswith("work:") for e in adapter.events))
+
+    def test_lit_safety_change_during_worker_prevents_commit_and_close(self):
+        adapter = FakeAdapter()
+        def changed(context):
+            result = worker(adapter)(context)
+            adapter.data["issues"][2]["labels"].append("hil-required")
+            return result
+        result = self.run_loop(adapter, changed)
+        self.assertEqual(result["stop_reason"], "hil-required")
+        self.assertNotIn("commit:unit-1", adapter.events)
+        self.assertNotIn("done:unit-1", adapter.events)
+
+    def test_failed_close_cannot_replay_already_committed_work_on_restart(self):
+        adapter = FakeAdapter()
+        def failed_close(ticket):
+            raise RuntimeError("LIT unavailable after commit")
+        adapter.done = failed_close
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "handoff.json"
+            first = continue_work(adapter, worker(adapter), path, goal="Safety")
+            self.assertTrue(first["recovery_required"])
+            adapter.events.clear()
+            second = continue_work(adapter, worker(adapter), path, goal="Safety", prior=first)
+            self.assertEqual(second["stop_reason"], "recovery-required")
+            self.assertFalse(any(e.startswith("work:") for e in adapter.events))
+
+    def test_interrupted_stop_remains_latched_after_multiple_restarts(self):
+        adapter = FakeAdapter()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "handoff.json"
+            first = continue_work(adapter, worker(adapter), path, goal="Safety")
+            first["stop_reason"] = "interrupted"
+            for _ in range(2):
+                adapter.events.clear()
+                first = continue_work(adapter, worker(adapter), path, goal="Safety", prior=first)
+                self.assertEqual(first["stop_reason"], "recovery-required")
+                self.assertTrue(first["recovery_required"])
+                self.assertFalse(any(e.startswith("work:") for e in adapter.events))

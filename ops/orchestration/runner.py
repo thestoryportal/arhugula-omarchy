@@ -6,7 +6,7 @@ import sys
 
 from .continuation import Lease, Stop, continue_work, select_ticket
 from .handoff import read_handoff
-from .local import LocalAdapter, ProcessWorker
+from .local import CodexWorker, LocalAdapter, ProcessWorker
 from .routing import route
 
 
@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
     parser.add_argument("--tickets", type=int, default=1)
     parser.add_argument("--seconds", type=int, default=1800)
+    parser.add_argument("--context-bytes", type=int, default=65536, help="maximum worker input size; hand off before exceeding")
     args = parser.parse_args()
     try:
         config = json.loads(args.config.read_text()) if args.config else {}
@@ -27,14 +28,15 @@ def main():
             return 0
         if not args.config or not isinstance(config.get("goal"), str) or not config["goal"].strip():
             raise ValueError("run requires a trusted worker config and goal")
-        worker = ProcessWorker(config["worker_argv"], adapter.cwd, min(args.seconds, 900))
+        worker = (CodexWorker(adapter.cwd, min(args.seconds, 900)) if config.get("worker") == "codex"
+                  else ProcessWorker(config["worker_argv"], adapter.cwd, min(args.seconds, 900)))
         state = adapter.common_dir() / "orchestration"
         with Lease(state / "runner.lock"):
             handoff = state / "handoff.json"
             prior = read_handoff(handoff) if handoff.exists() else None
             if prior and prior["stop_reason"] == "interrupted":
                 raise Stop("recovery-required: inspect previous handoff and LIT/Git before retry")
-            result = continue_work(adapter, worker, handoff, goal=config["goal"], limit=args.tickets, seconds=args.seconds, prior=prior)
+            result = continue_work(adapter, worker, handoff, goal=config["goal"], limit=args.tickets, seconds=args.seconds, prior=prior, context_bytes=args.context_bytes)
             print(json.dumps(result, indent=2))
         return 0 if result["stop_reason"] in {"ticket-limit", "queue-empty"} else 2
     except (Stop, ValueError, KeyError, OSError) as error:

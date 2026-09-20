@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from ops.orchestration.handoff import validate, write_handoff, read_handoff, launch_plan
+from ops.orchestration.handoff import validate, write_handoff, read_handoff, launch_plan, resolve_stop
 
 
 def record(worktree="/tmp/isolated repo"):
@@ -85,3 +85,25 @@ class HandoffTests(unittest.TestCase):
             path.write_text('{"version": 1')
             with self.assertRaises(ValueError):
                 read_handoff(path)
+
+    def test_large_handoff_uses_stdin_and_bounded_tmux_context(self):
+        large = {**record(), "verification": ["x" * 12000] * 12}
+        fresh = launch_plan(large)
+        self.assertEqual(fresh["argv"][-1], "-")
+        self.assertEqual(fresh["stdin"], fresh["prompt"])
+        with self.assertRaisesRegex(ValueError, "durable reference"):
+            launch_plan(large, transport="tmux")
+        tmux = launch_plan(large, transport="tmux", handoff_path="/tmp/state.json")
+        self.assertLess(len(tmux["prompt"].encode()), 32768)
+        self.assertIn("/tmp/state.json", tmux["prompt"])
+
+    def test_resolving_latched_stop_requires_recorded_evidence(self):
+        stopped = {**record(), "stop_reason": "hil-required", "worker_stop": True, "recovery_required": True}
+        with self.assertRaises(ValueError):
+            resolve_stop(stopped, "")
+        resolved = resolve_stop(stopped, "Design decision recorded in LIT; Git reviewed")
+        self.assertEqual(resolved["resolutions"][-1]["previous_stop"], "hil-required")
+        self.assertIsNone(resolved["stop_reason"])
+        self.assertFalse(resolved["worker_stop"])
+        self.assertFalse(resolved["recovery_required"])
+        self.assertTrue(stopped["worker_stop"])

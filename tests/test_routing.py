@@ -94,6 +94,16 @@ class RoutingTests(unittest.TestCase):
         data["issues"][1]["status"] = "closed"
         self.assertEqual(route_backlog(data)[0]["decision"], "ready")
 
+    def test_completed_epic_without_exported_status_satisfies_dependency(self):
+        data = {"version": 2, "issues": [ticket(labels=["capability:tests", "autonomous-safe"]),
+                {"id": "epic", "issue_type": "epic"},
+                {"id": "child", "issue_type": "task", "status": "closed"}],
+                "relations": [{"src_id": "unit", "dst_id": "epic", "type": "blocks"},
+                              {"src_id": "child", "dst_id": "epic", "type": "parent-child"}]}
+        self.assertEqual(route_backlog(data)[0]["decision"], "ready")
+        from ops.orchestration.continuation import select_ticket
+        self.assertEqual(select_ticket(data, "unit open")[0]["id"], "unit")
+
     def test_cli_reads_export_without_writing(self):
         result = subprocess.run([sys.executable, "-m", "ops.orchestration.routing"],
             input=json.dumps({"version": 2, "issues": [ticket("Write documentation", ["autonomous-safe"])], "relations": []}),

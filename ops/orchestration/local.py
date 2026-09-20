@@ -5,8 +5,10 @@ from pathlib import Path
 import shlex
 import signal
 import subprocess
+import tempfile
 
 from .continuation import Stop
+from .handoff import validate
 
 
 def command(argv, cwd, *, timeout=60, input=None):
@@ -71,6 +73,11 @@ class LocalAdapter:
     def done(self, ticket):
         self.lit("done", ticket)
 
+    def assert_claim(self, ticket):
+        # LIT has no read-only exported claims API. Renew using its native
+        # conflict check; never pass --take. Revalidation checked in_progress.
+        self.start(ticket)
+
     def common_dir(self):
         return Path(self.git("rev-parse", "--path-format=absolute", "--git-common-dir").strip())
 
@@ -89,10 +96,13 @@ class LocalAdapter:
                 if other != self.cwd and self.git("status", "--porcelain=v1", "--untracked-files=all", cwd=other).strip():
                     raise Stop("dirty-tree-conflict")
         changed = set(filter(None, self.git("diff", "--name-only", "-z", "HEAD").split("\0")))
+        changed.update(filter(None, self.git("diff", "--cached", "--name-only", "-z").split("\0")))
+        changed.update(filter(None, self.git("diff", "--name-only", "-z").split("\0")))
         changed.update(filter(None, self.git("ls-files", "--others", "--exclude-standard", "-z").split("\0")))
         if changed - set(allowed):
             raise Stop("dirty-tree-conflict")
-        if self.git("diff", "--name-only", "--diff-filter=D", "HEAD").strip():
+        if (self.git("diff", "--name-only", "--diff-filter=D", "HEAD").strip()
+                or self.git("diff", "--cached", "--name-only", "--diff-filter=D").strip()):
             raise Stop("destructive")
         for name in changed:
             path = self.cwd / name
@@ -111,6 +121,9 @@ class LocalAdapter:
         # Literal pathspecs prevent a worker receipt from staging arbitrary globs.
         self.git("--literal-pathspecs", "add", "--", *files)
         self.git("diff", "--cached", "--check")
+        staged = set(filter(None, self.git("diff", "--cached", "--name-only", "-z").split("\0")))
+        if staged - set(files):
+            raise Stop("dirty-tree-conflict")
         if not self.git("diff", "--cached", "--name-only").strip():
             raise Stop("no-changes-to-commit")
         self.git("commit", "-m", f"feat(orchestration): complete {ticket}")
@@ -135,3 +148,32 @@ class ProcessWorker:
             return json.loads(result.stdout)
         except ValueError:
             raise Stop("invalid-worker-receipt") from None
+
+
+class CodexWorker:
+    """Synchronous Codex adapter using current routing, stdin, and a JSON receipt."""
+    def __init__(self, cwd, timeout, executable=None):
+        self.cwd, self.timeout = Path(cwd), timeout
+        self.executable = executable or ["codex"]
+
+    def __call__(self, context):
+        validate(context)
+        if not context.get("supervisor"):
+            raise Stop("worker-context-required")
+        with tempfile.TemporaryDirectory(prefix="arhugula-codex-receipt-") as directory:
+            output = Path(directory) / "receipt.json"
+            schema = Path(__file__).with_name("worker-receipt.schema.json")
+            argv = [*self.executable, "exec", "--model", context["model"], "--config",
+                    f'model_reasoning_effort="{context["effort"]}"', "--sandbox", "workspace-write",
+                    "--cd", str(self.cwd), "--output-schema", str(schema),
+                    "--output-last-message", str(output), "-"]
+            try:
+                result = command(argv, self.cwd, timeout=self.timeout, input=json.dumps(context))
+            except subprocess.TimeoutExpired:
+                raise Stop("worker-timeout") from None
+            if result.returncode:
+                raise Stop("worker-failed")
+            try:
+                return json.loads(output.read_text())
+            except (OSError, ValueError):
+                raise Stop("invalid-worker-receipt") from None

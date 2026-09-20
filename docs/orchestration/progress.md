@@ -76,3 +76,37 @@ implemented validated history carryover with branch/worktree check (GREEN).
 Real LIT queue exhaustion returns exit 1; exact diagnostic is now normalized.
 Fresh suite 41/41 pass with resource warnings as errors; diff check passes.
 No provider credentials/network or live configuration used.
+
+Task 8i8: baseline ddbfc9d. Astra/high whole-branch read-only review found
+seven Important issues; no Critical issues. All seven entered one fix pass:
+
+1. Foreign index content hidden by restored worktree: regression RED, now
+   inspect index/worktree separately and gate exact staged paths before commit.
+2. Restart bypass of worker safety stops and lost explanation: regression RED,
+   now latch worker_stop, preserve summary/risks, require recorded resolution.
+   Post-commit uncertainty and repeated interrupted resumes also stay latched.
+3. Preflight uninspected branch poisoned resumes: regression RED, now retain
+   established identity and allow fresh inspection of an unknown identity.
+4. Completed epic exports lack status: regression RED, shared completion
+   resolver now uses child rollups while preserving normal container checks.
+5. Missing synchronous Codex integration: tests RED, CodexWorker now invokes
+   current model/effort with stdin and schema-checked receipt-file transport.
+6. Unbounded context/oversized argv: tests RED, fresh prompts now use stdin;
+   active context has a configurable byte ceiling and durable-history references;
+   tmux prompts are bounded. Required oversized context stops explicitly.
+7. LIT state changed during worker: regression RED, fresh ticket/ancestor,
+   dependency, scope, route and claim checks guard launch/commit/close.
+
+Fresh verification after fixes: 54/54 tests pass with ResourceWarning as error;
+git diff --check passes. Real LIT/Git integration now also runs the synchronous
+Codex adapter against an offline executable for successive Astra/high and
+Terra/medium tickets, producing two verified commits and closed tickets.
+
+Final: Ruling: reviewer set aside paid-provider behavior, detached tmux
+lifecycle, live Omarchy integration, and hostile trusted executables. Keep
+these outside this offline bootstrap release: provider/live access exceeds
+session scope, detached sessions require an external lease owner, and trusted
+workers still need process sandboxing. Cost if wrong: additional integration
+validation before enabling those deployment modes. No paid/live success claimed.
+
+Release verification and publication remain pending until the final boundary.

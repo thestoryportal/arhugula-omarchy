@@ -136,13 +136,25 @@ def route_backlog(data):
             if relation["type"] == "blocks":
                 if relation["src_id"] not in issues or relation["dst_id"] not in issues:
                     raise ValueError("invalid dependency relationship")
-                if relation["src_id"] in scope and issues[relation["dst_id"]].get("status") != "closed":
+                if relation["src_id"] in scope and not is_complete(relation["dst_id"], issues, parents):
                     blocked.add(relation["dst_id"])
         result["blocked_by"] = sorted(blocked)
         if blocked and result["decision"] == "ready":
             result.update(decision="stop", stop_reason="blocked")
         results.append(result)
     return results
+
+
+def is_complete(identifier, issues, parents):
+    """LIT exports epic completion through children, not an epic status field."""
+    issue = issues[identifier]
+    if issue.get("status") == "closed":
+        return True
+    if issue.get("issue_type") != "epic":
+        return False
+    children = [child for child, parent in parents.items() if parent == identifier
+                and not issues[child].get("archived_at") and not issues[child].get("deleted_at")]
+    return bool(children) and all(is_complete(child, issues, parents) for child in children)
 
 
 def main():

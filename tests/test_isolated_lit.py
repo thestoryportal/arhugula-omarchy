@@ -8,7 +8,7 @@ import unittest
 
 from ops.orchestration.continuation import Lease, continue_work
 from ops.orchestration.handoff import read_handoff
-from ops.orchestration.local import LocalAdapter, ProcessWorker
+from ops.orchestration.local import CodexWorker, LocalAdapter, ProcessWorker
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,3 +83,15 @@ class IsolatedLitTests(unittest.TestCase):
             stopped = continue_work(self.adapter, self.worker, self.state / "handoff.json", goal="Safety", limit=1)
         self.assertEqual(stopped["stop_reason"], "hil-required")
         self.assertEqual((self.root / "foreign.txt").read_text(), "foreign session")
+
+    def test_routed_codex_invocations_complete_two_real_tickets_offline(self):
+        worker = CodexWorker(self.tree, 10, [sys.executable, str(ROOT / "tests/fixtures/offline_codex.py")])
+        with Lease(self.state / "runner.lock"):
+            result = continue_work(self.adapter, worker, self.state / "handoff.json", goal="Codex transport", limit=2)
+        self.assertEqual(result["stop_reason"], "ticket-limit", result)
+        self.assertIn("gpt-6-astra", result["completed_work"][0])
+        self.assertIn('model_reasoning_effort="high"', result["completed_work"][0])
+        self.assertIn("gpt-5.6-terra", result["completed_work"][1])
+        self.assertIn('model_reasoning_effort="medium"', result["completed_work"][1])
+        self.assertEqual({i["status"] for i in self.adapter.export()["issues"]}, {"closed"})
+        self.assertEqual(self.run_command(self.tree, "git", "status", "--porcelain").strip(), "")

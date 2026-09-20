@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["files", "summary", "risks", "stop_reason"],
+  "properties": {
+    "files": {"type": "array", "items": {"type": "string"}},
+    "summary": {"type": "string"},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "stop_reason": {"type": ["string", "null"]}
+  }
+}
