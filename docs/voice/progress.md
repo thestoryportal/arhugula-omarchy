@@ -53,3 +53,20 @@ live speech release are not established by mock/synthetic tests. Network tools
 are not exposed. All remain subject to the original authority boundary. A menu
 smoke establishes the typed executor only; o19 must not claim a live voice release
 without authorized bindings and recorded/live speech acceptance.
+
+Ticket boundary: iz3 CLOSED after evidence commit 0a1a54c and a fresh 137/137
+ResourceWarning-as-error suite (6.712s). LIT doctor reports integrity ok, zero
+foreign-key issues/rank inversions/cycles. Original atomic units are closed, but
+the end-to-end parent arc remains OPEN: the missing live binding is now explicit
+as arhugula-voice-core-b4k.ceb.z5x (Astra/high, cross-cutting, hil-required).
+Parent .ceb is also hil-required so a future loop cannot treat its closed original
+children as release proof. Circle-back .csj.o19 and the voice epic remain OPEN.
+
+Stop reason: authority boundary / HIL decision. Before resuming, obtain the
+permitted live-binding scope, audio fixture/source consent and config/service
+change limits; preserve the existing dictation path and require a disable plan.
+Do not reuse the consumed menu approval. Read LIT and current Git state, then
+resolve the durable stop explicitly; do not start a model session automatically.
+Retain all worktrees and the private smoke journal for recovery. The complete
+machine-readable continuation context is docs/voice/handoff.json. Publishing
+these verified repository commits is not a claim of a usable live voice release.

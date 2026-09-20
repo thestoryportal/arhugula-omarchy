@@ -48,3 +48,6 @@ default. Its opt-in live mode only opens the root Omarchy menu and requires
 separate approval plus a persistent journal. It does not install live voice
 capture, Whisper, TTS, keybindings or services. Current voice progress and
 remaining acceptance boundaries are in the [voice handoff](docs/voice/handoff.json).
+The single approved menu smoke passed ([evidence](docs/voice/live-smoke.json));
+that authorization is consumed. The live voice binding and release remain
+HIL-required work, not a completed usable voice system.
