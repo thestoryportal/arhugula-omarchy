@@ -1,0 +1,516 @@
+local_id: epic-foundation
+title: Establish the Omarchy agent workspace control-plane foundation
+type: epic
+topic: control-plane
+priority: 1
+labels: [architecture, spine]
+description: |
+  DESTINATION: A clean project can boot the typed control-plane contracts,
+  validate commands and results, persist correlated runtime events, and run the
+  contract test suite. The destination is defined by the approved design at
+  docs/superpowers/specs/2026-09-19-omarchy-agent-workspace-design.md.
+
+  MECHANISM: Freeze process boundaries and stack choices, create versioned
+  schemas and in-memory seams, then prove event ordering and explicit failure
+  states before feature work begins.
+
+  WHY: Every later voice, model, agent, and Omarchy slice must share one
+  authority boundary and one testable contract surface.
+---
+local_id: arc-foundation-spine
+title: Build the typed control-plane spine
+type: feature
+topic: control-plane
+parent: epic-foundation
+lane: spine
+description: Define the repository layout, technology choices, schemas, dispatch seams, and event journal needed by every later slice.
+---
+local_id: unit-foundation-stack
+title: Freeze implementation stack and repository boundaries
+type: task
+topic: control-plane
+parent: arc-foundation-spine
+labels: [spine]
+description: Select language, process boundaries, transport, schema format, test runner, packaging, and persistence approach; create the minimal project layout and clean-checkout bootstrap; prove the bootstrap in a fresh temporary checkout.
+---
+local_id: unit-foundation-contracts
+title: Define versioned command event and policy contracts
+type: task
+topic: control-plane
+parent: arc-foundation-spine
+labels: [spine]
+description: Define typed commands, results, events, capabilities, policies, profiles, providers, errors, correlation identifiers, and version rules; test round-trip validation and rejection of unknown versions.
+---
+local_id: unit-foundation-runtime
+title: Implement the in-memory control-plane core
+type: task
+topic: control-plane
+parent: arc-foundation-spine
+labels: [spine]
+description: Implement dispatch, correlation, explicit success/failure/blocked/canceled/uncertain states, and deterministic fake executors; test all result states without external IO.
+---
+local_id: arc-foundation-circle
+title: Reconcile and release the control-plane foundation
+type: feature
+topic: control-plane
+parent: epic-foundation
+lane: circle-back
+labels: [circle-back]
+description: Reconcile the contracts against the first implementation, remove duplicate authority, update the design specification, and prepare the foundation release.
+---
+local_id: unit-foundation-circle
+title: Run the foundation circle-back and document decisions
+type: chore
+topic: control-plane
+parent: arc-foundation-circle
+labels: [circle-back]
+description: Run the complete foundation test suite, capture decisions and learnings in LIT comments, update the durable design where reality changed it, and verify the clean release state.
+---
+
+local_id: epic-voice
+title: Deliver safe Omarchy voice control and dictation
+type: epic
+topic: voice-core
+priority: 1
+labels: [vertical-slice, voice]
+description: |
+  DESTINATION: Home/End dictation and one-shot KP_EQUAL Omarchy commands work
+  independently of an agent CLI, with semantic routing, spoken clarification,
+  explicit confirmation, and no command speech leaking into focused apps.
+
+  MECHANISM: Preserve the working Voxtype path, place adaptive command capture
+  beside it, route through the typed policy/executor boundary, and record every
+  interaction as an observable event.
+
+  WHY: This is the first complete user-value slice and the proof that the
+  control-plane architecture works for a real Omarchy interaction.
+---
+local_id: arc-voice-core
+title: Build the first end-to-end voice control slice
+type: feature
+topic: voice-core
+parent: epic-voice
+lane: voice
+description: Implement dictation, KP_EQUAL capture, one safe Omarchy action, semantic routing, clarification, and confirmation through shared contracts.
+---
+local_id: unit-voice-dictation
+title: Stabilize Home and End dictation contracts
+type: task
+topic: voice-core
+parent: arc-voice-core
+description: Preserve Home/End semantics, local Whisper, focused-app typing, clipboard fallback, and mocked output seams; test direct typing, fallback, focus changes, and service failure.
+---
+local_id: unit-voice-capture
+title: Implement adaptive KP_EQUAL command capture
+type: task
+topic: voice-core
+parent: arc-voice-core
+description: Implement one-shot KP_EQUAL capture with silence detection, maximum duration, cancellation, processing state, and strict no-leak output behavior; test synthetic capture and recorded replay.
+---
+local_id: unit-voice-routing
+title: Route and confirm one safe Omarchy command
+type: task
+topic: voice-core
+parent: arc-voice-core
+description: Route normalized speech to one safe catalog action, produce spoken clarification when ambiguous, preview corrections, and support panel/keyboard/voice confirmation; test safe, risky, blocked, muted, and stale-catalog paths.
+---
+local_id: arc-voice-circle
+title: Reconcile and release voice control core
+type: feature
+topic: voice-core
+parent: epic-voice
+lane: circle-back
+labels: [circle-back]
+description: Reconcile capture, routing, policy, output, and current Omarchy behavior before expanding command coverage.
+---
+local_id: unit-voice-circle
+title: Run the voice-core circle-back and release first command control
+type: chore
+topic: voice-core
+parent: arc-voice-circle
+labels: [circle-back]
+description: Run synthetic, recorded, and live harmless-command tests; capture learnings; update design truth; and release the first usable local voice-control slice.
+---
+
+local_id: epic-catalog
+title: Build the capability catalog and local model gateway
+type: epic
+topic: catalog-gateway
+labels: [platform, models]
+description: |
+  DESTINATION: The VM owns a versioned catalog of Omarchy, Hyprland, menu,
+  custom-binding, application, and MCP capabilities while the Mac host provides
+  authenticated local LLM and evaluator services with safe fallbacks.
+
+  MECHANISM: Discover capabilities into a provenance-bearing catalog, retrieve
+  bounded candidates for model requests, validate catalog versions in the VM,
+  and manage providers through explicit manifests and candidate activation.
+
+  WHY: Semantic voice, application control, agent orchestration, and evaluation
+  require current capabilities without giving models unrestricted authority.
+---
+local_id: arc-catalog-gateway
+title: Implement catalog discovery and host model services
+type: feature
+topic: catalog-gateway
+parent: epic-catalog
+lane: platform
+description: Build inventory adapters, catalog refresh, host gateway protocol, provider registry, placement, fallback, and versioning.
+---
+local_id: unit-catalog-inventory
+title: Discover Omarchy Hyprland menus and bindings
+type: task
+topic: catalog-gateway
+parent: arc-catalog-gateway
+description: Build fixture-backed adapters for omarchy commands, menus, active Hyprland bindings, custom bindings, installed apps, and read-only state; test provenance and inventory completeness.
+---
+local_id: unit-catalog-refresh
+title: Version and refresh the capability catalog
+type: task
+topic: catalog-gateway
+parent: arc-catalog-gateway
+description: Implement catalog versions, change detection, custom-binding discovery, first-use review, stale-version rejection, and candidate diffs; test add/change/remove behavior.
+---
+local_id: unit-model-gateway
+title: Implement the authenticated Mac host model gateway
+type: task
+topic: catalog-gateway
+parent: arc-catalog-gateway
+description: Define private VM-to-host requests for LLM, evaluator, and TTS services with authentication, timeouts, bounded context, structured responses, and VM-local fallback; test invalid responses and host loss.
+---
+local_id: arc-catalog-circle
+title: Reconcile and release the catalog and model boundary
+type: feature
+topic: catalog-gateway
+parent: epic-catalog
+lane: circle-back
+labels: [circle-back]
+description: Reconcile actual provider behavior, catalog freshness, resource budgets, and host/VM failure behavior against the approved design.
+---
+local_id: unit-catalog-circle
+title: Run catalog and model-gateway circle-back
+type: chore
+topic: catalog-gateway
+parent: arc-catalog-circle
+labels: [circle-back]
+description: Run inventory, transport, fallback, and candidate activation tests; record provider decisions; update manifests and design truth; and release the boundary.
+---
+
+local_id: epic-observability
+title: Deliver observability and model evaluation
+type: epic
+topic: observability
+labels: [platform, evaluation]
+description: |
+  DESTINATION: A persistent Omarchy workspace shows live interactions, agents,
+  model decisions, policy outcomes, LIT/Git state, candidate comparisons,
+  evaluation results, and rollback controls.
+
+  MECHANISM: Project versioned runtime events into rebuildable read models and
+  expose compact, detailed, detached, and review views with sensitivity-aware
+  retention.
+
+  WHY: The system must be observable and improvable without making projections
+  authoritative for execution.
+---
+local_id: arc-observability-eval
+title: Build event projections and evaluation workspace
+type: feature
+topic: observability
+parent: epic-observability
+lane: observability
+description: Build event projections, compact status, detailed review, replay, independent evaluation, and promotion gates.
+---
+local_id: unit-observe-projections
+title: Build rebuildable runtime event projections
+type: task
+topic: observability
+parent: arc-observability-eval
+description: Project current interaction, service health, action, lane, and provider state from the event journal; test full rebuild, ordering, and stale projection recovery.
+---
+local_id: unit-observe-panel
+title: Build compact and detailed observability views
+type: task
+topic: observability
+parent: arc-observability-eval
+description: Show active mode, mute, health, transcripts, candidates, risk, validation, execution, verification, timing, and sensitivity-controlled diagnostics; test filtering and expansion.
+---
+local_id: unit-observe-evaluation
+title: Build replay comparison and promotion evaluation
+type: task
+topic: observability
+parent: arc-observability-eval
+description: Support synthetic, recorded, live, pinned, deterministic, and independent-evaluator runs with active/candidate comparison, manual labels, promotion gates, and rollback; test disagreement and regression paths.
+---
+local_id: arc-observability-circle
+title: Reconcile and release observability
+type: feature
+topic: observability
+parent: epic-observability
+lane: circle-back
+labels: [circle-back]
+description: Reconcile event vocabulary, projections, metrics, sensitivity rules, and review behavior against actual runtime use.
+---
+local_id: unit-observability-circle
+title: Run observability and evaluation circle-back
+type: chore
+topic: observability
+parent: arc-observability-circle
+labels: [circle-back]
+description: Run rebuild, review, replay, promotion, and retention tests; capture decisions; amend design truth; and release the observability workspace.
+---
+
+local_id: epic-conversation
+title: Deliver conversational voice TTS and cloning
+type: epic
+topic: voice-profiles
+labels: [voice, models]
+description: |
+  DESTINATION: Users can enter conversational mode, receive configurable local
+  spoken responses, choose high-quality voices, create private cloned voices,
+  interrupt speech, and evaluate voice profiles.
+
+  MECHANISM: Keep conversation lifecycle separate from command mode, route heavy
+  TTS and cloning to the Mac host, play through the VM, and version profiles
+  with provenance and retention controls.
+
+  WHY: Voice interaction must support both reliable commands and a usable local
+  conversational assistant without coupling TTS providers to execution.
+---
+local_id: arc-conversation-voice
+title: Build conversation lifecycle and voice profiles
+type: feature
+topic: voice-profiles
+parent: epic-conversation
+lane: voice
+description: Build conversation sessions, TTS routing, voice profiles, pronunciation controls, and guided private cloning.
+---
+local_id: unit-conversation-lifecycle
+title: Implement conversational session lifecycle
+type: task
+topic: voice-profiles
+parent: arc-conversation-voice
+description: Implement entry, explicit spoken exit, configured key exit, mode display, profile policy, memory context, and interruption; test continuation, cancellation, and conflict clarification.
+---
+local_id: unit-conversation-tts
+title: Implement TTS provider routing and audio policy
+type: task
+topic: voice-profiles
+parent: arc-conversation-voice
+description: Support host-heavy and VM-light TTS, returned audio, interruption, ducking, fallback, per-event voice policy, and unavailable/muted output; test routing and degraded behavior.
+---
+local_id: unit-conversation-cloning
+title: Implement versioned guided voice cloning
+type: task
+topic: voice-profiles
+parent: arc-conversation-voice
+description: Support upload, scripted recording, quality scoring, targeted sample requests, versioned private profiles, provenance, source retention, and candidate evaluation; test incomplete and low-quality samples.
+---
+local_id: arc-conversation-circle
+title: Reconcile and release conversational voice
+type: feature
+topic: voice-profiles
+parent: epic-conversation
+lane: circle-back
+labels: [circle-back]
+description: Reconcile voice providers, quality, latency, resource use, interruption, and lifecycle behavior before release.
+---
+local_id: unit-conversation-circle
+title: Run conversational voice circle-back
+type: chore
+topic: voice-profiles
+parent: arc-conversation-circle
+labels: [circle-back]
+description: Run voice quality, cloning, playback, interruption, profile, retention, and fallback tests; record provider choices; update manifests and design truth.
+---
+
+local_id: epic-integrations
+title: Deliver Omarchy application integrations and MCP
+type: epic
+topic: integrations-mcp
+labels: [integrations, security]
+description: |
+  DESTINATION: Omarchy voice and agents can use approved application actions and
+  MCP resources/tools while preserving the VM policy boundary, provenance,
+  verification, undo, and deny-by-default networking.
+
+  MECHANISM: Use read-only resources, typed stable tools, and a policy-gated
+  generic action tool; prefer native APIs/CLIs, then documented shortcuts, then
+  explicitly enabled screen/OCR fallback.
+
+  WHY: The workspace must control useful applications without becoming an
+  unrestricted GUI automation or shell execution system.
+---
+local_id: arc-integrations-mcp
+title: Build trusted MCP and application capability adapters
+type: feature
+topic: integrations-mcp
+parent: epic-integrations
+lane: integrations
+description: Build the MCP broker, application capability interface, first adapters, and screen context/redaction.
+---
+local_id: unit-mcp-broker
+title: Implement the policy-gated MCP broker
+type: task
+topic: integrations-mcp
+parent: arc-integrations-mcp
+description: Implement resources, typed tools, generic catalog action, server manifests, capability review, approval, sandboxing, and network denial; test unauthorized and untrusted tools.
+---
+local_id: unit-app-adapters
+title: Implement native and shortcut application adapters
+type: task
+topic: integrations-mcp
+parent: arc-integrations-mcp
+description: Define adapters that prefer native APIs/CLIs and documented shortcuts, with result verification and native undo where supported; test fake applications and failed verification.
+---
+local_id: unit-screen-context
+title: Implement permissioned screen context and redaction
+type: task
+topic: integrations-mcp
+parent: arc-integrations-mcp
+description: Implement on-demand capture, sensitive-window exclusions, secret redaction, explicit permission, visible indication, and no-retention defaults; test uncertain classification and sharing restrictions.
+---
+local_id: arc-integrations-circle
+title: Reconcile and release integrations
+type: feature
+topic: integrations-mcp
+parent: epic-integrations
+lane: circle-back
+labels: [circle-back]
+description: Reconcile provider trust, action granularity, verification, undo, screen fallback, and network isolation against actual integrations.
+---
+local_id: unit-integrations-circle
+title: Run integration and MCP circle-back
+type: chore
+topic: integrations-mcp
+parent: arc-integrations-circle
+labels: [circle-back]
+description: Run tool permission, application action, screen redaction, verification, network isolation, and rollback tests; update the trust catalog and design truth.
+---
+
+local_id: epic-workspace
+title: Deliver the Omarchy multi-agent workspace
+type: epic
+topic: agent-workspace
+labels: [agents, omarchy]
+description: |
+  DESTINATION: Omarchy provides a native multi-agent workspace with lanes,
+  Hyprland placement, model assignment, LIT/Git visibility, handoffs, recovery,
+  and live topology diagrams while keeping agent state independent of windows.
+
+  MECHANISM: Register agent sessions and lanes in the control plane, connect them
+  to LIT units and Git worktrees, map presentation surfaces through Hyprland,
+  and project all state into the observability workspace.
+
+  WHY: Voice control becomes a reusable workspace interface rather than an
+  isolated command script, and agents can be managed from Omarchy-native layouts.
+---
+local_id: arc-workspace-orchestration
+title: Build agent lifecycle lanes and workflow projections
+type: feature
+topic: agent-workspace
+parent: epic-workspace
+lane: orchestration
+description: Build agent registry, lane assignment, LIT/Git projections, Hyprland placement, and topology views.
+---
+local_id: unit-agent-lifecycle
+title: Implement agent session lifecycle and handoffs
+type: task
+topic: agent-workspace
+parent: arc-workspace-orchestration
+description: Define agent identity, model assignment, lifecycle, health, pause/resume, handoff, and recovery; test start, failure, resume, and preserved context.
+---
+local_id: unit-agent-lanes
+title: Implement LIT lanes and work assignment
+type: task
+topic: agent-workspace
+parent: arc-workspace-orchestration
+description: Connect agents to LIT units, claims, lanes, priorities, dependencies, and handoff comments; test contention, stale claims, blocked work, and completion.
+---
+local_id: unit-agent-hyprland
+title: Implement Hyprland workspace and presentation adapters
+type: task
+topic: agent-workspace
+parent: arc-workspace-orchestration
+description: Place and recover terminals, tmux panes, panels, and agent windows without equating window state to agent state; test conflict-aware setup and window closure.
+---
+local_id: arc-workspace-circle
+title: Reconcile and release the agent workspace
+type: feature
+topic: agent-workspace
+parent: epic-workspace
+lane: circle-back
+labels: [circle-back]
+description: Reconcile agent lifecycle, LIT/Git truth, Hyprland behavior, lane presentation, and topology projections.
+---
+local_id: unit-workspace-circle
+title: Run agent workspace circle-back
+type: chore
+topic: agent-workspace
+parent: arc-workspace-circle
+labels: [circle-back]
+description: Run lifecycle, claim, worktree, placement, recovery, topology, and window-independence tests; capture decisions; update the design and release the workspace foundation.
+---
+
+local_id: epic-memory
+title: Deliver memory learning setup and release hardening
+type: epic
+topic: memory-hardening
+labels: [memory, release]
+description: |
+  DESTINATION: The system retains full local conversation history with efficient
+  retrieval, learns approved command/Whisper/TTS improvements, supports layered
+  setup and candidate restore, and passes security/recovery release gates.
+
+  MECHANISM: Store append-only history with frontmatter and source references,
+  derive reviewable memory and datasets, promote candidates through pinned tests,
+  and manage profiles, backups, pruning, recovery, and network restrictions.
+
+  WHY: Long-running local agents need continuity, but improvements must remain
+  observable, reversible, local, and subject to approval.
+---
+local_id: arc-memory-hardening
+title: Build memory learning setup and recovery
+type: feature
+topic: memory-hardening
+parent: epic-memory
+lane: hardening
+description: Build archive/memory, learning promotion, setup/profile composition, recovery, backup, security, and release validation.
+---
+local_id: unit-memory-archive
+title: Implement full conversation archive and frontmatter retrieval
+type: task
+topic: memory-hardening
+parent: arc-memory-hardening
+description: Store full local conversations with compact frontmatter, rolling summaries, durable summaries, exact/semantic indexes, source references, and deletion controls; test append, retrieval, rebuild, and purge.
+---
+local_id: unit-memory-learning
+title: Implement structured memory pruning and learning promotion
+type: task
+topic: memory-hardening
+parent: arc-memory-hardening
+description: Extract facts, decisions, preferences, recurring patterns, corrections, command/Whisper/TTS datasets, pinned replay bundles, candidate profiles, independent evaluation, approval, and rollback; test conflicts and stale pruning.
+---
+local_id: unit-memory-setup
+title: Implement layered setup profiles backup and recovery
+type: task
+topic: memory-hardening
+parent: arc-memory-hardening
+description: Implement graphical/terminal/conversational setup, base/profile/feature composition, resource estimates, key conflict checks, service retry, fallbacks, candidate restore, selective backup, and deletion policy.
+---
+local_id: arc-memory-circle
+title: Reconcile and release hardening
+type: feature
+topic: memory-hardening
+parent: epic-memory
+lane: circle-back
+labels: [circle-back]
+description: Reconcile memory, learning, setup, security, recovery, retention, and release behavior across the complete system.
+---
+local_id: unit-memory-circle
+title: Run full release hardening and reconcile the design
+type: chore
+topic: memory-hardening
+parent: arc-memory-circle
+labels: [circle-back, release]
+description: Run the full cross-slice regression suite, security and network tests, clean-install validation, backup/restore validation, documentation reconciliation, and first integrated release preparation.
