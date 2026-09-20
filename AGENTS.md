@@ -2,6 +2,12 @@
 
 ## Integration authority
 
+Use the user's existing visible Codex sessions for the named team. Session IDs,
+roles, and routing are in [the session roster](docs/orchestration/session-roster.md).
+Do not create same-named child agents as substitutes for those windows. Address
+handoffs explicitly `TO: <actual recipient name and role>. FROM: <actual sender
+name and role>` to preserve provenance and prevent role confusion.
+
 The user authorizes Buford to own feature push, PR creation, CI, merge to main,
 and post-main CI. Independent agent review remains part of the implementation
 arc. There is no separate GitHub-user approval requirement. Do not stop for one
