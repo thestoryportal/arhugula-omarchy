@@ -158,9 +158,26 @@ class GatewayClient:
         self._configuring = False
         self._disabled = False
         self._permit = None
+        self._configuration_owner = None
+
+    def claim_configuration(self):
+        """Attach one trusted configuration owner, atomically starting disabled."""
+        with self._lock:
+            if (self._configuration_owner is not None or self._active is not None
+                    or self._terminal is not None or self._inside_callback or self._configuring):
+                raise GatewayError('busy')
+            if self._fault:
+                raise GatewayError(self._fault)
+            self._configuration_owner = object()
+            self._disabled = True
+            return self._configuration_owner
+
+    def _require_configuration_owner(self, owner):
+        if owner is not self._configuration_owner:
+            raise GatewayError('identity')
 
     @contextmanager
-    def configuration(self):
+    def configuration(self, owner=None):
         """Serialize trusted configuration state with calls; forbid callback reentry.
 
         The caller may publish its own state and rebind atomically here. This
@@ -168,6 +185,7 @@ class GatewayClient:
         effect-free; lifecycle operations remain owned by this gateway.
         """
         with self._lock:
+            self._require_configuration_owner(owner)
             if self._inside_callback or self._configuring:
                 raise GatewayError('busy')
             self._configuring = True
@@ -176,13 +194,14 @@ class GatewayClient:
             finally:
                 self._configuring = False
 
-    def reconfigure(self, host: Host, local: Local | None = None, *, permit=None):
+    def reconfigure(self, host: Host, local: Local | None = None, *, permit=None, owner=None):
         """Rebind idle routes without discarding replay, exhaustion or faults.
 
         permit(provider, service, monotonic_ms) is a bounded trusted callback;
         exact True permits an attempt. Refusal/exception cancels without fallback.
         """
         with self._lock:
+            self._require_configuration_owner(owner)
             if self._active is not None or self._terminal is not None or self._inside_callback:
                 raise GatewayError('busy')
             if self._fault:
@@ -195,9 +214,10 @@ class GatewayClient:
             self._host, self._local, self._permit = host, local, permit
             self._disabled = False
 
-    def disable(self):
+    def disable(self, *, owner=None):
         """Close admission immediately, retiring any job through normal cleanup."""
         with self._lock:
+            self._require_configuration_owner(owner)
             self._disabled = True
             self.cancel()
 

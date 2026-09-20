@@ -140,3 +140,22 @@ class GatewayConfigurationTests(unittest.TestCase):
         self.transport.job.reply = HttpReply(200, wire(response_doc(self.request)), fixtures.PEER)
         self.client.start(self.request)
         self.assertIsInstance(self.client.poll(), Success)
+
+    def test_exclusive_configuration_claim_closes_admission_atomically(self):
+        owner = self.client.claim_configuration()
+        with self.assertRaisesRegex(GatewayError, 'busy'):
+            self.client.claim_configuration()
+        with self.assertRaisesRegex(GatewayError, 'canceled'):
+            self.client.start(self.request)
+        with self.assertRaisesRegex(GatewayError, 'identity'):
+            self.client.reconfigure(self.host)
+        with self.assertRaisesRegex(GatewayError, 'identity'):
+            self.client.disable()
+        with self.assertRaisesRegex(GatewayError, 'identity'):
+            with self.client.configuration(object()):
+                self.fail('foreign owner')
+        with self.client.configuration(owner):
+            self.client.reconfigure(self.host, owner=owner)
+        self.host_reply()
+        self.client.start(self.request)
+        self.assertIsInstance(self.client.poll(), Success)
