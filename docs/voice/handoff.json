@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "active_ticket": "arhugula-voice-core-b4k.ceb.v1t",
+  "parent_epic": "arhugula-voice-core-b4k",
+  "branch": "feat/voice-core-contracts",
+  "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
+  "model": "gpt-6-astra",
+  "effort": "high",
+  "role": "implement",
+  "goal": "Continue repository-only voice units within approved boundaries",
+  "completed_work": ["Foundation published ec4e9a2", "v1t dictation contracts committed 1b0fadb and closed"],
+  "verification": ["93/93 tests pass", "dictation fake-output and reentrancy regressions pass", "git diff --check passes"],
+  "risks": ["No live capture, transcription or output adapter installed", "Live smoke for safe Omarchy action needs explicit approval"],
+  "next_ticket": "arhugula-voice-core-b4k.ceb.f5v",
+  "stop_reason": null
+}
