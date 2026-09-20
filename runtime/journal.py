@@ -29,14 +29,35 @@ def _wire(event):
     return json.dumps(encode(event), sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+class _ProcessLock:
+    """Reject fork inheritance before touching a potentially inherited mutex."""
+
+    def __init__(self):
+        self._owner = os.getpid()
+        self._lock = threading.RLock()
+
+    def check_owner(self):
+        if os.getpid() != self._owner:
+            raise JournalError("journal belongs to another process; reopen after fork")
+
+    def __enter__(self):
+        self.check_owner()
+        self._lock.acquire()
+        return self
+
+    def __exit__(self, *_):
+        self._lock.release()
+
+
 class MemoryJournal:
     def __init__(self):
-        self.dispatch_lock = threading.RLock()
+        self.dispatch_lock = _ProcessLock()
         self._events = []
         self._ids = {}
         self._closed = False
 
     def _open(self):
+        self.dispatch_lock.check_owner()
         if self._closed:
             raise JournalError("journal is closed")
 

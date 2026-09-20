@@ -21,6 +21,28 @@ class BootstrapTests(unittest.TestCase):
             result = subprocess.run([sys.executable, "-I", str(artifact), "health"], cwd=directory, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["mode"], "simulation")
+            # Exercise packaged schema resources and the whole foundation outside
+            # the checkout, not merely a health handler that imports no codecs.
+            probe = """
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from runtime.contracts import decode
+from runtime.core import ControlPlane, Outcome
+from runtime.journal import SQLiteJournal
+records = {item['kind']: decode(item) for item in json.load(sys.stdin)}
+with SQLiteJournal('probe.sqlite') as journal:
+    plane = ControlPlane([records['capability']], records['policy'],
+                         lambda command: Outcome('success'), journal,
+                         profile=records['profile'])
+    assert plane.dispatch(records['command']).status == 'success'
+    assert len(journal.read()) == 2
+print('packaged-dispatch-ok')
+"""
+            result = subprocess.run([sys.executable, "-I", "-c", probe, str(artifact)],
+                                    input=Path("tests/fixtures/contracts-v1.json").read_text(),
+                                    cwd=directory, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "packaged-dispatch-ok")
 
     def test_unknown_command_does_not_fall_through_to_execution(self):
         result = subprocess.run([sys.executable, "-m", "runtime", "exec", "touch", "/tmp/unrequested"], capture_output=True, text=True)

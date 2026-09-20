@@ -347,13 +347,27 @@ read-only. Hyprland changes require `hyprctl reload` and `hyprctl configerrors`.
 
 ## Open implementation constraints
 
+Foundation decisions (2026-09-20): Python 3.11+ standard library, frozen typed
+records with closed version-1 JSON codecs, offline zipapp packaging, and SQLite
+runtime event persistence. The VM process owns catalog/policy/profile checks;
+host placement is inference-only metadata. Local Unix-socket JSON and host
+authenticated HTTPS JSON are reserved transport seams, not enabled listeners.
+See `docs/decisions/0001-control-plane-stack.md` and `docs/foundation/`.
+
+The foundation supplies only injected fake executors. Confirmation-required
+actions remain blocked pending a trusted VM confirmation adapter. It serializes
+dispatch under journal ownership, persists intent before execution, and refuses
+automatic replay of command IDs, including interrupted attempts. This provides
+conservative at-most-once dispatch, not exactly-once external side effects.
+Transport authentication, contextual freshness, live cancellation and privacy
+retention remain requirements of their later slices, not enabled capabilities.
+
 The following remain implementation choices rather than unresolved product
 requirements:
 
-- Exact programming language and process boundaries.
-- Exact local event-store technology.
+- Concrete adapter process supervision and deployment boundaries.
 - Exact panel toolkit and graph renderer.
-- Exact host/VM transport.
+- Concrete host/VM transport authentication and deployment configuration.
 - Exact Whisper, LLM, TTS, evaluator, and cloning providers.
 - Exact MCP SDK and transport.
 - Exact model resource budgets after hardware inspection.

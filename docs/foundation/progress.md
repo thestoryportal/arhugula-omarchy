@@ -34,3 +34,17 @@ Added regression for malformed falsey executor output (RED success, then fixed).
 k39: RED missing journal module; memory/SQLite parity, ordered replay, idempotent
 event IDs, conflict refusal, private file/owner locks, reopen and unknown-version
 byte preservation verified. Interrupted intent remains nonretryable on reopen.
+
+m7m independent Astra/high review: one important inherited-process ownership
+defect and one minor parser-exception mismatch reproduced with RED regressions.
+Bound journal locks to creator PID before mutex/SQLite access; normalized parser
+ValueError to ContractError. Both fixed. Packaged codecs, dispatch and SQLite
+also pass from outside checkout, not just health. No second review pass needed.
+
+Declined-scope rulings: authentication/session freshness/lock-screen enforcement
+belong to future adapters; confirmation stays denied pending B.5; live executors
+and cancellation/rollback remain disabled. General schema validation is not
+claimed. Projections, retention/redaction and scaling remain D.1+. External
+same-user database tampering is outside the single-owner API contract. Duplicate
+attempts are explicitly coded; projection treatment remains D.1. All deferrals
+preserve the approved architecture rather than weakening current permissions.

@@ -245,5 +245,7 @@ def loads(text: str) -> Record:
 
     try:
         return decode(json.loads(text, object_pairs_hook=pairs, parse_constant=invalid_constant))
-    except (TypeError, json.JSONDecodeError, RecursionError) as exc:
+    except ContractError:
+        raise
+    except (TypeError, ValueError, RecursionError) as exc:
         raise ContractError("invalid JSON document") from exc

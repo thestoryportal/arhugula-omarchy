@@ -16,7 +16,9 @@ Create the database in an existing, owned directory not writable by others.
 New databases are mode 0600. Existing nonprivate files, symlinks, hard links and
 nonregular files are refused. An exclusive nonblocking file lock persists for
 the adapter's lifetime; a second owner is refused. Use the context manager or
-close explicitly. Do not rename/replace an open database or edit it outside this
+close explicitly. Inherited adapters and dispatch locks reject use in a forked
+child before acquiring locks or touching SQLite; open adapters in their owning
+process, and do not fork with a live journal. Do not rename/replace an open database or edit it outside this
 adapter. SQLite file ownership and a shared dispatch lock enforce the initial
 single-process runtime model; this is not a distributed event store.
 

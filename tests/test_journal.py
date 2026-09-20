@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -16,6 +18,29 @@ def record(kind, **patch):
 
 
 class JournalTests(unittest.TestCase):
+    def test_forked_child_cannot_use_inherited_journal_or_dispatch_lock(self):
+        probe = """
+import os, sys
+from runtime.journal import JournalError, SQLiteJournal
+with SQLiteJournal(sys.argv[1]) as journal:
+    child = os.fork()
+    if child == 0:
+        rejected = 0
+        for operation in (journal.read, journal.dispatch_lock.__enter__, journal.close):
+            try:
+                operation()
+            except JournalError:
+                rejected += 1
+        os._exit(0 if rejected == 3 else 1)
+    _, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0, 'child used inherited journal'
+    assert journal.read() == []
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run([sys.executable, "-c", probe, str(Path(directory) / "events.sqlite")],
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_both_adapters_order_deduplicate_conflict_and_replay(self):
         with tempfile.TemporaryDirectory() as directory:
             for journal in (MemoryJournal(), SQLiteJournal(Path(directory) / "events.sqlite")):

@@ -71,6 +71,10 @@ class ContractTests(unittest.TestCase):
         with self.assertRaises(ContractError):
             decode({**fixtures()[0], "arguments": {"object": object()}})
 
+    def test_parser_integer_limit_is_a_contract_error(self):
+        with self.assertRaises(ContractError):
+            loads('{"kind":"error","version":' + '9' * 5000 + '}')
+
     def test_schema_and_golden_fixture_fields_match(self):
         schema = json.loads(Path("schemas/contracts-v1.json").read_text())
         for payload in fixtures():
