@@ -255,3 +255,23 @@ four hashes unchanged. Earlier already-running/restart behavior remains an
 integration risk, not silently declared repaired. Preserve worktree and main
 foreign diagnostics; merge/push still held. Durable stop handoff records actual
 3/3 capture use and deletion. Return pab to OPEN/HIL awaiting further scope.
+# Task 4 P1 continuation, 2026-09-20
+
+User renewed repository implementation authority after the narrow attended P2
+trial. P2 `.pab` remains open: real recordings are deleted, broader corpus and
+FILE/output bridge unproven. No new microphone/provider/service/configuration
+operations are part of this continuation. Main diagnostics and Terra's
+CI/observability work remain untouched; merge/push hold remains.
+
+Task 4 split into atomic `.9vs` observation contracts and `.ap1` coordinator.
+Observation contract is independently versioned `voice-observation` v1, with
+closed lifecycle phases/statuses and finite diagnostic codes, no audio,
+transcript, approval token or generic details bag. The nested context is existing
+trusted VM metadata, not a place for speech content. Memory and SQLite journals
+deduplicate, preserve sequence/correlation and replay it; old execution receipts
+and preview restrictions are unchanged. Older binaries fail closed on the new
+record kind; do not downgrade readers of a journal containing these records.
+
+Fresh `.9vs` evidence: missing-kind RED, 5 focused tests GREEN; full suite 199/199
+in 12.254s; `git diff --check` clean; `lit doctor` integrity ok. LIT remote sync
+is still pending. Synthetic/contract evidence only, not live speech acceptance.

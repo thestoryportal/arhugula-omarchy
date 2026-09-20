@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
+  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.9vs",
   "parent_epic": "arhugula-voice-core-b4k",
   "branch": "feat/voice-core-contracts",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
   "model": "gpt-6-astra",
   "effort": "high",
-  "role": "validate",
-  "goal": "Conduct at most three attended 10-second recordings on approved host input, temporarily quiescing/restoring two approved Voxtype services; characterize isolated local transcription, no desktop actions",
+  "role": "implement",
+  "goal": "Continue approved Task 4 P1 repository-only observations and coordinator; keep P2 recorded acceptance separate and preserve live boundaries",
   "completed_work": [
     "Orchestration/foundation and initial voice substrate published through 3dcceed",
     "hq3 integration proposal and plan prepared",
@@ -25,7 +25,8 @@
     "Clip 2 user playback review confirmed cutoff; analyzed timing and deleted only clip-2.wav after review per consent",
     "Clip3: 9.856s bounded capture, cleanup proven, services restarted and live config hashes unchanged; playback once succeeded and user verified recording",
     "Clip3 isolated local ASR recognized complete neutral phrase twice in2.04s; final WAV deleted after user review. All3 real recordings deleted; no raw audio/transcripts in repo",
-    "Exact tested isolated config and sanitized partial characterization preserved in tests/fixtures/voice-replay/voxtype-isolated.toml and docs/voice/p2-characterization.md"
+    "Exact tested isolated config and sanitized partial characterization preserved in tests/fixtures/voice-replay/voxtype-isolated.toml and docs/voice/p2-characterization.md",
+    "Task 4a .z5x.9vs: content-free VoiceObservation v1 codec and Memory/SQLite journal replay; no execution/approval authority. User renewed P1 continuation approval."
   ],
   "verification": [
     "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
@@ -50,7 +51,8 @@
     "Revised read-only preflight passes: require explicit idle file for live daemon; allow only no-PID inactive/failed or activating/auto-restart without file. No services changed",
     "Clip3: process.ok ASR, stdout205 bytes/5lines; full expected phrase2 occurrences, all6 unique expected words present; not whole-output exact equality",
     "Final read-only service check: both active/running, Result=success; four original unit/config hashes unchanged. Not sustained-health proof",
-    "Fresh python3 -W error::ResourceWarning -m unittest discover -s tests -q:194 tests OK in8.338s; tested config SHA256 matches original and TOML parses"
+    "Fresh python3 -W error::ResourceWarning -m unittest discover -s tests -q:194 tests OK in8.338s; tested config SHA256 matches original and TOML parses",
+    "Task 4a: missing record kind RED, 5 observation tests GREEN; full suite199/199 OK in12.254s, diff check clean; LIT doctor integrity ok, sync still pending"
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
@@ -67,9 +69,9 @@
     "Legacy services do not appear to coexist reliably: before trials default auto-restarted; after restart command service auto-restarts while dictation runs. Start-request restoration is not proof both are healthy. Separate design/repair permission required.",
     "Only one neutral sentence succeeded in an attended trial; broad ASR/VAD/negation/confirmation corpus still unverified. All3 capture slots consumed; fresh audio consent required."
   ],
-  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
-  "stop_reason": "capture-budget-exhausted / partial-P2: all3 approved <=10s clips used and deleted after testing/review; final clip user-verified, full neutral phrase recognized twice. No further capture or playback authority. Broader corpus, reviewed Voxtype FILE/output bridge and live release remain incomplete; renew scoped consent before new recordings. Keep parent HIL gates and merge/push hold.",
-  "worker_stop": true,
+  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.ap1",
+  "stop_reason": null,
+  "worker_stop": false,
   "capture_budget": {
     "clips_authorized": 3,
     "max_seconds_per_clip": 10,
