@@ -30,3 +30,7 @@ gsk: RED missing core; GREEN explicit outcomes, policy/catalog/profile gates,
 argument checks, journal-before-execution and conservative no-retry history.
 Confirmation-required actions remain blocked until the later trusted adapter.
 Added regression for malformed falsey executor output (RED success, then fixed).
+
+k39: RED missing journal module; memory/SQLite parity, ordered replay, idempotent
+event IDs, conflict refusal, private file/owner locks, reopen and unknown-version
+byte preservation verified. Interrupted intent remains nonretryable on reopen.
