@@ -19,8 +19,8 @@ Declined behaviors remain unfinished, not implicitly accepted:
 - No global/cross-plane revocation: a caller must quiesce separate owners.
 - No durable revision/review persistence or restarted-owner recovery guarantee.
 - No live I/O, provider/transport/deployment acceptance or retrospective undo.
-- This document claims no GitHub or CI result, protected-main landing, or final
-  LIT closure.
+- No publication, CI, main-landing, or LIT-closure evidence was established by
+  this scoped implementation review.
 
 ## Combined rehearsal
 
@@ -46,7 +46,7 @@ verification requirements, not locally proven results.
 `.298.din` and `.298.1td` stay awaiting-integration. Robbo explicitly authorized
 clean verified feature-branch publication and protected PRs on 2026-09-20,
 leaving main's foreign diagnostics untouched. No merge action or protection bypass
-is claimed here. Root owns integration; verify actual main and post-main CI before
+is claimed here. Buford owns integration; verify actual main and post-main CI before
 closing tickets.
 Fresh publication preflight at `c90dc08`:173 tests passed in7.548s; runtime,
 fresh zipapp health and diff/status checks passed. The next planned catalog arc unit is `.ejy`;
