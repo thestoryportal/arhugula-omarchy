@@ -217,3 +217,20 @@ Clear safe timing correction for final slot: user sends Ready then immediately
 repeats the neutral sentence until Stop, instead of waiting for the delayed
 Recording chat cue. Keep the <=10s recording bound, no automatic retry or extra
 slot. Await Ready. P2 remains in progress; no successful speech/corpus release.
+
+Next Ready attempt aborted in preflight before any service stop or microphone
+Popen: command state file absent. No clip-3.wav was created; two actual clips
+remain consumed, and the conservatively reserved third slot is released after
+that proof. No automatic retry: told user Stop and await fresh readiness.
+Read-only diagnosis found default dictation active/idle but command service in
+zero-MainPID auto-restart, exit1. Both units' recent logs contain already-running
+markers, consistent with legacy singleton contention. Before the first trial,
+the command service ran and default dictation retried; after restarting both,
+the winning service changed. Restored start intent is NOT both-daemon health.
+No config/repair attempted; record this integration issue separately from ASR.
+The operational preflight incorrectly required a missing idle file even from a
+zero-PID restarting daemon. Revised read-only check passes: live PID requires
+explicit idle; zero PID is allowed only inactive/failed or activating/auto-restart.
+Recheck just before approved two-service quiescence and require both stopped
+before capture. This permits isolated testing without repairing the legacy
+configuration. Fresh Ready still required; final capture stays <=10 seconds.

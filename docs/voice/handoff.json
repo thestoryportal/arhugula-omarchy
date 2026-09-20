@@ -41,7 +41,10 @@
     "Clip 1 isolated ASR: process.ok/success in 2.0s, stdout 132 bytes/5 lines; prompted sentence not present and no exact line match; no speech acceptance claim",
     "Clip 1 WAV deletion confirmed; no transcript/audio persisted in Git/LIT. Post-restart sample showed both services active/running; no repair or sustained-health claim",
     "Clip 2 ASR process.ok 2.02s, stdout145 bytes/5 lines; expected phrase absent, 3 of 6 unique expected words found",
-    "Clip 2 energy >=0.02 RMS first at8.88s, last9.84s of9.856s; near-silence earlier supports late prompt/timing explanation, not a proven speech classifier"
+    "Clip 2 energy >=0.02 RMS first at8.88s, last9.84s of9.856s; near-silence earlier supports late prompt/timing explanation, not a proven speech classifier",
+    "Third attempt aborted before service stop or microphone Popen; clip-3.wav absent, no third recording; reserved slot released",
+    "Read-only service diagnosis: default dictation active/running+idle; command daemon zero MainPID, activating/auto-restart with exit1; both unit logs contain already-running markers, consistent with singleton contention",
+    "Revised read-only preflight passes: require explicit idle file for live daemon; allow only no-PID inactive/failed or activating/auto-restart without file. No services changed"
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
@@ -55,15 +58,17 @@
     "Task 3 P2 and Tasks 4-7 remain incomplete; no actual live voice release",
     "LIT automatic remote sync is failing; changes remain local. Merge/push deferred while main diagnostics remain",
     "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate",
-    "Both first clips failed expected-phrase comparison; user playback and energy timing support late speaking/chat-cue delay. One <=10s slot remains with corrected timing; no successful real-speech acceptance yet."
+    "Both first clips failed expected-phrase comparison; user playback and energy timing support late speaking/chat-cue delay. One <=10s slot remains with corrected timing; no successful real-speech acceptance yet.",
+    "Legacy services do not appear to coexist reliably: before trials default auto-restarted; after restart command service auto-restarts while dictation runs. Start-request restoration is not proof both are healthy. Separate design/repair permission required."
   ],
   "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
-  "stop_reason": "attended-ready: clip 2 playback review confirmed truncated speech; energy rises at 8.88s of 9.856s, supporting late chat-cue timing. Two ASR comparisons failed with clear safe timing correction: for final <=10s slot, user sends Ready then immediately repeats prompted sentence until Stop instead of waiting for Recording chat message. No automatic capture.",
+  "stop_reason": "attended-ready: last attempt failed before service mutation/Popen because absent idle file was required even for zero-PID restarting service. Revised read-only preflight passed. Actual clips remain2/3; wait for fresh Ready, then immediately repeating neutral phrase while final <=10s capture uses approved two-service quiescence. Legacy singleton contention remains unresolved; do not repair/configure services.",
   "worker_stop": true,
   "capture_budget": {
     "clips_authorized": 3,
     "max_seconds_per_clip": 10,
     "clips_consumed": 2,
+    "clip_3_stage": "preflight aborted before any service change or microphone launch; reservation released after proof; await new Ready",
     "clip_2_stage": "captured, replayed once, user confirmed cutoff, analyzed, deleted after review",
     "clip_1_stage": "captured, ASR mismatch, deleted; playback unavailable",
     "ready_required": true,
@@ -118,6 +123,13 @@
       "last_above_energy_threshold_seconds": 9.84,
       "deleted": true
     },
-    "next_timing": "User sends Ready then immediately repeats prompt until Stop; do not wait for Recording chat cue. Still capture <=10 seconds, no budget expansion."
+    "next_timing": "User sends Ready then immediately repeats prompt until Stop; do not wait for Recording chat cue. Still capture <=10 seconds, no budget expansion.",
+    "clip_3_preflight": {
+      "microphone_opened": false,
+      "services_changed": false,
+      "wav_created": false,
+      "failure": "idle file missing for command service with zero MainPID",
+      "corrected_read_only_check_passed": true
+    }
   }
 }
