@@ -11,10 +11,10 @@
   "completed_work": [
     "PR12 combined-baseline CI exposed four voice-test lint findings (run35516356064): F402 loop variable shadowing mock.patch and three E701 inline with suites. Narrow test-only rename/formatting fix prepared; no production/CI policy changes. Shared desk review and combined Ruff rerun required before treating the lint gate as cleared.",
     "Published clean feat/voice-core-contracts and opened protected-main PR11: https://github.com/thestoryportal/arhugula-omarchy/pull/11. Initial head c6536f8; Python CI started. Expanded workflow awaited PR4 landing; all required checks/post-main CI remain mandatory. No root merge had occurred at this historical checkpoint.",
-    "2026-09-20 publication update: Robbo explicitly authorizes clean verified feature pushes and protected PRs while preserving diagnostics. Root alone owns main integration; no live authority or protection bypass is granted.",
+    "2026-09-20 publication update: Robbo explicitly authorizes clean verified feature pushes and protected PRs while preserving diagnostics. Buford alone owns main integration; no live authority or protection bypass is granted.",
     "Task7 P1 qhp implemented c6b4c8c: pure exact-path/hash cutover proposal and inert templates, no installer or live effects. Independent Terra review Ready/no findings; rulings docs/voice/task7-review.md. Awaiting protected integration, not final LIT closure.",
     "Robbo renewed continuous cross-unit/arc execution for authorized repository work; HIL labels alone do not pause it. Task7 proceeded independently of unresolved live P4 scope. Do not bypass actual safety, ownership or protected-integration boundaries.",
-    "Historical ownership checkpoint: Terra implementer01a0bec6-46e5-7313-b527-cc799f600956 acknowledged CI/projections/views/evaluation scope. Root-only integration authority supersedes that publication/CI allocation; prior implementer inboxes01a0bec3 and01a0bdf2 are historical; shared reviewer01a0bea6 remains independent.",
+    "Historical ownership checkpoint: Terra implementer01a0bec6-46e5-7313-b527-cc799f600956 acknowledged CI/projections/views/evaluation scope. Buford's sole integration ownership supersedes that publication/CI allocation; prior implementer inboxes01a0bec3 and01a0bdf2 are historical; shared reviewer01a0bea6 remains independent.",
     "Orchestration/foundation and initial voice substrate published through 3dcceed",
     "hq3 integration proposal and plan prepared",
     "User approved P1 continuation in clean isolated worktree despite main diagnostics; merge/push deferred",
@@ -81,7 +81,7 @@
     "Task6 final fix pass a735537: three coordinator cancellation regressions and panel clock-regression view/confirmation cases RED then GREEN;31 coordinator,15 panel,11 speech focused tests; full278/278 in9.841s;6/6 synthetic replay; runtime/fresh zipapp /tmp/arhugula-voice-task6-final.Wq8kHp/control-plane.pyz health; diff check clean."
   ],
   "risks": [
-    "Main contains foreign uncommitted diagnostics: preserve them; do not edit, stage, delete, or overwrite them. Root alone owns integration actions on main.",
+    "Main contains foreign uncommitted diagnostics: preserve them; do not edit, stage, delete, or overwrite them. Buford alone owns integration actions on main.",
     "SessionOwner is process-local admission, not OS device exclusion or proof of cleanup",
     "P2 plus narrow attended capture/service stop-restart approved; no general live release, playback, binding/config changes or additional menu action",
     "Legacy command config exists outside repo; do not execute/change it",
@@ -91,9 +91,9 @@
     "WAV-stdin transcriber injection is not installed Voxtype FILE compatibility; backend isolation and bridge unproven",
     "Task3 P2 and Task4 recorded replay remain incomplete; Tasks5/6/7 P1 locally verified, actual provider/GUI/install/live acceptance pending; no actual live voice release",
     "Task6 backend callbacks must be bounded and cancel synthesis plus playback; no concrete provider is bound. Headless panel is not GUI/keyboard acceptance and not yet packaged in the runtime-only zipapp.",
-    "Historical CI checkpoint: Ruff was unavailable locally and voice-branch CI was unverified; PR4 then remained pending. All required checks still need fresh verification for the delivered main commit.",
+    "Historical CI checkpoint: Ruff was unavailable locally and voice-branch CI was unverified; PR4 then remained pending. Buford must verify all required CI at the final head; no separate GitHub-user approval is required.",
     "Trusted callbacks must be bounded; no live cancellation latency or atomic compositor actuation proof",
-    "LIT automatic remote sync is intermittent; inspect lit doctor before assuming publication. Preserve foreign diagnostics; root alone owns integration actions on main.",
+    "LIT automatic remote sync is intermittent; inspect lit doctor before assuming publication. Preserve foreign diagnostics; Buford alone owns integration actions on main.",
     "lit next returns reopened .kpp; it awaits integration only, not reimplementation. Do not bypass actual integration/release acceptance; select other safe authorized work while waiting",
     "Legacy services do not appear to coexist reliably: before trials default auto-restarted; after restart command service auto-restarts while dictation runs. Start-request restoration is not proof both are healthy. Separate design/repair permission required.",
     "Only one neutral sentence succeeded in an attended trial; broad ASR/VAD/negation/confirmation corpus still unverified. All3 capture slots consumed; fresh audio consent required."

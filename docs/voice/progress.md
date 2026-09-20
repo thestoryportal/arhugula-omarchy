@@ -300,13 +300,14 @@ Governance correction: `.kpp`, `.hjr`, `.7om`, `.9vs`, `.ap1` reopened for
 integration only; prior CLOSED statements below are historical. Implementations
 and reviews remain valid and must not be repeated. `.u1f` stays in progress.
 All six carry `awaiting-integration`; final closure needs verified main landing
-and successful post-main CI. Preserve main diagnostics; Root owns integration
-actions on main.
+and successful post-main CI. At that historical checkpoint, non-Buford workers
+did not merge or push. Preserve main diagnostics; Buford owns authorized
+integration actions on main.
 LIT integrity passes, automatic remote sync currently fails; updates are local.
 
 Shared Terra/medium reviewer: `01a0bea6-e73c-7460-bee3-fc7b543f14d8`, using the
 Superpowers review template. Send scoped immutable ranges via native Codex queue.
-This does not replace root merge authority or Astra/high final review for high risk.
+This does not replace Buford's merge authority or Astra/high final review for high risk.
 
 # Task 4 P1 continuation, 2026-09-20 (historical log)
 
