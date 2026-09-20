@@ -95,6 +95,21 @@ class Interaction(Record):
 
 
 @dataclass(frozen=True)
+class VoiceObservation(Record):
+    """Content-free lifecycle telemetry, never execution or approval evidence."""
+    kind = "voice-observation"
+    event_id: str
+    session_id: str
+    activation_id: str
+    correlation_id: str
+    timestamp_ms: int
+    context: Mapping
+    phase: str
+    status: str
+    code: str
+
+
+@dataclass(frozen=True)
 class Policy(Record):
     kind = "policy"
     policy_id: str
@@ -124,7 +139,7 @@ class Provider(Record):
     capabilities: tuple[str, ...]
 
 
-_TYPES = {cls.kind: cls for cls in (Command, Error, Result, Event, Interaction, Capability, Policy, Profile, Provider)}
+_TYPES = {cls.kind: cls for cls in (Command, Error, Result, Event, Interaction, VoiceObservation, Capability, Policy, Profile, Provider)}
 _DEFS = json.loads(files("schemas").joinpath("contracts-v1.json").read_text())["$defs"]
 
 
@@ -223,6 +238,17 @@ def decode(payload: dict) -> Record:
                 raise ContractError("successful result cannot carry an error")
         if kind == "event" and ((payload["event_type"] == "command.started") != (payload["status"] == "pending")):
             raise ContractError("event type and status disagree")
+        if kind == "voice-observation":
+            statuses = {
+                "capture.started": {"recording"},
+                "capture.stopped": {"idle", "processing", "failed"},
+                "capture.canceled": {"canceled", "failed"},
+                "transcription.started": {"processing"},
+                "transcription.finished": {"success", "failed", "canceled", "uncertain"},
+                "owner.faulted": {"uncertain"},
+            }
+            if payload["status"] not in statuses[payload["phase"]]:
+                raise ContractError("voice phase and status disagree")
         values = {key: _freeze(value) for key, value in payload.items() if key != "kind"}
         if kind == "result" and payload["error"] is not None:
             values["error"] = decode(payload["error"])

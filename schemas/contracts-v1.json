@@ -513,6 +513,39 @@
       ],
       "additionalProperties": false
     },
+    "voice-observation": {
+      "type": "object",
+      "properties": {
+        "kind": {"type": "string", "const": "voice-observation"},
+        "version": {"type": "integer", "const": 1},
+        "event_id": {"$ref": "#/$defs/id"},
+        "session_id": {"$ref": "#/$defs/id"},
+        "activation_id": {"$ref": "#/$defs/id"},
+        "correlation_id": {"$ref": "#/$defs/id"},
+        "timestamp_ms": {"type": "integer", "minimum": 0},
+        "context": {"$ref": "#/$defs/context"},
+        "phase": {
+          "type": "string",
+          "enum": ["capture.started", "capture.stopped", "capture.canceled",
+                   "transcription.started", "transcription.finished", "owner.faulted"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["recording", "processing", "idle", "success", "failed", "canceled", "uncertain"]
+        },
+        "code": {
+          "type": "string",
+          "enum": ["capture.started", "capture.silence", "capture.max-duration",
+                   "capture.initial-silence", "capture.invalid-frame", "capture.device-error",
+                   "capture.canceled", "transcription.started", "transcription.ok",
+                   "transcription.failed", "transcription.canceled", "transcription.cleanup-unproven",
+                   "owner.cleanup-unproven", "journal.unavailable", "context.stale"]
+        }
+      },
+      "required": ["kind", "version", "event_id", "session_id", "activation_id",
+                   "correlation_id", "timestamp_ms", "context", "phase", "status", "code"],
+      "additionalProperties": false
+    },
     "interaction": {
       "type": "object",
       "properties": {
@@ -594,6 +627,9 @@
     },
     {
       "$ref": "#/$defs/interaction"
+    },
+    {
+      "$ref": "#/$defs/voice-observation"
     }
   ]
 }

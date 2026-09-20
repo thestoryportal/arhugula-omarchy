@@ -1,6 +1,9 @@
 # Live voice integration proposal
 
-Status: PROPOSED, NOT APPROVED FOR IMPLEMENTATION OR DEPLOYMENT.
+Status: P1 APPROVED; P2 ISOLATED TESTING APPROVED, FIXTURE PATHS STILL REQUIRED;
+P3-P8 LIVE GATES NOT APPROVED.
+Subsequent user approval permits isolated work despite foreign main diagnostics;
+leave those untouched and defer merge/push until main is clean.
 Planning ticket: `arhugula-voice-core-b4k.ceb.hq3`.
 Integration ticket: `arhugula-voice-core-b4k.ceb.z5x` remains HIL-required.
 
@@ -127,14 +130,15 @@ a simulated `channel="panel"` call is not evidence of a working panel.
 
 ## Permission checklist
 
-Every row is independently scoped. Only P0 is authorized by the latest user
-message. Approval of this proposal or a later row does not imply all other rows.
+Every row is independently scoped. P0/P1 are authorized and P2 isolated testing
+is approved, pending specific fixture consent and proven isolation. Publishing
+changes is deferred while main is dirty. No later row is implicitly authorized.
 
 | Gate | Requested future authority | Explicit exclusions |
 | --- | --- | --- |
 | P0 — authorized now | Read-only discovery; repository documentation, LIT evidence, verified commits and existing-remote publication | No runtime implementation or live effects |
-| P1 — pending | Implement repository adapters, fake-process tests, config/service templates and replay harness | No installing templates, live audio, real provider inference, service control or downloads |
-| P2 — pending | Read specifically user-approved local recordings; run isolated local file transcription using the existing pinned model | No microphone, speech playback, clipboard, typing, hook/daemon execution, uploads or provider downloads |
+| P1 — authorized | Implement repository adapters, fake-process tests, config/service templates and replay harness in the isolated worktree | No installing templates, live audio, real provider inference, service control or downloads; merge/push deferred |
+| P2 — scope approved; paths/isolation pending | Read specifically user-approved local recordings; run isolated local file transcription using the existing pinned model | No microphone, speech playback, clipboard, typing, hook/daemon execution, uploads or provider downloads |
 | P3 — pending | User-attended foreground microphone trial: approved source only, at most 12 activations of at most 15 seconds; at most 30 seconds transcription per activation; fake executor | No menu/action effects, playback, automatic retrials, device/default/volume changes or continuous capture |
 | P3 ownership subgate — pending | If necessary for isolation, temporarily stop ONLY `voxtype.service` and `voxtype-commands.service` after idle checks; restore only units previously active | No stop while recording/transcribing; no enable/disable, config edits, unrelated service control or automatic retry; warn Home/End will be temporarily unavailable |
 | P4 — pending decision | Select a local TTS provider; approve bounded playback on an explicit sink at unchanged volume, at most six prompts | No inferred package/model installation authority, network, host transport, media duck/pause or device-default changes |
@@ -209,7 +213,7 @@ rollback are demonstrated. Shipping repository adapters is a smaller milestone.
 ## Decisions requested
 
 First review this proposal and its [staged plan](../plans/2026-09-20-live-voice-integration-plan.md).
-Recommended next authorization is P1 only. P2 needs approved fixture paths;
+P1 and P2 scope are now approved. P2 still needs approved fixture paths;
 P3 needs source, attendance and ownership arrangement; P4 needs a provider;
 P5-P8 need their specific later approvals. No ordinary “continue” should be
 interpreted as permission for all these live effects.

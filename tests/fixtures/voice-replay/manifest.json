@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "source": "synthetic constant-s16le only; no microphone or recorded speech",
+  "sample_rate": 16000,
+  "channels": 1,
+  "frame_samples": 320,
+  "threshold_rms": 0.02,
+  "production_calibrated": false,
+  "cases": [
+    {"name": "initial-silence", "runs": [{"sample": 0, "frames": 150}], "status": "idle", "reason": "initial-silence", "audio_bytes": 0},
+    {"name": "quiet-energy-below-threshold", "runs": [{"sample": 200, "frames": 150}], "status": "idle", "reason": "initial-silence", "audio_bytes": 0},
+    {"name": "short-utterance", "runs": [{"sample": 1000, "frames": 20}, {"sample": 0, "frames": 35}], "status": "processing", "reason": "silence", "audio_bytes": 35200},
+    {"name": "long-utterance", "runs": [{"sample": -1000, "frames": 100}, {"sample": 0, "frames": 20}], "status": "processing", "reason": "silence", "audio_bytes": 76800},
+    {"name": "continuous-clipped-energy", "runs": [{"sample": -32768, "frames": 750}], "status": "processing", "reason": "max-duration", "audio_bytes": 480000}
+  ]
+}

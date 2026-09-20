@@ -1,0 +1,33 @@
+engine = "whisper"
+state_file = "disabled"
+
+[hotkey]
+enabled = false
+
+[audio]
+sample_rate = 16000
+max_duration_secs = 10
+pause_media = false
+duck_media = false
+
+[audio.feedback]
+enabled = false
+
+[whisper]
+mode = "local"
+model = "/model.bin"
+language = "en"
+translate = false
+threads = 2
+gpu_isolation = false
+
+[output]
+mode = "file"
+file_path = "/dev/null"
+fallback_to_clipboard = false
+auto_submit = false
+
+[output.notification]
+on_recording_start = false
+on_recording_stop = false
+on_transcription = false
