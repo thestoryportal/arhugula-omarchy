@@ -23,3 +23,27 @@ or activation authority. This module does not collect, retain, delete, persist,
 upload, download, synthesize, play, infer from, or activate any voice data. Real
 consent/revocation, retention/deletion, quality-issuer authority, thresholds, and
 activation remain later user-policy work.
+
+## Post-implementation gate remediation — 2026-09-20
+
+This retrospective design and prospective correction/verification plan was written
+after implementation. It is not evidence of prior design approval. At this record's
+creation, `d9b7241` already contains the output-constructor correction; that work is
+preserved rather than reset or recast as earlier planning.
+
+The boundary remains a pure synthetic metadata decision: a request, provenance, and
+externally supplied authority and quality states flow in; an immutable candidate or
+explicit rejection flows out. `CandidateBinding` is the single source of truth for
+candidate identity, version lineage, and provenance. Request and evidence objects
+must carry that exact binding, so neither source nor lineage can be substituted at a
+later decision point. A valid result must require the exact parsed binding. A rejection
+must require a nonempty tuple from the closed reason vocabulary, preventing mutable or
+invented denial output. Neither result constitutes consent, authenticated approval, or
+activation authority.
+
+For this correction and any final immutable re-review, first run a RED regression for
+forged candidate bindings and mutable, empty, unknown, or non-string rejection
+reasons. Then make only the output-boundary validation GREEN, keeping decision inputs
+and real-policy scope unchanged. Verify focused tests, output-guard mutations, and the
+existing authority, quality, exact-binding, and lineage mutations; then run the full
+suite and package smoke from the immutable commit supplied for independent review.
