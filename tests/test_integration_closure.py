@@ -59,7 +59,7 @@ class IntegrationClosureEvidenceTests(unittest.TestCase):
                 value = case[field]
                 if value is not None:
                     self.assertIsInstance(value, str, f"{case['id']} {field}")
-                    self.assertRegex(value, SHA1, f"{case['id']} {field}")
+                    self.assertIsNotNone(SHA1.fullmatch(value), f"{case['id']} {field}")
 
 
 if __name__ == "__main__":
