@@ -31,7 +31,7 @@ duplicate review is needed. Preserve these explicit exclusions and their costs:
   `rollback.ready=false` is intentional, not successful restoration evidence.
 - Provider, GUI and P3–P8: no microphone, playback, provider acquisition, panel,
   physical-keyboard acceptance or new menu action was exercised.
-- Main and CI: independent review is not GitHub-user approval. Protected main
+- Main and CI: independent review is evidence, not merge authority. Protected main
   landing and successful post-main CI remain required for final LIT closure.
 
 `.z5x.qhp` remains `in_progress`, labeled `awaiting-integration`. Do not redo
