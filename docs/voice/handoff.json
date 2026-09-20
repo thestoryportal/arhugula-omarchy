@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-voice-core-b4k.ceb.v1t",
+  "active_ticket": "arhugula-voice-core-b4k.ceb.f5v",
   "parent_epic": "arhugula-voice-core-b4k",
   "branch": "feat/voice-core-contracts",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
-  "model": "gpt-6-astra",
-  "effort": "high",
+  "model": "gpt-5.6-terra",
+  "effort": "medium",
   "role": "implement",
   "goal": "Continue repository-only voice units within approved boundaries",
-  "completed_work": ["Foundation published ec4e9a2", "v1t dictation contracts committed 1b0fadb and closed"],
-  "verification": ["93/93 tests pass", "dictation fake-output and reentrancy regressions pass", "git diff --check passes"],
-  "risks": ["No live capture, transcription or output adapter installed", "Live smoke for safe Omarchy action needs explicit approval"],
-  "next_ticket": "arhugula-voice-core-b4k.ceb.f5v",
+  "completed_work": ["Foundation published ec4e9a2", "v1t dictation 1b0fadb closed", "f5v capture 93c6f60 plus reviewed token fix 9245803 closed"],
+  "verification": ["105/105 tests pass", "capture task/scoped review clean", "dictation fake-output and reentrancy regressions pass", "git diff --check passes"],
+  "risks": ["No live capture/transcription/output binding installed", "User authorized ONE menu smoke after offline checks; no configuration/service/audio changes", "Synthetic replay is not real VAD accuracy evidence"],
+  "next_ticket": "arhugula-voice-core-b4k.ceb.iz3",
   "stop_reason": null
 }
