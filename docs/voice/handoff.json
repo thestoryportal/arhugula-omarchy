@@ -7,7 +7,7 @@
   "model": "gpt-6-astra",
   "effort": "high",
   "role": "implement",
-  "goal": "Implement only P1 repository units in isolated worktree; preserve foreign diagnostics and defer merge/push",
+  "goal": "Resume P2 isolated local transcription characterization after exact fixture consent and isolation proof; preserve foreign diagnostics and defer merge/push",
   "completed_work": [
     "Orchestration/foundation and initial voice substrate published through 3dcceed",
     "hq3 integration proposal and plan prepared",
@@ -15,7 +15,8 @@
     "Task 1 .z5x.kpp CLOSED in 3676cb3: process-local ownership, generations, cleanup fault latch",
     "Task 2 .z5x.hjr CLOSED in 5e6d60e: bounded PCM and synthetic-only energy VAD",
     "Task 3 P1 .z5x.7om CLOSED: implementation 10b922c, independent Astra/high safety review and single test-first fix pass 7604a08",
-    "Reviewed thread/selector startup cleanup regressions; four failure subcases RED then GREEN; no live IO"
+    "Reviewed thread/selector startup cleanup regressions; four failure subcases RED then GREEN; no live IO",
+    "User granted P2 isolated testing scope; recorded authorization without claiming missing fixture consent or P3-P8 approval"
   ],
   "verification": [
     "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
@@ -24,12 +25,13 @@
     "Fresh full suite: python3 -W error::ResourceWarning -m unittest discover -s tests -q -> 194 tests OK in 8.538s at 7604a08",
     "python3 -m ops.voice_replay -> 5/5 synthetic cases, passed=true, real_speech_validated=false",
     "git diff --check passes; LIT doctor integrity_check=ok, no foreign-key/rank/cycle issues",
-    "Review findings, fix evidence and explicit excluded-capability rulings: docs/voice/p1-review.md"
+    "Review findings, fix evidence and explicit excluded-capability rulings: docs/voice/p1-review.md",
+    "Read-only inventory: bwrap and existing Voxtype/model installed; bounded bwrap /usr/bin/true probe failed creating NETLINK_ROUTE socket in tool sandbox, exit 1; provider not invoked"
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
     "SessionOwner is process-local admission, not OS device exclusion or proof of cleanup",
-    "P2-P8 live gates remain unauthorized; previous menu approval consumed",
+    "P2 scope approved but exact fixture paths absent and isolation probe failed in tool sandbox; P3-P8 unauthorized, previous menu approval consumed",
     "Legacy command config exists outside repo; do not execute/change it",
     "Real VAD accuracy, transcriber isolation and TTS backend remain unproven",
     "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims",
@@ -40,6 +42,6 @@
     "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate"
   ],
   "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
-  "stop_reason": "hil-required: Task 3 P2 needs specifically consented recording paths and approval for isolated local transcription characterization; P3-P8 remain separate gates. Merge/push held while main contains foreign diagnostics.",
+  "stop_reason": "missing-input / isolation-unproven: P2 scope approved, but user must identify consented WAV paths. bwrap harmless probe denied NETLINK_ROUTE socket by current tool sandbox; no provider invocation without a proven isolation path. P3-P8 remain gated; merge/push held.",
   "worker_stop": true
 }

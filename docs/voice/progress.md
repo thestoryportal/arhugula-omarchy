@@ -137,3 +137,15 @@ prevents claiming voice release. Parent .ceb/.z5x and release remain open.
 Main still has foreign untracked diagnostics. Keep branch/worktree/scratch;
 do not merge or push. LIT local records are intact but remote sync is failing.
 docs/voice/handoff.json contains the stopped Memento-compatible continuation.
+
+Subsequent user response "Permissions granted" authorizes the requested P2
+isolated local transcription scope, not P3-P8. Exact consented WAV paths are
+still missing and have been requested; do not search personal audio directories.
+Read-only inventory confirms installed bwrap and the existing Voxtype/model
+paths. A five-second bounded bwrap /usr/bin/true probe with private namespaces,
+cleared environment, no host home/run mounts and no capabilities failed before
+the payload: "loopback: Failed to create NETLINK_ROUTE socket: Operation not
+permitted". This is evidence about this tool sandbox, not proof that isolation
+is impossible on the machine. No provider was invoked and no recording read.
+Keep .z5x.pab OPEN/hil-required until fixtures and a usable isolation mechanism
+are established. No privileged escalation, system change or download attempted.
