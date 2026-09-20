@@ -163,3 +163,21 @@ omarchy_host_input_672e782964f78070. Service interruption remains unapproved.
 STOP before capture: ask to quiesce both legacy services and restore prior start
 intent afterward, and confirm this input. Do not repair the retrying service or
 alter bindings/configuration. Home/End would be unavailable during quiescence.
+
+User subsequently confirmed that exact temporary service stop/restart and the
+current default host-input source. P2 pab manually claimed for attended work;
+HIL label stays to prevent unattended continuation. No additional authority.
+Services have NOT been paused and zero real clips have been captured. Wait for
+per-clip Ready; recheck idle/source and unchanged config hashes at that point.
+Bound capture to 10 seconds, prove owned child cleanup, then restore service
+start intent before waiting for the next clip. Do not repair pre-existing faults.
+
+Isolation preflight passed outside the tool sandbox: private runtime/home/PID/
+network view, no host Voxtype config or audio/input/GPU devices, no external IP
+route and cleared environment. An explicitly supplied temporary config and the
+existing pinned local model transcribed 0.5 seconds of synthetic silence in
+2.143s; process.ok, 115 stdout bytes, cleanup success. This is CLI execution proof,
+not real ASR accuracy, silence rejection or full backend-adapter compatibility.
+Private session directory /tmp/arhugula-voice-p2.SMIIotwE contains only dedicated
+config and generated silence. No raw user audio/transcript enters Git or LIT.
+First neutral prompt: The blue notebook is beside the window.
