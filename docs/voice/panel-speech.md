@@ -27,6 +27,11 @@ cleanup gate before dictation; they are not implemented or validated here.
 Polling does not replace a final platform actuation guard or provide a live
 cancellation latency guarantee. A concrete backend must meet those gates.
 
+Coordinator cancellation also stops speech after the capture owner is released.
+Reentrant cancellation during routing is honored by cleanup; uncertain speech
+teardown faults command admission. Normal successful clarification is not cut
+off merely because capture/transcription has finished.
+
 `VoicePanelModel(state, send_control)` is a UI-independent model for a future
 Tkinter view. Explicit `connect(session_id)` / `disconnect()` invalidate previews.
 A trusted private binding calls `present_preview(token, capability_label,
@@ -40,6 +45,11 @@ full-state drift and reconnect disable confirmation. Tokens are consumed before
 any confirmation callback and retained in bounded replay memory (4096 entries,
 no eviction). Exhaustion requires a new externally reconciled panel/session,
 not automatic retry. Sender exceptions are uncertain and never retried.
+
+Any observed clock decrease invalidates the preview, even if still later than
+issuance. Clock samples must catch up to the last observed time before another
+preview can be admitted; reconnect does not reset this guard. An expired or
+invalidated preview is never resurrected when the clock recovers.
 
 `confirm(bool)` serializes the closed version1 control message; the injected
 trusted sender reaches `ControlDispatcher` and its coordinator/VM handler.

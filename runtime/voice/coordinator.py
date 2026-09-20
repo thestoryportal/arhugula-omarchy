@@ -138,6 +138,8 @@ class Coordinator:
 
     def _cleanup(self):
         clean = self._stop_device()
+        if not self._valid or self._cancel_requested.is_set():
+            clean = self._stop_speech() and clean
         if self._job is not None:
             try:
                 self._job.cancel()
@@ -151,6 +153,15 @@ class Coordinator:
         except Exception:
             clean = False
         return clean
+
+    def _stop_speech(self):
+        if self._speech is None:
+            return True
+        try:
+            self._speech.cancel()
+            return self._speech.cleanup_proven is True
+        except Exception:
+            return False
 
     def _release(self, clean):
         if self._generation is not None:
@@ -199,14 +210,8 @@ class Coordinator:
         # never erase cancellation delivered by this preflight's callbacks.
         if confirmation_token is None:
             self._cancel_requested.clear()
-        if self._speech is not None:
-            try:
-                self._speech.cancel()
-                clean = self._speech.cleanup_proven is True
-            except Exception:
-                clean = False
-            if not clean:
-                raise BusyError('speech cleanup unproven')
+        if not self._stop_speech():
+            raise BusyError('speech cleanup unproven')
         if confirmation_token is not None and (
                 confirmation_token != self._pending_token or not self._current()):
             raise ValueError('no current confirmation')
@@ -387,13 +392,15 @@ class Coordinator:
             self._pending_token = self._confirming = None
             if self._busy:  # Reentrant trusted callback: outer transition cleans.
                 return
-            if self._generation is not None:
-                # _fail also invalidates; repeated cancellation is conservative.
-                self._busy = True
-                try:
+            self._busy = True
+            try:
+                if self._generation is not None:
+                    # _fail also invalidates; repeated cancellation is conservative.
                     self._fail('capture.canceled')
-                finally:
-                    self._busy = False
+                elif not self._stop_speech():
+                    self._phase, self._code = 'faulted', 'owner.cleanup-unproven'
+            finally:
+                self._busy = False
 
     def confirm(self, token, channel, answer):
         with self._lock:

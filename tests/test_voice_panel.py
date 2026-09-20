@@ -68,6 +68,22 @@ class PanelTests(unittest.TestCase):
                 self.assertFalse(self.panel.view()['can_confirm'])
                 self.assertEqual(self.confirmations, [])
 
+    def test_any_observed_clock_regression_invalidates_preview_not_only_preissuance(self):
+        for action in ('view', 'confirm'):
+            with self.subTest(action=action):
+                self.setUp()
+                self.preview()
+                self.now = 1500
+                self.assertTrue(self.panel.view()['can_confirm'])
+                self.now = 1200
+                if action == 'view':
+                    self.assertFalse(self.panel.view()['can_confirm'])
+                else:
+                    self.assertFalse(self.panel.confirm(True))
+                self.now = 1600
+                self.assertFalse(self.panel.view()['can_confirm'])
+                self.assertEqual(self.confirmations, [])
+
     def test_reconnect_discards_old_preview_and_replayed_token(self):
         self.preview()
         self.panel.disconnect()

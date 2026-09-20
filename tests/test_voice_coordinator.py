@@ -58,6 +58,53 @@ class Device:
 
 
 class CoordinatorTests(unittest.TestCase):
+    def test_idle_coordinator_cancel_stops_owned_speech(self):
+        backend = AudioBackend()
+        speech = SpeechQueue(backend, lambda: self.state)
+        coordinator = self.make(speech=speech)
+        speech.say('Please repeat the command.', 'external-turn')
+        coordinator.cancel()
+        self.assertIsNone(backend.pending)
+        self.assertTrue(speech.cleanup_proven)
+
+    def test_failed_speech_cleanup_on_cancel_faults_command_admission(self):
+        backend = AudioBackend()
+        speech = SpeechQueue(backend, lambda: self.state)
+        coordinator = self.make(speech=speech)
+        speech.say('Please repeat the command.', 'external-turn')
+        backend.clean = False
+        coordinator.cancel()
+        self.assertEqual(coordinator.phase, 'faulted')
+        self.assertEqual(coordinator.code, 'owner.cleanup-unproven')
+        with self.assertRaises(BusyError):
+            coordinator.activate()
+
+    def test_reentrant_cancel_during_router_speech_cleans_before_return(self):
+        backend = AudioBackend()
+        speech = SpeechQueue(backend, lambda: self.state)
+        coordinator = self.make(speech=speech)
+        self.router.speak = lambda prompt: speech.say('Please repeat the command.', 'external-turn')
+        backend.on_start = coordinator.cancel
+        generation = coordinator.activate()
+        self.finish_capture(coordinator, generation)
+        self.answer(coordinator, b'unknown phrase')
+        self.assertIsNone(backend.pending)
+        self.assertTrue(speech.cleanup_proven)
+
+    def test_valid_clarification_can_finish_after_capture_owner_release(self):
+        backend = AudioBackend()
+        speech = SpeechQueue(backend, lambda: self.state)
+        coordinator = self.make(speech=speech)
+        self.router.speak = lambda prompt: speech.say('Please repeat the command.', 'external-turn')
+        generation = coordinator.activate()
+        self.finish_capture(coordinator, generation)
+        self.answer(coordinator, b'unknown phrase')
+        self.assertEqual(coordinator.phase, 'idle')
+        self.assertIsNotNone(backend.pending)
+        backend.finish_synthesis()
+        self.assertEqual(backend.played, ['Please repeat the command.'])
+        coordinator.cancel()
+
     def test_activation_stops_speech_before_capture_device_starts(self):
         backend, device = AudioBackend(), Device()
         speech = SpeechQueue(backend, lambda: self.state)

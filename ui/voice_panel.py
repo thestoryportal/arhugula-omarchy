@@ -38,6 +38,7 @@ class VoicePanelModel:
         self._lock = threading.RLock()
         self._session = self._preview = None
         self._epoch = 0
+        self._last_now = None
         self._seen = set()
         self._busy = False
         self._phase, self._degraded = 'idle', False
@@ -68,6 +69,9 @@ class VoicePanelModel:
         value = self._clock()
         if type(value) is not int or value < 0:
             raise ValueError('panel.invalid-clock')
+        if self._last_now is not None and value < self._last_now:
+            raise ValueError('panel.clock-regressed')
+        self._last_now = value
         return value
 
     def _current(self, preview, epoch):
