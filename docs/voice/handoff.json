@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.kpp",
+  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.hjr",
   "parent_epic": "arhugula-voice-core-b4k",
   "branch": "feat/voice-core-contracts",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
@@ -12,12 +12,13 @@
     "Orchestration/foundation and initial voice substrate published through 3dcceed",
     "hq3 integration proposal and plan prepared",
     "User approved P1 continuation in clean isolated worktree despite main diagnostics; merge/push deferred",
-    "Task 1 .z5x.kpp CLOSED in 3676cb3: process-local ownership, generations, cleanup fault latch"
+    "Task 1 .z5x.kpp CLOSED in 3676cb3: process-local ownership, generations, cleanup fault latch",
+    "Task 2 .z5x.hjr CLOSED in 5e6d60e: bounded PCM and synthetic-only energy VAD"
   ],
   "verification": [
-    "Task 1 missing-module RED observed",
-    "11 focused owner tests pass",
-    "Fresh full suite 148 tests pass in 6.797s",
+    "Task 1/2 missing-module RED observed",
+    "11 session + 11 PCM focused tests pass",
+    "Fresh full suite 159 tests pass in 6.791s",
     "git diff --check passes",
     "Whole P1 batch independent review pending"
   ],
@@ -29,7 +30,7 @@
     "Real VAD accuracy, transcriber isolation and TTS backend remain unproven",
     "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims"
   ],
-  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.hjr",
+  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.7om",
   "stop_reason": null,
   "worker_stop": false
 }

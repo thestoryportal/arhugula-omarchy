@@ -98,3 +98,11 @@ Ruling: SessionOwner is a process-local admission contract, not an OS device
 lease — downstream coordinator must prove cleanup/exclusive IO ownership.
 Task 2 inline routing explicitly promoted to Astra/high for the new device-byte
 admission contract; cost is higher model usage, no change to P1 authority.
+
+Task 2 .z5x.hjr CLOSED in 5e6d60e: bounded immutable PCM framing and uncalibrated
+RMS-energy candidate. Eleven focused tests and 159 full-suite tests pass; replay
+proves synthetic silence/adaptive/max/cancel paths only. Ruling: invalid or partial
+PCM terminates its parser instead of permitting resynchronization — prevents
+ambiguous dropped samples; cost is a new parser/activation after stream failure.
+Next .z5x.7om covers only Task 3 repository seams. P2 backend characterization and
+consented recordings remain a separate human gate before live integration.
