@@ -64,8 +64,9 @@ Record `locally-verified`, `review-cleared`, `stacked-merged`, or
 `awaiting-integration` accurately while the protected integration path is
 incomplete. Only close as final after the actual integrated main SHA and every
 required post-main check are evidenced as successful. A stacked branch merge,
-pending or failed CI, stale/mismatched SHA, or agent review without the required
-GitHub-user approval remains awaiting integration. See
+pending or failed CI, stale/mismatched SHA, or agent review without successful
+required CI remains awaiting integration. Root owns push, PR, CI, merge, and
+post-main CI; no separate GitHub-user approval is required. See
 `docs/orchestration/integration-closure.md`; this vocabulary is advisory and
 does not relax any runner stop or protection gate.
 

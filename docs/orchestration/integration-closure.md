@@ -26,13 +26,13 @@ A final closure record names:
 - the immutable `evidence_sha` that was reviewed and verified;
 - the `integrated_main_sha`, which must identify that same delivered content on
   the actual `main` history;
-- successful required checks run after that main integration; and
-- the applicable GitHub-user approval when repository protection requires it.
+- successful required checks run after that main integration: `Python test suite`,
+  `Ruff lint`, and `Runtime and package smoke`.
 
 Missing evidence is not evidence. A stale or mismatched SHA is not a main
 landing. A failed, cancelled, or pending post-main check is not success. An
-agent review is useful range evidence, but it is not a GitHub-user approval and
-cannot satisfy that protected-branch gate.
+agent review remains useful range evidence; it neither substitutes for the
+required CI evidence nor grants merge authority.
 
 A full lowercase 40-character SHA-1 value is required when a repository uses
 SHA-1 object IDs, but this syntactic check is not proof that the object exists,

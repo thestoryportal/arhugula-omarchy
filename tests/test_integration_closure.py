@@ -24,7 +24,6 @@ class IntegrationClosureEvidenceTests(unittest.TestCase):
         main = next(case for case in contract["cases"] if case["id"] == "main-verified")
         self.assertEqual(main["integrated_main_sha"], main["evidence_sha"])
         self.assertEqual(main["post_main_checks"], "success")
-        self.assertTrue(main["github_user_approval"])
 
     def test_incomplete_or_untrustworthy_evidence_never_makes_a_unit_closable(self):
         """Breaks if a missing, stale, mismatched, stacked-only, failed, or pending case closes."""
@@ -45,7 +44,6 @@ class IntegrationClosureEvidenceTests(unittest.TestCase):
         self.assertEqual(set(cases) - {"main-verified"}, expected_not_closable)
         self.assertTrue(all(not cases[case_id]["closable"] for case_id in expected_not_closable))
         self.assertFalse(cases["stacked-merged"]["integrated_main_sha"])
-        self.assertFalse(cases["agent-review-only"]["github_user_approval"])
         self.assertNotEqual(cases["mismatched-evidence"]["integrated_main_sha"],
                             cases["mismatched-evidence"]["evidence_sha"])
         self.assertIn(cases["failed-post-main-ci"]["post_main_checks"], {"failure", "cancelled"})

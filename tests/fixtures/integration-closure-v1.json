@@ -1,16 +1,16 @@
 {
   "version": 1,
   "cases": [
-    {"id": "locally-verified", "closable": false, "evidence_sha": "0000000000000000000000000000000000000001", "integrated_main_sha": null, "post_main_checks": "not-run", "github_user_approval": false},
-    {"id": "review-cleared", "closable": false, "evidence_sha": "0000000000000000000000000000000000000002", "integrated_main_sha": null, "post_main_checks": "not-run", "github_user_approval": false},
-    {"id": "stacked-merged", "closable": false, "evidence_sha": "0000000000000000000000000000000000000003", "integrated_main_sha": null, "post_main_checks": "not-run", "github_user_approval": true},
-    {"id": "awaiting-integration", "closable": false, "evidence_sha": "0000000000000000000000000000000000000004", "integrated_main_sha": null, "post_main_checks": "not-run", "github_user_approval": true},
-    {"id": "missing-evidence", "closable": false, "evidence_sha": null, "integrated_main_sha": null, "post_main_checks": "unknown", "github_user_approval": false},
-    {"id": "stale-evidence", "closable": false, "evidence_sha": "0000000000000000000000000000000000000005", "integrated_main_sha": "0000000000000000000000000000000000000006", "post_main_checks": "success", "github_user_approval": true},
-    {"id": "mismatched-evidence", "closable": false, "evidence_sha": "0000000000000000000000000000000000000007", "integrated_main_sha": "0000000000000000000000000000000000000008", "post_main_checks": "success", "github_user_approval": true},
-    {"id": "failed-post-main-ci", "closable": false, "evidence_sha": "0000000000000000000000000000000000000009", "integrated_main_sha": "0000000000000000000000000000000000000009", "post_main_checks": "failure", "github_user_approval": true},
-    {"id": "pending-post-main-ci", "closable": false, "evidence_sha": "000000000000000000000000000000000000000a", "integrated_main_sha": "000000000000000000000000000000000000000a", "post_main_checks": "pending", "github_user_approval": true},
-    {"id": "agent-review-only", "closable": false, "evidence_sha": "000000000000000000000000000000000000000b", "integrated_main_sha": null, "post_main_checks": "not-run", "github_user_approval": false},
-    {"id": "main-verified", "closable": true, "evidence_sha": "000000000000000000000000000000000000000c", "integrated_main_sha": "000000000000000000000000000000000000000c", "post_main_checks": "success", "github_user_approval": true}
+    {"id": "locally-verified", "closable": false, "evidence_sha": "0000000000000000000000000000000000000001", "integrated_main_sha": null, "post_main_checks": "not-run"},
+    {"id": "review-cleared", "closable": false, "evidence_sha": "0000000000000000000000000000000000000002", "integrated_main_sha": null, "post_main_checks": "not-run"},
+    {"id": "stacked-merged", "closable": false, "evidence_sha": "0000000000000000000000000000000000000003", "integrated_main_sha": null, "post_main_checks": "not-run"},
+    {"id": "awaiting-integration", "closable": false, "evidence_sha": "0000000000000000000000000000000000000004", "integrated_main_sha": null, "post_main_checks": "not-run"},
+    {"id": "missing-evidence", "closable": false, "evidence_sha": null, "integrated_main_sha": null, "post_main_checks": "unknown"},
+    {"id": "stale-evidence", "closable": false, "evidence_sha": "0000000000000000000000000000000000000005", "integrated_main_sha": "0000000000000000000000000000000000000006", "post_main_checks": "success"},
+    {"id": "mismatched-evidence", "closable": false, "evidence_sha": "0000000000000000000000000000000000000007", "integrated_main_sha": "0000000000000000000000000000000000000008", "post_main_checks": "success"},
+    {"id": "failed-post-main-ci", "closable": false, "evidence_sha": "0000000000000000000000000000000000000009", "integrated_main_sha": "0000000000000000000000000000000000000009", "post_main_checks": "failure"},
+    {"id": "pending-post-main-ci", "closable": false, "evidence_sha": "000000000000000000000000000000000000000a", "integrated_main_sha": "000000000000000000000000000000000000000a", "post_main_checks": "pending"},
+    {"id": "agent-review-only", "closable": false, "evidence_sha": "000000000000000000000000000000000000000b", "integrated_main_sha": null, "post_main_checks": "not-run"},
+    {"id": "main-verified", "closable": true, "evidence_sha": "000000000000000000000000000000000000000c", "integrated_main_sha": "000000000000000000000000000000000000000c", "post_main_checks": "success"}
   ]
 }

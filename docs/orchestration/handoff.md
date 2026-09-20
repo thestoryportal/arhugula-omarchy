@@ -21,7 +21,9 @@ then make `next_ticket`/`stop_reason` honest about the integration gate. Use the
 states defined in `integration-closure.md`: local verification, independent
 review, and a stacked merge are not final closure. Final-delivery evidence must
 identify the matching main SHA and successful required checks after main
-integration. Agent review never substitutes for a required GitHub-user approval.
+integration. Agent review remains evidence; it is not merge authority. Root owns
+push, PR, CI, merge, and post-main CI; no separate GitHub-user approval is a
+handoff gate.
 This guidance records evidence only; it does not alter the handoff JSON schema,
 runner authority, CI policy, or protected-branch behavior.
 
