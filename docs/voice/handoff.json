@@ -16,7 +16,8 @@
     "Task 2 .z5x.hjr CLOSED in 5e6d60e: bounded PCM and synthetic-only energy VAD",
     "Task 3 P1 .z5x.7om CLOSED: implementation 10b922c, independent Astra/high safety review and single test-first fix pass 7604a08",
     "Reviewed thread/selector startup cleanup regressions; four failure subcases RED then GREEN; no live IO",
-    "User granted P2 isolated testing scope; recorded authorization without claiming missing fixture consent or P3-P8 approval"
+    "User granted P2 isolated testing scope; recorded authorization without claiming missing fixture consent or P3-P8 approval",
+    "User approved three attended microphone clips of at most 10 seconds, prompt/ready coordination, temporary local storage and deletion afterward; zero clips captured"
   ],
   "verification": [
     "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
@@ -26,12 +27,14 @@
     "python3 -m ops.voice_replay -> 5/5 synthetic cases, passed=true, real_speech_validated=false",
     "git diff --check passes; LIT doctor integrity_check=ok, no foreign-key/rank/cycle issues",
     "Review findings, fix evidence and explicit excluded-capability rulings: docs/voice/p1-review.md",
-    "Read-only inventory: bwrap and existing Voxtype/model installed; bounded bwrap /usr/bin/true probe failed creating NETLINK_ROUTE socket in tool sandbox, exit 1; provider not invoked"
+    "Read-only inventory: bwrap and existing Voxtype/model installed; bounded bwrap /usr/bin/true probe failed creating NETLINK_ROUTE socket in tool sandbox, exit 1; provider not invoked",
+    "User-level bwrap isolation probe and Voxtype --help succeeded outside tool sandbox; no root, host configuration change, inference or recording",
+    "Read-only live inventory: voxtype-commands.service active/running, voxtype.service activating/auto-restart; default source omarchy_host_input_672e782964f78070"
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
     "SessionOwner is process-local admission, not OS device exclusion or proof of cleanup",
-    "P2 scope approved but exact fixture paths absent and isolation probe failed in tool sandbox; P3-P8 unauthorized, previous menu approval consumed",
+    "P2 scope and limited three-clip capture approved; service quiescence/restoration and exact microphone confirmation still required. No other P3-P8 authority; prior menu approval consumed",
     "Legacy command config exists outside repo; do not execute/change it",
     "Real VAD accuracy, transcriber isolation and TTS backend remain unproven",
     "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims",
@@ -42,6 +45,16 @@
     "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate"
   ],
   "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
-  "stop_reason": "missing-input / isolation-unproven: P2 scope approved, but user must identify consented WAV paths. bwrap harmless probe denied NETLINK_ROUTE socket by current tool sandbox; no provider invocation without a proven isolation path. P3-P8 remain gated; merge/push held.",
-  "worker_stop": true
+  "stop_reason": "ownership-permission: before three attended 10-second clips, obtain consent to temporarily stop both legacy Voxtype services and restore their prior start intent afterward; confirm current default host-input source. No capture before user ready. No service changes or clips consumed.",
+  "worker_stop": true,
+  "capture_budget": {
+    "clips_authorized": 3,
+    "max_seconds_per_clip": 10,
+    "clips_consumed": 0,
+    "ready_required": true,
+    "source_confirmed": false,
+    "temporary_storage": true,
+    "delete_own_clips_after_testing": true,
+    "service_control_approved": false
+  }
 }

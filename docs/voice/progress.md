@@ -149,3 +149,17 @@ permitted". This is evidence about this tool sandbox, not proof that isolation
 is impossible on the machine. No provider was invoked and no recording read.
 Keep .z5x.pab OPEN/hil-required until fixtures and a usable isolation mechanism
 are established. No privileged escalation, system change or download attempted.
+
+Subsequent attended-capture approval: up to three 10-second clips, explicit
+prompt/ready timing, private temporary local storage and deletion of only those
+clips after testing. Zero clips consumed. No general live P3-P8 approval.
+The approved execution-tool escalation (not root) allowed bwrap /usr/bin/true
+and isolated Voxtype --help to succeed; prior failure was tool-sandbox-specific.
+Neither help nor the probe establishes complete backend compatibility/isolation
+acceptance. No microphone was opened and no inference was run.
+Read-only live inventory found voxtype-commands.service active/running and
+voxtype.service activating/auto-restart; default input is
+omarchy_host_input_672e782964f78070. Service interruption remains unapproved.
+STOP before capture: ask to quiesce both legacy services and restore prior start
+intent afterward, and confirm this input. Do not repair the retrying service or
+alter bindings/configuration. Home/End would be unavailable during quiescence.
