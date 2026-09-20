@@ -25,3 +25,8 @@ t78 complete: 332581c; full suite and clean temporary clone bootstrap pass
 c90: RED missing runtime.contracts; GREEN 63/63 tests. Eight immutable wire
 records, closed schema shapes, codec semantic invariants and round-trip golden
 fixtures. No transport or authorization is implied by structural validity.
+
+gsk: RED missing core; GREEN explicit outcomes, policy/catalog/profile gates,
+argument checks, journal-before-execution and conservative no-retry history.
+Confirmation-required actions remain blocked until the later trusted adapter.
+Added regression for malformed falsey executor output (RED success, then fixed).
