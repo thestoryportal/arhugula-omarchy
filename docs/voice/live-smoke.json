@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "ticket": "arhugula-voice-core-b4k.ceb.iz3",
+  "implementation_commit": "d591b15a07f321f6faadb62d4d54098779e03901",
+  "approval": "User authorized one Omarchy-menu smoke test after offline verification, without configuration or service changes",
+  "approval_consumed": true,
+  "command": "python3 -m ops.voice_smoke --live --journal /home/robbo/Work/arhugula-omarchy/.git/orchestration/approved-menu-smoke.sqlite",
+  "executor_argv": ["/usr/share/omarchy/bin/omarchy", "menu", "summon", "root"],
+  "exit_code": 0,
+  "command_id": "approved-menu-smoke-v1",
+  "result_id": "34de060b-0cff-4402-9d73-6a8e3954d74f",
+  "result_status": "success",
+  "request_acknowledged": true,
+  "executor_visibility_verified": false,
+  "independent_visibility_check": {
+    "method": "Read-only hyprctl -j layers; count namespace omarchy-menu",
+    "before": 0,
+    "after": 1
+  },
+  "journal": {
+    "path": "/home/robbo/Work/arhugula-omarchy/.git/orchestration/approved-menu-smoke.sqlite",
+    "integrity_check": "ok",
+    "events": [
+      {"sequence": 1, "event_type": "command.started", "status": "pending", "timestamp_ms": 1789892164763},
+      {"sequence": 2, "event_type": "command.finished", "status": "success", "timestamp_ms": 1789892164809}
+    ]
+  },
+  "scope": "Typed terminal-origin command through VM policy and narrow executor; NOT live speech or voice binding acceptance",
+  "no_retry": "Preserve this journal and command ID. Do not rerun the live smoke or change paths to evade the repeat guard without new human authorization."
+}

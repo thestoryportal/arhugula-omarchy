@@ -28,7 +28,7 @@ confirmation channels; narrow fixed-argv menu executor and dry-run smoke CLI.
 RED imports plus context-binding/state-service/inferred-execution regressions.
 Ruling: inferred/fuzzy proposals always preview even at high confidence — lexical
 similarity can misread negation — cost is one extra confirmation, not surprise IO.
-Live smoke is still pending independent review; none has been launched yet.
+Live smoke was held until independent review and its fix round passed.
 
 Whole-branch Astra/high review of ec4e9a2..ad686a9 found R1 shared/reopened
 preview bypass, R2 state freshness after blocking journal operations and before
@@ -36,7 +36,16 @@ speech, and R3 generic context source bypassing voice profile gating. A single
 Astra/high fix wave 8abd0f1 reproduced 13 failing assertions and passed 27 focused
 and 137 full-suite tests. Fixes persist restrictive preview observations, carry
 trusted state guards through dispatch/confirmation, recheck before speech, and
-stamp voice provenance. Final scoped re-review pending; no live action yet.
+stamp voice provenance. Final scoped re-review addressed R1-R3 with no new
+Critical/Important findings; reviewer independently passed 27 focused tests.
+
+The one authorized menu smoke succeeded on 2026-09-20 at implementation HEAD
+d591b15. The fixed executor acknowledged the request; a separate read-only
+Hyprland layers query observed one omarchy-menu surface (zero before). Durable
+SQLite records contain exactly command.started/pending then command.finished/
+success, with integrity_check=ok. See live-smoke.json. The authorization is now
+consumed: do not launch again, switch journal paths, or interpret this as speech
+acceptance. No config, service, audio, clipboard or typing changes were made.
 
 Review deferrals are explicit: actual mic/VAD/Whisper/TTS, atomic platform output,
 physical-device arbitration, synchronous-transcription interruption and complete
