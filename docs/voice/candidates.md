@@ -13,6 +13,10 @@ returns `CandidateRejection`, which deliberately has no candidate value. Malform
 identities, versions, provenance, and contradictory bindings or lineage raise
 `ValueError` rather than being converted to an approval-shaped result.
 
+Candidate outputs require an exact valid `CandidateBinding`. Rejections require a
+nonempty immutable tuple drawn from the boundary's closed reason vocabulary; mutable
+or forged output constructor values are rejected.
+
 All values are frozen and hold metadata references only. The synthetic labels are not
 authenticated consent, evaluator evidence, trusted approval receipts, real samples,
 or activation authority. This module does not collect, retain, delete, persist,

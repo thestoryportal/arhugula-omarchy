@@ -16,6 +16,17 @@ class QualityState(Enum):
     UNKNOWN = "unknown"
 
 
+REJECTION_REASONS = frozenset({
+    "authority-missing",
+    "authority-unknown",
+    "authority-denied",
+    "quality-missing",
+    "quality-unknown",
+    "quality-rejected",
+    "quality-incomplete",
+})
+
+
 @dataclass(frozen=True)
 class CandidateVersion:
     """One candidate identity and optional prior version in its same identity line."""
@@ -98,6 +109,11 @@ class VoiceCandidate:
 
     binding: CandidateBinding
 
+    def __post_init__(self):
+        # [LAW:parse-dont-validate] Candidate construction admits only parsed bindings.
+        if type(self.binding) is not CandidateBinding:
+            raise ValueError("candidate requires a binding")
+
 
 @dataclass(frozen=True)
 class CandidateRejection:
@@ -106,8 +122,10 @@ class CandidateRejection:
     reasons: tuple[str, ...]
 
     def __post_init__(self):
-        if not self.reasons or any(type(reason) is not str or not reason for reason in self.reasons):
-            raise ValueError("rejection requires explicit reasons")
+        # [LAW:types-are-the-program] Exact tuples and closed reasons prevent forged output.
+        if type(self.reasons) is not tuple or not self.reasons or any(
+                type(reason) is not str or reason not in REJECTION_REASONS for reason in self.reasons):
+            raise ValueError("rejection requires immutable known reasons")
 
 
 def _match(request: CandidateRequest, evidence: AuthorityEvidence | QualityEvidence) -> None:

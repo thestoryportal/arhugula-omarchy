@@ -68,6 +68,18 @@ class VoiceCandidateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "lineage"):
             CandidateVersion("synthetic-ava", 2, CandidateVersion("synthetic-ava", 2))
 
+    def test_output_constructors_reject_forged_bindings_and_mutable_or_invalid_reasons(self):
+        with self.assertRaisesRegex(ValueError, "binding"):
+            VoiceCandidate("forged")
+        with self.assertRaisesRegex(ValueError, "reasons"):
+            CandidateRejection(["authority-missing"])
+        with self.assertRaisesRegex(ValueError, "reasons"):
+            CandidateRejection(())
+        with self.assertRaisesRegex(ValueError, "reasons"):
+            CandidateRejection(("forged",))
+        with self.assertRaisesRegex(ValueError, "reasons"):
+            CandidateRejection((1,))
+
 
 if __name__ == "__main__":
     unittest.main()
