@@ -42,9 +42,10 @@ This is integration rehearsal evidence, not main/CI evidence. Source branches
 and main were not merged or pushed by the rehearsal. Ruff/Python3.11 remain CI
 verification requirements, not locally proven results.
 
-`.298.din` and `.298.1td` stay awaiting-integration. An operator clarification was
-requested for clean-feature-branch publication while main's foreign diagnostics
-remain untouched; no permission was inferred or protection bypass attempted.
-After publication is authorized, use protected PRs and verify actual main and
-post-main CI before closing tickets. The next planned catalog arc unit is `.ejy`;
+`.298.din` and `.298.1td` stay awaiting-integration. Robbo explicitly authorized
+clean verified feature-branch publication and protected PRs on 2026-09-20,
+leaving main's foreign diagnostics untouched. No main write or protection bypass
+is authorized. Verify actual main and post-main CI before closing tickets.
+Fresh publication preflight at `c90dc08`:173 tests passed in7.548s; runtime,
+fresh zipapp health and diff/status checks passed. The next planned catalog arc unit is `.ejy`;
 its real host/credential/network scope is not authorized by these offline tests.
