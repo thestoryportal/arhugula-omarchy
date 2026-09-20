@@ -7,7 +7,7 @@
   "model": "gpt-6-astra",
   "effort": "high",
   "role": "implement",
-  "goal": "Implement approved P1 panel model and speech seam; retain integration and live acceptance gates",
+  "goal": "Resolve P4 natural-voice provider decision and protected integration gates; Task6 P1 locally verified",
   "completed_work": [
     "Orchestration/foundation and initial voice substrate published through 3dcceed",
     "hq3 integration proposal and plan prepared",
@@ -31,7 +31,11 @@
     "Independent Astra review found2 Important cancellation bugs; both reproduced RED and fixed in f89c2d9. Task4 P1 ap1 CLOSED; excluded live-capability rulings in docs/voice/task4-review.md.",
     "Task5 code9097381 accepted by independent Astra/high review: no Critical/Important, two deferred coverage minors; report docs/voice/task5-review.md. u1f remains in progress awaiting integration.",
     "Governance reconciliation2026-09-20: earlier CLOSED entries above are historical. Reopened kpp/hjr/7om/9vs/ap1 with awaiting-integration label; implementation/review evidence remains valid. Do not reimplement. Close only after verified main landing and successful post-merge CI.",
-    "Claimed Task6 P1 fiw; shared Terra/medium review desk01a0bea6-e73c-7460-bee3-fc7b543f14d8 loaded Superpowers review template. Queue scoped immutable ranges; retain Astra high-risk signoff."
+    "Claimed Task6 P1 fiw; shared Terra/medium review desk01a0bea6-e73c-7460-bee3-fc7b543f14d8 loaded Superpowers review template. Queue scoped immutable ranges; retain Astra high-risk signoff.",
+    "Task6 P1 snapshot3f3be27: finite-prompt single-slot speech, full-state staleness/cleanup latch, optional coordinator speech-before-capture gate, private headless panel model with closed local controls and expiring single-use previews. Independent Terra review6eb96e9..3f3be27 found2 Important items including author addendum; both fixed test-first in a735537. Review/rulings in docs/voice/task6-review.md; fiw awaits integration.",
+    "Filed P4 decision .z5x.8l3 open/HIL. User prefers more natural voice; no specific provider/model, installation, download or playback authorized. No checked TTS executable found on PATH.",
+    "Reviewer window/session exited after earlier evaluation review; resumed same desk and restored below-Astra geometry. Terra follow-up and voice reviews completed; no second reviewer/writer created.",
+    "Provided requested Astra/high scoped signoff for Terra evaluation b667e8a..1b84025 after isolated164 tests/7.646s and11 extra denial probes. No source edits or GitHub approval; sent one optional dataclasses.replace ergonomics minor and explicit non-authoritative scope limits."
   ],
   "verification": [
     "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
@@ -61,7 +65,9 @@
     "Task4b pre-review:20 coordinator tests pass,6/6 synthetic coordinator replay cases; full222/222 in8.566s; runtime and zipapp health show simulation/external_execution=false; diff check clean",
     "Task4b final:24 coordinator and13 session tests; full228/228 in8.628s; replay5/5 PCM and6/6 coordinator; diff check and LIT integrity pass. Scoped-cancel mutation fails handoff regression as intended. Fresh unique-path zipapp/runtime smoke pass after refusing overwrite of earlier artifact.",
     "Task5 pre-review17 controls tests and full245/245 in8.933s outside command sandbox for private temporary Unix sockets. Dry-run starts nothing; --live exits2 with live.unbound; diff check clean.",
-    "Resumption2026-09-20: fresh full245/245 tests in9.268s, dry-run external_execution=false/listening=false, git diff --check clean. LIT doctor integrity ok; automatic remote sync failing, changes local."
+    "Resumption2026-09-20: fresh full245/245 tests in9.268s, dry-run external_execution=false/listening=false, git diff --check clean. LIT doctor integrity ok; automatic remote sync failing, changes local.",
+    "Task6 pre-review:11 speech,14 panel,27 coordinator tests; full273/273 in9.192s with ResourceWarning errors;6/6 synthetic coordinator replay; runtime and fresh /tmp/arhugula-voice-task6.RD65Jy/control-plane.pyz health pass; diff check clean. No live IO or GUI acceptance.",
+    "Task6 final fix pass a735537: three coordinator cancellation regressions and panel clock-regression view/confirmation cases RED then GREEN;31 coordinator,15 panel,11 speech focused tests; full278/278 in9.841s;6/6 synthetic replay; runtime/fresh zipapp /tmp/arhugula-voice-task6-final.Wq8kHp/control-plane.pyz health; diff check clean."
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
@@ -72,17 +78,18 @@
     "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims",
     "OwnedProcess is trusted process-group lifecycle, not sandboxing; escaped descendants require stronger isolation",
     "WAV-stdin transcriber injection is not installed Voxtype FILE compatibility; backend isolation and bridge unproven",
-    "Task3 P2 and Task4 recorded replay remain incomplete; Task5 locally verified, Tasks6-7 pending, no actual live voice release",
+    "Task3 P2 and Task4 recorded replay remain incomplete; Tasks5/6 P1 locally verified, Task6 live/Task7 pending; no actual live voice release",
+    "Task6 backend callbacks must be bounded and cancel synthesis plus playback; no concrete provider is bound. Headless panel is not GUI/keyboard acceptance and not yet packaged in the runtime-only zipapp.",
     "Ruff unavailable to both sessions; lint and GitHub CI for voice branch unverified. Terra reported PR4 still review-blocked and only test-suite check required; no merge/push.",
     "Trusted callbacks must be bounded; no live cancellation latency or atomic compositor actuation proof",
-    "LIT automatic remote sync is failing; changes remain local. Merge/push deferred while main diagnostics remain",
-    "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate",
+    "LIT automatic remote sync is intermittent; inspect lit doctor before assuming publication. Code merge/push deferred while main diagnostics remain",
+    "lit next returns reopened .kpp; it awaits integration only, not reimplementation. Do not bypass open HIL integration/release gates",
     "Legacy services do not appear to coexist reliably: before trials default auto-restarted; after restart command service auto-restarts while dictation runs. Start-request restoration is not proof both are healthy. Separate design/repair permission required.",
     "Only one neutral sentence succeeded in an attended trial; broad ASR/VAD/negation/confirmation corpus still unverified. All3 capture slots consumed; fresh audio consent required."
   ],
-  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.fiw",
-  "stop_reason": null,
-  "worker_stop": false,
+  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.8l3",
+  "stop_reason": "needs-design: P4 .z5x.8l3 needs concrete natural-voice provider/model and scoped acquisition/output decision; protected integration/main CI also pending",
+  "worker_stop": true,
   "capture_budget": {
     "clips_authorized": 3,
     "max_seconds_per_clip": 10,

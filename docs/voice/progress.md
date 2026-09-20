@@ -257,6 +257,22 @@ foreign diagnostics; merge/push still held. Durable stop handoff records actual
 3/3 capture use and deletion. Return pab to OPEN/HIL awaiting further scope.
 # Current boundary, 2026-09-20
 
+Task6 P1 snapshot `3f3be27` received shared Terra review. Both Important findings
+(speech cancellation and within-lifetime clock regression) were reproduced RED
+and fixed in `a735537`. Fresh full278/278 tests in9.841s; focused11 speech,
+15 panel and31 coordinator tests; synthetic replay6/6; runtime/fresh zipapp
+health and diff check pass. Review, fixes and rulings: `task6-review.md`.
+Scope and limitations: `panel-speech.md`. No live audio or desktop panel.
+`.fiw` remains in progress awaiting protected integration, not falsely closed.
+
+Next actual decision is `.z5x.8l3` (P4, HIL/needs-design). User prefers a more
+natural voice; this is not yet a provider/model or acquisition/playback choice.
+Read-only executable check found none of piper/espeak-ng/espeak/festival/spd-say/
+speech-dispatcher. No package/model installation or network research performed.
+Durable stop: a concrete provider/model and scoped acquisition/output decision
+are still needed. Research beyond the existing repository remote also requires
+expanded scope under the original network boundary; no inferred authorization.
+
 Task5 review accepted: no Critical/Important findings; two deferred coverage
 minors and excluded-capability rulings in `task5-review.md`. Fresh resumption
 verification:245/245 tests in9.268s, safe dry-run and clean diff check.
