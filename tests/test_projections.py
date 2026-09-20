@@ -44,6 +44,26 @@ class ProjectionTests(unittest.TestCase):
         self.assertEqual(projection.lane, "lane-2")
         self.assertEqual(projection.provider, {"id": "local", "model_version": "v2", "status": "success"})
 
+    def test_rebuild_projects_operational_state_from_safe_event_details(self):
+        """Views need replayed mode, mute, health, degradation, and pending state."""
+        from runtime.projections import rebuild
+
+        journal = MemoryJournal()
+        journal.append(Interaction(1, "interaction-1", "command-1", "corr-1", 1,
+                                   dict(record("event").context), "voice.preview",
+                                   {"mode": "command", "muted": False}))
+        journal.append(record("event", event_id="health-1", event_type="command.started",
+                              status="pending", details={"health": "degraded",
+                                                         "degraded_capabilities": ["tts"]}))
+
+        projection = rebuild(journal)
+
+        self.assertEqual(projection.active_mode, "command")
+        self.assertFalse(projection.muted)
+        self.assertEqual(projection.health, "degraded")
+        self.assertEqual(projection.degraded_capabilities, ("tts",))
+        self.assertTrue(projection.pending)
+
     def test_projection_detects_staleness_and_full_rebuild_recovers(self):
         """Would fail if a view stays trusted after journal data advances."""
         from runtime.projections import is_stale, rebuild
