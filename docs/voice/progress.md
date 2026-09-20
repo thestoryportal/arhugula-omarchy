@@ -234,3 +234,24 @@ explicit idle; zero PID is allowed only inactive/failed or activating/auto-resta
 Recheck just before approved two-service quiescence and require both stopped
 before capture. This permits isolated testing without repairing the legacy
 configuration. Fresh Ready still required; final capture stays <=10 seconds.
+
+Final clip3 on fresh Ready: revised preflight passed; approved services quiesced;
+315392 PCM bytes (9.856s) captured at the unchanged 10s wall bound, with cleanup
+proven. Both services restarted; configuration hashes unchanged. Played once on
+the same explicit default sink at unchanged volume; playback/cleanup process.ok.
+User verified the recording. Isolated native ASR completed in 2.04s and included
+the complete neutral phrase twice. Stdout205 bytes/five lines; no whole-output
+plain-transcript protocol or general ASR accuracy claim. Deleted clip-3.wav after
+testing and user review. All three real clips are now deleted, no recoverable
+project copy; original synthetic silence remains in private scratch.
+
+Trial budget exhausted: no further microphone or playback action authorized.
+P2 is PARTIAL, not closed: a reviewed FILE/CLI-output bridge and broader consented
+corpus remain missing. Sanitized evidence, exact config and pinned identities:
+docs/voice/p2-characterization.md. Fresh full suite194/194 passes in8.338s;
+TOML parses and committed fixture hash matches the actually tested config.
+Final read-only snapshot: both services active/running, Result=success, original
+four hashes unchanged. Earlier already-running/restart behavior remains an
+integration risk, not silently declared repaired. Preserve worktree and main
+foreign diagnostics; merge/push still held. Durable stop handoff records actual
+3/3 capture use and deletion. Return pab to OPEN/HIL awaiting further scope.
