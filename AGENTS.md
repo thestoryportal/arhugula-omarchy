@@ -8,9 +8,17 @@ Do not create same-named child agents as substitutes for those windows. Address
 handoffs explicitly `TO: <actual recipient name and role>. FROM: <actual sender
 name and role>` to preserve provenance and prevent role confusion.
 
+Use [compact communication](docs/orchestration/communication.md) and the current
+role checkpoint for task notifications. These canonical live files are in the root
+checkout, not a worktree's older copy. Read the protocol on first adoption/fresh
+context; check task/revision/session and current Action/Boundaries before acting.
+Paused or released checkpoints do not authorize work from older queued messages.
+Required Laws/skills remain full-read; pointers do not replace their instructions.
+
 The user authorizes Buford to own feature push, PR creation, CI, merge to main,
-and post-main CI. Independent agent review remains part of the implementation
-arc. There is no separate GitHub-user approval requirement. Do not stop for one
+and post-main CI. Buford may explicitly delegate bounded integration execution to
+helpers while retaining attestation and closure. Independent agent review remains
+part of the implementation arc. There is no separate GitHub-user approval requirement. Do not stop for one
 or revive that superseded gate from old tickets, handoffs, or review notes.
 Keep all required CI checks; close work only with verified main landing and
 successful post-main CI. This authority does not expand live-device consent.
