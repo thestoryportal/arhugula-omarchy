@@ -257,6 +257,23 @@ foreign diagnostics; merge/push still held. Durable stop handoff records actual
 3/3 capture use and deletion. Return pab to OPEN/HIL awaiting further scope.
 # Current boundary, 2026-09-20
 
+Task7 P1 `.z5x.qhp` is locally implemented at `c6b4c8c` and independently
+reviewed Ready with no findings. Reviewer ran286 tests in10.051s, zipapp health
+and diff check in isolation. Lead ran eight focused tests and full286 in9.902s,
+synthetic PCM5/5 and runtime/fresh zipapp health. Review and exclusion rulings:
+`task7-review.md`; planner contract: `install-planning.md`. No installer/live
+cutover or rollback acceptance is claimed. Keep awaiting-integration until main
+and successful post-main CI. LIT sync push succeeded and doctor reported up to
+date at this boundary; automatic sandboxed sync can still fail later.
+
+Robbo renewed continuous cross-unit/arc work without routine HIL pauses.
+Task7's independent P1 slice proceeded while actual P4/live prerequisites stayed
+unresolved. Those prerequisites do not require pausing other authorized safe
+work. Current Terra implementer is `01a0bec6-46e5-7313-b527-cc799f600956` and
+has acknowledged CI/observability ownership; earlier Terra inboxes are historical.
+Do not use the old continuation runner's local-close behavior for real tickets:
+the current workflow requires protected main/post-merge verification first.
+
 Task6 P1 snapshot `3f3be27` received shared Terra review. Both Important findings
 (speech cancellation and within-lifetime clock regression) were reproduced RED
 and fixed in `a735537`. Fresh full278/278 tests in9.841s; focused11 speech,
