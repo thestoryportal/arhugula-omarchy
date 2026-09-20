@@ -1,17 +1,35 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-voice-core-b4k.ceb.hq3",
+  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.kpp",
   "parent_epic": "arhugula-voice-core-b4k",
   "branch": "feat/voice-core-contracts",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
   "model": "gpt-6-astra",
   "effort": "high",
   "role": "implement",
-  "goal": "Review the proposed live-integration design and staged permissions before any implementation or live effects",
-  "completed_work": ["Orchestration epic closed and published c018806", "Foundation epic closed and published ec4e9a2", "v1t dictation 1b0fadb closed", "f5v capture 93c6f60/9245803 closed", "iz3 routing/confirmation ad686a9 and R1-R3 fixes 8abd0f1; CLOSED after evidence commit 0a1a54c", "One authorized menu smoke succeeded; acknowledgement, compositor surface and durable journal verified", "Voice substrate and HIL handoff published e8f5b8b", "hq3 documentation-only planning CLOSED after commit 1991019: proposed live integration, seven tasks, explicit P0-P8 permission gates", "Read-only inventory identified separate legacy command daemon/hook and unchanged Home/End path; no legacy script executed"],
-  "verification": ["Fresh hq3 full suite: 137/137 tests pass in 6.722s", "Two planning documents: five local links valid, eight Python examples parse, balanced fences, P0-P8/seven tasks present, no placeholders", "All seven inspected legacy config/unit/script SHA-256 hashes unchanged before/after planning", "capture task/scoped review clean", "final security review at 8abd0f1: R1-R3 addressed, no new Critical/Important issues, 27 focused tests passed", "docs/voice/live-smoke.json records historical live executor evidence, not live speech acceptance", "git diff --check passes"],
-  "risks": ["No repository live capture/transcription/output binding installed; separate legacy configuration exists and must not be overwritten", "ONE approved menu smoke authorization CONSUMED; never repeat without new approval", "Latest authorization is P0 documentation planning ONLY; no runtime implementation/configuration/service/audio changes", "Voxtype file-transcriber output isolation and VAD quality remain unproven", "No standalone TTS executable found on inspected PATH; provider decision remains pending", "Service config/model presence is not running health or inference evidence", "Synthetic replay is not real VAD accuracy evidence", "z5x, parent arc and o19 release remain incomplete and HIL-gated"],
-  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x",
-  "stop_reason": "hil-required: review docs/superpowers/specs/2026-09-20-live-voice-integration-proposal.md and docs/superpowers/plans/2026-09-20-live-voice-integration-plan.md; recommended next grant is P1 repository-only implementation. P2-P8 require their separate explicit permissions. Planning approval did not authorize deployment or clear this stop.",
-  "worker_stop": true
+  "goal": "Implement only P1 repository units in isolated worktree; preserve foreign diagnostics and defer merge/push",
+  "completed_work": [
+    "Orchestration/foundation and initial voice substrate published through 3dcceed",
+    "hq3 integration proposal and plan prepared",
+    "User approved P1 continuation in clean isolated worktree despite main diagnostics; merge/push deferred",
+    "Task 1 .z5x.kpp CLOSED in 3676cb3: process-local ownership, generations, cleanup fault latch"
+  ],
+  "verification": [
+    "Task 1 missing-module RED observed",
+    "11 focused owner tests pass",
+    "Fresh full suite 148 tests pass in 6.797s",
+    "git diff --check passes",
+    "Whole P1 batch independent review pending"
+  ],
+  "risks": [
+    "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
+    "SessionOwner is process-local admission, not OS device exclusion or proof of cleanup",
+    "P2-P8 live gates remain unauthorized; previous menu approval consumed",
+    "Legacy command config exists outside repo; do not execute/change it",
+    "Real VAD accuracy, transcriber isolation and TTS backend remain unproven",
+    "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims"
+  ],
+  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.hjr",
+  "stop_reason": null,
+  "worker_stop": false
 }

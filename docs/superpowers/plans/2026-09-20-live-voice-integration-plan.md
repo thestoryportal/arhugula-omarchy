@@ -3,7 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans
 > for the lead implementer, or superpowers:subagent-driven-development when
 > independent task delegation is explicitly selected. Steps use checkboxes.
-> PROPOSED ONLY: the user authorized writing this plan, not executing it.
+> P1 repository steps are now approved in the isolated worktree. P2-P8 remain
+> gated; foreign main diagnostics stay untouched and merge/push are deferred.
 
 **Goal:** Connect the verified voice substrate to one safe local command without
 disturbing working dictation or leaking command speech into applications.
@@ -20,7 +21,7 @@ No dependency or model downloads are implied.
 
 **Spec:** [Live integration proposal](../specs/2026-09-20-live-voice-integration-proposal.md),
 refining [approved workspace design](../specs/2026-09-19-omarchy-agent-workspace-design.md).
-Read both. Proposal and plan await review; neither is an execution authorization.
+Read both. Subsequent user approval covers P1 only, not live deployment.
 
 ## Global Constraints
 
@@ -29,7 +30,7 @@ Read both. Proposal and plan await review; neither is an execution authorization
 - The earlier approval for one menu opening was consumed; it is not permission for another test.
 - Runtime networking is deny-by-default with narrow approved update access.
 - Python 3.11+, existing dependencies only; no package, host, VM, firewall or `/usr/share/omarchy/` changes.
-- P0 alone is currently authorized. The proposal defines P1-P8 and exact exclusions.
+- P0/P1 are currently authorized. The proposal defines P2-P8 and exact exclusions.
 - No implementation starts until proposal/plan review and P1 approval. Live gates remain separate.
 - Each claimed atomic ticket has one writer, fresh verification, LIT evidence, commit, close and handoff.
 - Astra/high: ownership, contracts, policy, integration and final risk review. Terra/medium: bounded fixtures, inventory and independent validation.

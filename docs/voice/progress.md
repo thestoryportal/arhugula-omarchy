@@ -87,3 +87,14 @@ and P8 (actual confirmation/dictation/rollback acceptance). No TTS executable wa
 found on the inspected PATH; provider choice remains explicit. New design/plan
 are PROPOSED, not approved. Keep z5x and parent HIL-required; do not resolve the
 worker stop based on permission to write documents.
+
+P1 continuation authorized subsequently: user released conflicting LIT work and
+explicitly approved repository-only work in the clean voice-core worktree while
+leaving foreign main diagnostics untouched; merge/push remain deferred.
+Task 1 .z5x.kpp CLOSED, commit 3676cb3: cancellation invalidates logical work but
+retains physical cleanup ownership; failed cleanup latches unavailable. Eleven
+focused tests and 148 full-suite tests pass. No external resources are opened.
+Ruling: SessionOwner is a process-local admission contract, not an OS device
+lease — downstream coordinator must prove cleanup/exclusive IO ownership.
+Task 2 inline routing explicitly promoted to Astra/high for the new device-byte
+admission contract; cost is higher model usage, no change to P1 authority.

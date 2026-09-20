@@ -1,6 +1,8 @@
 # Live voice integration proposal
 
-Status: PROPOSED, NOT APPROVED FOR IMPLEMENTATION OR DEPLOYMENT.
+Status: P1 REPOSITORY IMPLEMENTATION APPROVED; P2-P8 LIVE GATES NOT APPROVED.
+Subsequent user approval permits isolated work despite foreign main diagnostics;
+leave those untouched and defer merge/push until main is clean.
 Planning ticket: `arhugula-voice-core-b4k.ceb.hq3`.
 Integration ticket: `arhugula-voice-core-b4k.ceb.z5x` remains HIL-required.
 
@@ -127,13 +129,13 @@ a simulated `channel="panel"` call is not evidence of a working panel.
 
 ## Permission checklist
 
-Every row is independently scoped. Only P0 is authorized by the latest user
-message. Approval of this proposal or a later row does not imply all other rows.
+Every row is independently scoped. P0 and P1 are now authorized; publishing P1
+changes is deferred while main is dirty. No later row is implicitly authorized.
 
 | Gate | Requested future authority | Explicit exclusions |
 | --- | --- | --- |
 | P0 — authorized now | Read-only discovery; repository documentation, LIT evidence, verified commits and existing-remote publication | No runtime implementation or live effects |
-| P1 — pending | Implement repository adapters, fake-process tests, config/service templates and replay harness | No installing templates, live audio, real provider inference, service control or downloads |
+| P1 — authorized | Implement repository adapters, fake-process tests, config/service templates and replay harness in the isolated worktree | No installing templates, live audio, real provider inference, service control or downloads; merge/push deferred |
 | P2 — pending | Read specifically user-approved local recordings; run isolated local file transcription using the existing pinned model | No microphone, speech playback, clipboard, typing, hook/daemon execution, uploads or provider downloads |
 | P3 — pending | User-attended foreground microphone trial: approved source only, at most 12 activations of at most 15 seconds; at most 30 seconds transcription per activation; fake executor | No menu/action effects, playback, automatic retrials, device/default/volume changes or continuous capture |
 | P3 ownership subgate — pending | If necessary for isolation, temporarily stop ONLY `voxtype.service` and `voxtype-commands.service` after idle checks; restore only units previously active | No stop while recording/transcribing; no enable/disable, config edits, unrelated service control or automatic retry; warn Home/End will be temporarily unavailable |
