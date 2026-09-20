@@ -43,6 +43,13 @@ The first foundation unit may refine these paths after the language and process-
 
 ## Workstream order
 
+### Workstream -1: autonomous execution bootstrap
+
+- Define LIT model-routing metadata for Astra, Terra, review lanes, reasoning effort, and HIL requirements.
+- Implement a Codex-compatible Memento handoff that carries the active ticket, goal, branch, model, effort, verification, and stop reason into the next session.
+- Implement a bounded close, handoff, next, claim, verify, commit, and continue loop with explicit conflict, privileged-operation, destructive-action, and HIL stop conditions.
+- Dry-run the routing and continuation behavior in isolated worktrees before foundation implementation begins.
+
 ### Workstream 0: foundation decision and repository scaffold
 
 - Freeze language, process boundaries, IPC/HTTP transport, schema format, test runner, packaging, and local persistence choices.
@@ -84,6 +91,14 @@ The first foundation unit may refine these paths after the language and process-
 ## Epic implementation units
 
 The following units are also created in LIT as ordered child issues. Each unit is intentionally sized for one focused implementation session plus review and handoff.
+
+### Epic 0: Autonomous LIT and session continuity bootstrap
+
+- **0.1 Model-routing policy** — define deterministic labels and precedence for Astra architecture work, Terra exploration/review work, reasoning effort, autonomous eligibility, and HIL requirements; test routing across the backlog.
+- **0.2 Codex Memento-compatible handoff** — persist ticket, branch, model, effort, goal, verification, and stop state and resume through tmux or a fresh Codex process without relying on Claude-only transport.
+- **0.3 Bounded autonomous continuation** — implement the close, handoff, next, claim, verify, commit, and continue loop with leases, dirty-tree conflict checks, retry limits, and explicit stop behavior.
+- **0.4 Isolated continuation validation** — dry-run Astra/Terra assignment and exercise handoff/resume in disposable worktrees without touching live Omarchy configuration.
+- **0.5 Orchestration circle-back** — reconcile LIT claims, model routing, Memento continuity, context limits, Git commits, and stop reasons before releasing the unattended workflow substrate.
 
 ### Epic A: Control-plane foundation
 
@@ -166,6 +181,9 @@ The following units are also created in LIT as ordered child issues. Each unit i
 - Every epic circle-back reconciles implementation truth with the durable spec.
 - Agents read the epic body and the unit description; they do not need the entire project history to start.
 - No issue duplicates the whole design document; tickets point to stable sections and state only their work truth.
+- Model routing is explicit and inspectable: Astra handles architecture, contracts, security, and cross-cutting work; Terra handles bounded exploration, tests, fixtures, documentation, and review unless a ticket explicitly overrides the assignment.
+- A completed ticket always produces a LIT close, verification evidence, a Git commit, and a session handoff artifact before the agent claims the next ticket.
+- Autonomous continuation stops on an empty queue, blocked dependency, dirty-tree conflict, repeated verification failure, privileged or destructive work, external credential requirement, or an explicit HIL marker.
 
 ## Promotion gates
 
@@ -182,8 +200,9 @@ The project cannot promote a slice when any of these are missing:
 
 ## Execution handoff
 
-Implementation begins only after the backlog has been reviewed. The first
-execution ticket is A.1, followed by the spine units and the first end-to-end
-voice slice. Agents should use LIT’s `lit next`, `lit show`, `lit start`,
-`lit comment add`, `lit done`, and `lit followup --on` workflow from the project
-root.
+Implementation begins with the autonomous execution bootstrap. The first
+execution ticket is 0.1, followed by the handoff and continuation units. Once
+that substrate is verified, the first foundation ticket is A.1. Agents should
+use LIT’s `lit next`, `lit show`, `lit start`, `lit comment add`, `lit done`,
+and `lit followup --on` workflow from the project root, and must write a
+Memento-compatible handoff at every ticket boundary.

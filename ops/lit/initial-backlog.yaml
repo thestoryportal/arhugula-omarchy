@@ -514,3 +514,86 @@ topic: memory-hardening
 parent: arc-memory-circle
 labels: [circle-back, release]
 description: Run the full cross-slice regression suite, security and network tests, clean-install validation, backup/restore validation, documentation reconciliation, and first integrated release preparation.
+---
+
+local_id: epic-orchestration
+title: Bootstrap autonomous LIT and session continuity
+type: epic
+topic: orchestration
+priority: 1
+labels: [orchestration, autonomous-safe]
+description: |
+  DESTINATION: Codex sessions select model-appropriate LIT work, close a unit,
+  persist a durable handoff, and continue with the next ticket without human
+  intervention while preserving explicit stop boundaries.
+
+  MECHANISM: Add routing metadata, a Codex-compatible Memento handoff, bounded
+  continuation, and dry-run verification before control-plane implementation.
+
+  WHY: LIT supplies work truth and Memento supplies session continuity; both
+  must be durable before unattended multi-hour implementation starts.
+---
+local_id: arc-orchestration-routing
+title: Implement model routing and session handoff
+type: feature
+topic: orchestration
+parent: epic-orchestration
+lane: orchestration
+description: Define routing metadata, model capability classes, Codex session handoff, Memento-compatible continuation, and explicit stop reasons.
+---
+local_id: unit-orchestration-routing
+title: Define LIT model-routing metadata and policy
+type: task
+topic: orchestration
+parent: arc-orchestration-routing
+labels: [model-routing, autonomous-safe]
+description: Define labels and routing rules for Astra and Terra by capability, effort, role, autonomy eligibility, and HIL requirements; document precedence and ensure lit next filters produce deterministic assignments.
+---
+local_id: unit-orchestration-handoff
+title: Implement Codex Memento-compatible handoff
+type: task
+topic: orchestration
+parent: arc-orchestration-routing
+labels: [session-continuity, autonomous-safe]
+description: Implement a durable handoff artifact and Codex launcher/queue adapter that carries ticket, branch, model, reasoning effort, goal, verification, and stop context into the next session; provide tmux and fresh-process paths without assuming Claude-only transport.
+---
+local_id: unit-orchestration-loop
+title: Implement bounded autonomous LIT continuation loop
+type: task
+topic: orchestration
+parent: arc-orchestration-routing
+labels: [autonomous-safe, workflow]
+description: Implement the close, handoff, next, claim, verify, commit, and continue loop with leases, dirty-tree conflict detection, retry limits, context handoff, and explicit stops for blocked, privileged, destructive, external, or HIL-required work.
+---
+local_id: arc-orchestration-validation
+title: Validate unattended multi-session continuation
+type: feature
+topic: orchestration
+parent: epic-orchestration
+lane: validation
+description: Exercise Astra lead and Terra review lanes through ticket close, handoff, next-ticket selection, conflict detection, and safe stop behavior using dry-run and disposable worktrees.
+---
+local_id: unit-orchestration-routing-test
+title: Dry-run Astra and Terra routing across the backlog
+type: task
+topic: orchestration
+parent: arc-orchestration-validation
+labels: [autonomous-safe, validation]
+description: Run routing against the full backlog and verify that architecture and cross-cutting tickets select Astra while exploration, tests, docs, and review tickets select Terra; record ambiguous classifications and resolve them.
+---
+local_id: unit-orchestration-handoff-test
+title: Exercise handoff and continuation in isolated worktrees
+type: task
+topic: orchestration
+parent: arc-orchestration-validation
+labels: [autonomous-safe, validation]
+description: Use disposable worktrees to close a harmless test ticket, write the handoff, resume with the selected model and effort, claim the next ticket, and prove conflict and stop conditions without touching live Omarchy configuration.
+---
+local_id: arc-orchestration-circle
+title: Reconcile and release autonomous orchestration
+type: feature
+topic: orchestration
+parent: epic-orchestration
+lane: circle-back
+labels: [circle-back]
+description: Reconcile routing, handoff, context ceiling, LIT claims, Git commits, and multi-session behavior against the approved design; record decisions and release the autonomous workflow substrate.
