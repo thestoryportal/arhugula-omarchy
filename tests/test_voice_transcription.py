@@ -52,13 +52,16 @@ class TranscriptionTests(unittest.TestCase):
     def test_invalid_pcm_or_generation_never_starts_worker(self):
         job, worker = self.job()
         for pcm in (b'', bytes(1), bytes(639), bytes(480001), bytearray(640), None):
-            with self.assertRaises(ValueError): job.start(pcm, 1)
+            with self.assertRaises(ValueError):
+                job.start(pcm, 1)
         for generation in (True, 0, -1, '1', None):
-            with self.assertRaises(ValueError): job.start(bytes(640), generation)
+            with self.assertRaises(ValueError):
+                job.start(bytes(640), generation)
         self.assertIsNone(worker.input)
 
     def test_missing_backend_does_not_discover_or_launch_voxtype(self):
-        with self.assertRaises(ValueError): TranscriptionJob()
+        with self.assertRaises(ValueError):
+            TranscriptionJob()
 
     def test_empty_invalid_utf8_oversize_and_nonzero_outputs_fail_privately(self):
         for status, data in (('success', b''), ('success', b'  \n'), ('success', b'\xff'),

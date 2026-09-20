@@ -28,10 +28,10 @@ class ControlTests(unittest.TestCase):
 
     def test_closed_parser_accepts_only_typed_operations(self):
         self.assertEqual(decode_control(b'{"version":1,"op":"status"}'), {'version': 1, 'op': 'status'})
-        for op, patch in (('activate', {}), ('cancel', {}), ('dictation-start', {}),
+        for op, fields in (('activate', {}), ('cancel', {}), ('dictation-start', {}),
                           ('dictation-stop', {}), ('mute', {'muted': True}),
                           ('confirm', {'token': 'private-token', 'channel': 'panel', 'approved': True})):
-            self.assertEqual(decode_control(request(op, **patch))['op'], op)
+            self.assertEqual(decode_control(request(op, **fields))['op'], op)
 
     def test_unknown_duplicate_oversize_malformed_and_forged_approval_rejected(self):
         for data in (
