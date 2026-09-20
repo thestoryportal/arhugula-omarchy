@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "provider-configuration-v1.json",
+  "$defs": {
+    "resources": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ram_bytes", "accelerator_bytes", "disk_bytes", "cpu_millicores", "slots"],
+      "properties": {
+        "ram_bytes": {"type": "integer", "minimum": 0},
+        "accelerator_bytes": {"type": "integer", "minimum": 0},
+        "disk_bytes": {"type": "integer", "minimum": 0},
+        "cpu_millicores": {"type": "integer", "minimum": 0},
+        "slots": {"type": "integer", "minimum": 0}
+      }
+    },
+    "manifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "provider", "artifact_sha256", "resources"],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "provider": {"$ref": "contracts-v1.json#/$defs/provider"},
+        "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "resources": {"$ref": "#/$defs/resources"}
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "health_ttl_ms", "allow_degraded", "allow_fallback", "updates", "shared_memory", "host_budget", "vm_budget"],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "health_ttl_ms": {"type": "integer", "minimum": 1},
+        "allow_degraded": {"type": "boolean"},
+        "allow_fallback": {"type": "boolean"},
+        "updates": {"type": "string", "enum": ["disabled", "manual"]},
+        "shared_memory": {"type": "array", "uniqueItems": true, "items": {"type": "string", "enum": ["host", "vm"]}},
+        "host_budget": {"$ref": "#/$defs/resources"},
+        "vm_budget": {"$ref": "#/$defs/resources"}
+      }
+    }
+  }
+}
