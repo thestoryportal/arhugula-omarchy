@@ -34,6 +34,11 @@ landing. A failed, cancelled, or pending post-main check is not success. An
 agent review is useful range evidence, but it is not a GitHub-user approval and
 cannot satisfy that protected-branch gate.
 
+A full lowercase 40-character SHA-1 value is required when a repository uses
+SHA-1 object IDs, but this syntactic check is not proof that the object exists,
+is reachable from `main`, or represents a successful landing. Those facts still
+require the separately recorded integration and post-main evidence.
+
 The companion fixture at `tests/fixtures/integration-closure-v1.json` contains
 the normal states and negative examples. It deliberately marks only a matching
 main SHA with successful post-main checks as closable. It is test data and

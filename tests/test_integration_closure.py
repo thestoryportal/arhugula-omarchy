@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
+import re
 import unittest
 
 
 FIXTURE = Path(__file__).with_name("fixtures") / "integration-closure-v1.json"
+SHA1 = re.compile(r"^[0-9a-f]{40}$")
 
 
 class IntegrationClosureEvidenceTests(unittest.TestCase):
@@ -48,6 +50,16 @@ class IntegrationClosureEvidenceTests(unittest.TestCase):
                             cases["mismatched-evidence"]["evidence_sha"])
         self.assertIn(cases["failed-post-main-ci"]["post_main_checks"], {"failure", "cancelled"})
         self.assertEqual(cases["pending-post-main-ci"]["post_main_checks"], "pending")
+
+    def test_recorded_commit_evidence_uses_full_sha1_syntax_when_present(self):
+        """Breaks if fixture evidence degrades into a label or abbreviated object ID."""
+        contract = self.load_contract()
+        for case in contract["cases"]:
+            for field in ("evidence_sha", "integrated_main_sha"):
+                value = case[field]
+                if value is not None:
+                    self.assertIsInstance(value, str, f"{case['id']} {field}")
+                    self.assertRegex(value, SHA1, f"{case['id']} {field}")
 
 
 if __name__ == "__main__":
