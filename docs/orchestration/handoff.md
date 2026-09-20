@@ -13,6 +13,18 @@ stop_reason. Empty risks are allowed; an empty next ticket is JSON null.
 Stop reason is null only while continuation is permitted. Preserve ticket
 and commit IDs in completed_work and commands/results in verification.
 
+## Delivery evidence in a handoff
+
+For work that is locally complete but not durably landed, record the current
+delivery state and immutable evidence SHA in `completed_work` or `verification`,
+then make `next_ticket`/`stop_reason` honest about the integration gate. Use the
+states defined in `integration-closure.md`: local verification, independent
+review, and a stacked merge are not final closure. Final-delivery evidence must
+identify the matching main SHA and successful required checks after main
+integration. Agent review never substitutes for a required GitHub-user approval.
+This guidance records evidence only; it does not alter the handoff JSON schema,
+runner authority, CI policy, or protected-branch behavior.
+
 ```sh
 python3 -m ops.orchestration.handoff write /absolute/private/session.json < docs/orchestration/handoff.json
 python3 -m ops.orchestration.handoff plan /absolute/private/session.json

@@ -57,6 +57,18 @@ This is a bounded workload, not a hard wall-clock deadline for the whole run.
 No push or merge is automatic. Publish separately after branch ownership and
 clean-tree verification.
 
+## Integration closure evidence
+
+Committing and locally verifying a unit does not establish final delivery.
+Record `locally-verified`, `review-cleared`, `stacked-merged`, or
+`awaiting-integration` accurately while the protected integration path is
+incomplete. Only close as final after the actual integrated main SHA and every
+required post-main check are evidenced as successful. A stacked branch merge,
+pending or failed CI, stale/mismatched SHA, or agent review without the required
+GitHub-user approval remains awaiting integration. See
+`docs/orchestration/integration-closure.md`; this vocabulary is advisory and
+does not relax any runner stop or protection gate.
+
 HIL, needs-design, privilege, destruction, external credential/network labels,
 missing autonomy metadata, ambiguous routing, claim/lease conflict, foreign
 changes, changed HEAD, deletion, symlink changes, two failed verifications,
