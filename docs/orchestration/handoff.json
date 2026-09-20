@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-orchestration-3hx.a5z.cqh",
+  "active_ticket": "arhugula-orchestration-3hx.a5z.6x0",
   "parent_epic": "arhugula-orchestration-3hx",
   "branch": "feat/orchestration-bootstrap",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/orchestration",
@@ -8,9 +8,9 @@
   "effort": "high",
   "role": "implement",
   "goal": "Complete autonomous orchestration prerequisite before foundation",
-  "completed_work": ["cqh routing policy, resolver, tests and live backlog dry-run; commit ac9c6ef"],
-  "verification": ["python3 -m unittest discover -s tests -v: 10/10 pass", "git diff --check: pass", "Live LIT export: 38 leaves"],
+  "completed_work": ["cqh routing policy, resolver, tests and live backlog dry-run; commit ac9c6ef", "6x0 durable handoff, private atomic writer, Codex fresh/tmux launch plans"],
+  "verification": ["python3 -m unittest discover -s tests -v: 18/18 pass", "git diff --check: pass", "tmux launch-plan CLI smoke: pass"],
   "risks": ["LIT automatic remote sync failed; local changes retained", "33 backlog leaves require metadata review in mgt"],
-  "next_ticket": "arhugula-orchestration-3hx.a5z.6x0",
+  "next_ticket": "arhugula-orchestration-3hx.a5z.jl9",
   "stop_reason": null
 }

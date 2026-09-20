@@ -30,3 +30,5 @@ corruption, symlink refusal, private atomic persistence and argv boundaries.
 Memento compatibility is semantic durable context, not an undocumented API.
 Installed Codex exec/resume help inspected; no external documentation or model
 network access used under this session's restriction.
+Task 6x0: complete; fresh full suite 18/18 pass, tmux plan CLI smoke passed,
+diff check clean. Ticket closed after implementation commit.
