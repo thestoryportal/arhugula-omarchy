@@ -200,3 +200,20 @@ from project artifacts. No playback occurred. Proposed next attended slot is
 clip 2 with the same neutral sentence; retain it through playback/review before
 deletion. Wait for Ready; do not start another microphone recording implicitly.
 One of three capture slots consumed; ticket remains in progress, not complete.
+
+Clip 2 on explicit retry request: same source/idle/hash checks and two-service
+quiescence. Captured 315392 bytes (9.856s), ending at the 10s deadline; cleanup
+proven, both services restarted, hashes unchanged. Played exactly once on the
+then-current default sink omarchy_host_output_fe8f9fe212905612 at unchanged
+volume (1.00); playback and cleanup process.ok. User heard only the beginning
+and reported cutoff at "the blue not". This is failed speech acceptance.
+Isolated ASR process.ok in 2.02s but expected phrase absent (3/6 unique expected
+words found; raw transcript not retained). Energy >=0.02 RMS appears only from
+8.88s to9.84s, supporting late speech/chat-cue timing rather than a full sentence
+being lost by transcription. Energy is not a speech classifier.
+After playback/review and timing analysis, deleted only clip-2.wav under prior
+cleanup consent; no retained real clips. Two of three capture slots consumed.
+Clear safe timing correction for final slot: user sends Ready then immediately
+repeats the neutral sentence until Stop, instead of waiting for the delayed
+Recording chat cue. Keep the <=10s recording bound, no automatic retry or extra
+slot. Await Ready. P2 remains in progress; no successful speech/corpus release.

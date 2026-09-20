@@ -20,7 +20,9 @@
     "User approved three attended microphone clips of at most 10 seconds, prompt/ready coordination, temporary local storage and deletion afterward; zero clips captured",
     "User confirmed temporary stop/restart of both legacy Voxtype services and current default host-input source; pab manually claimed under explicit attended approval",
     "Clip 1: 9.728 seconds captured from approved source under 10-second deadline; owned capture stopped; both approved services restarted and configuration hashes unchanged",
-    "Clip 1 isolated transcription finished and temporary WAV deleted under original cleanup consent; subsequent playback request cannot be fulfilled from deleted file"
+    "Clip 1 isolated transcription finished and temporary WAV deleted under original cleanup consent; subsequent playback request cannot be fulfilled from deleted file",
+    "Clip 2 captured 9.856s, owned cleanup proven, two services restarted, original config hashes unchanged; replayed once at unchanged default-output volume",
+    "Clip 2 user playback review confirmed cutoff; analyzed timing and deleted only clip-2.wav after review per consent"
   ],
   "verification": [
     "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
@@ -37,7 +39,9 @@
     "Synthetic 0.5-second silence transcribed inside bubblewrap: process.ok/success, stdout 115 bytes, 2.143 seconds, cleanup success. No speech-accuracy or silence-rejection claim",
     "Clip 1: 311296 PCM bytes, peak 0.6269, RMS 0.0427; process.timeout was expected hard wall bound, cleanup proven",
     "Clip 1 isolated ASR: process.ok/success in 2.0s, stdout 132 bytes/5 lines; prompted sentence not present and no exact line match; no speech acceptance claim",
-    "Clip 1 WAV deletion confirmed; no transcript/audio persisted in Git/LIT. Post-restart sample showed both services active/running; no repair or sustained-health claim"
+    "Clip 1 WAV deletion confirmed; no transcript/audio persisted in Git/LIT. Post-restart sample showed both services active/running; no repair or sustained-health claim",
+    "Clip 2 ASR process.ok 2.02s, stdout145 bytes/5 lines; expected phrase absent, 3 of 6 unique expected words found",
+    "Clip 2 energy >=0.02 RMS first at8.88s, last9.84s of9.856s; near-silence earlier supports late prompt/timing explanation, not a proven speech classifier"
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
@@ -51,16 +55,16 @@
     "Task 3 P2 and Tasks 4-7 remain incomplete; no actual live voice release",
     "LIT automatic remote sync is failing; changes remain local. Merge/push deferred while main diagnostics remain",
     "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate",
-    "First clip failed expected-phrase comparison; root cause not established. Two capture slots remain; next recording requires explicit Ready",
-    "Playback was requested after clip 1 had been deleted; cannot replay/reconstruct it. Retain next consented clip until playback/review finishes"
+    "Both first clips failed expected-phrase comparison; user playback and energy timing support late speaking/chat-cue delay. One <=10s slot remains with corrected timing; no successful real-speech acceptance yet."
   ],
   "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
-  "stop_reason": "attended-ready: clip 1 captured/transcribed/deleted under prior cleanup consent; ASR prompt mismatch, not an acceptance pass. User requested playback after cleanup completed. Await Ready for clip 2 with same neutral phrase; retain next clip through playback/review, then delete. No automatic recording.",
+  "stop_reason": "attended-ready: clip 2 playback review confirmed truncated speech; energy rises at 8.88s of 9.856s, supporting late chat-cue timing. Two ASR comparisons failed with clear safe timing correction: for final <=10s slot, user sends Ready then immediately repeats prompted sentence until Stop instead of waiting for Recording chat message. No automatic capture.",
   "worker_stop": true,
   "capture_budget": {
     "clips_authorized": 3,
     "max_seconds_per_clip": 10,
-    "clips_consumed": 1,
+    "clips_consumed": 2,
+    "clip_2_stage": "captured, replayed once, user confirmed cutoff, analyzed, deleted after review",
     "clip_1_stage": "captured, ASR mismatch, deleted; playback unavailable",
     "ready_required": true,
     "source_confirmed": true,
@@ -95,9 +99,25 @@
       "deleted": true,
       "playback_performed": false
     },
-    "next_clip": 2,
+    "next_clip": 3,
     "next_prompt": "The blue notebook is beside the window.",
     "playback_review_requested": true,
-    "services_restored": true
+    "services_restored": true,
+    "clip_2": {
+      "seconds": 9.856,
+      "pcm_bytes": 315392,
+      "capture_code": "process.timeout",
+      "capture_cleanup_proven": true,
+      "asr_code": "process.ok",
+      "expected_phrase_present": false,
+      "playback_code": "process.ok",
+      "playback_sink": "omarchy_host_output_fe8f9fe212905612",
+      "volume_changed": false,
+      "review": "user reported cutoff after the blue not",
+      "first_above_energy_threshold_seconds": 8.88,
+      "last_above_energy_threshold_seconds": 9.84,
+      "deleted": true
+    },
+    "next_timing": "User sends Ready then immediately repeats prompt until Stop; do not wait for Recording chat cue. Still capture <=10 seconds, no budget expansion."
   }
 }
