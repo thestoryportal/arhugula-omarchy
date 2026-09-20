@@ -53,4 +53,4 @@ that authorization is consumed. The live voice binding and release remain
 HIL-required work, not a completed usable voice system.
 The proposed [live-integration design](docs/superpowers/specs/2026-09-20-live-voice-integration-proposal.md)
 and [staged permission/implementation plan](docs/superpowers/plans/2026-09-20-live-voice-integration-plan.md)
-await review. Only documentation planning is authorized; live gates remain closed.
+now have P1 repository-only implementation approval; all live gates remain closed.
