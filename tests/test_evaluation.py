@@ -102,6 +102,19 @@ class EvaluationTests(unittest.TestCase):
                         "baseline-independent-evaluation-required"),
         })
 
+    def test_rejection_and_missing_rollback_readiness_hold_a_candidate(self):
+        """Manual rejection wins over approval and rollback readiness is mandatory."""
+        from runtime.evaluation import ReplayRun, promotion
+
+        active = ReplayRun("active-v1", "synthetic", "bundle-a", True, True, True, {"case-1": "pass"})
+        candidate = ReplayRun("candidate-v2", "synthetic", "bundle-a", True, True, True,
+                              {"case-1": "pass"})
+
+        self.assertEqual(promotion(active, candidate, labels=("approved", "rejected"), rollback_ready=False), {
+            "decision": "hold", "regressions": (),
+            "reasons": ("rollback-readiness-required", "manual-rejection"),
+        })
+
 
 if __name__ == "__main__":
     unittest.main()
