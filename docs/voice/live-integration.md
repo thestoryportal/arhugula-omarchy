@@ -68,3 +68,9 @@ adaptive trailing silence and the 15s bound. Reports carry safe counts and
 statuses; `real_speech_validated` is always false. Tests exercise subprocess
 lifecycle only with controlled Python children, and capture/transcriber boundaries
 with fake workers. Real audio/provider characterization is a separate HIL ticket.
+
+## Read-only cutover proposal
+
+Task7 P1 adds [offline install and rollback planning](install-planning.md).
+This preserves the substrate described above and introduces no live bindings,
+installer, microphone or service operation. Templates are deliberately inert.
