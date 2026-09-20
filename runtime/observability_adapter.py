@@ -87,8 +87,12 @@ def _detail_section(source):
         return _unreadable()
     try:
         freshness = "stale" if is_stale(source.value.projection, source.value.journal) else "current"
+        detail = detailed_view(source.value.projection, source.value.diagnostics)
+        if not _is_public_value(detail):
+            # [LAW:no-silent-failure] Nested classified content is unsafe evidence, not public detail.
+            return _unreadable()
         return {"source_state": "available", "freshness": freshness,
-                "data": _detach(detailed_view(source.value.projection, source.value.diagnostics))}
+                "data": _detach(detail)}
     except Exception:
         return _unreadable()
 
@@ -128,6 +132,18 @@ def _failure_section(source):
 
 def _unreadable():
     return {"source_state": "unreadable", "freshness": "unknown"}
+
+
+def _is_public_value(value):
+    """Require every explicit nested sensitivity declaration to remain public."""
+    # [LAW:single-enforcer] This is the adapter's one recursive content-safety boundary.
+    if isinstance(value, Mapping):
+        if "sensitivity" in value and value["sensitivity"] != "public":
+            return False
+        return all(_is_public_value(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return all(_is_public_value(item) for item in value)
+    return True
 
 
 def _detach(value):

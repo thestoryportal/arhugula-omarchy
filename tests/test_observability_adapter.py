@@ -123,6 +123,49 @@ class ObservabilityAdapterTests(unittest.TestCase):
             "review": {"source_state": "contradictory", "freshness": "unknown"},
         })
 
+    def test_detail_rejects_nested_private_or_unknown_classifications(self):
+        """A public diagnostic envelope cannot launder nested classified content."""
+        from runtime.observability_adapter import Available, DetailEvidence, Unreadable, snapshot
+
+        projection = Projection(0, None, None, None, None)
+        for value in (
+            {"nested": {"sensitivity": "private", "value": "secret"}},
+            {"items": [{"sensitivity": "unknown", "value": "secret"}]},
+        ):
+            with self.subTest(value=value):
+                observed = snapshot(
+                    compact=Unreadable(),
+                    detail=Available(DetailEvidence(projection, Journal(), [
+                        {"category": "timing", "value": value, "sensitivity": "public"},
+                    ])),
+                    review=Unreadable(),
+                )
+
+                # [LAW:no-silent-failure] Unsafe nested evidence becomes an explicit source error.
+                self.assertEqual(observed["detail"], {
+                    "source_state": "unreadable", "freshness": "unknown",
+                })
+
+    def test_detail_detaches_nested_public_mapping_and_sequence_values(self):
+        """Structured public evidence is copied without retaining aliases to source values."""
+        from runtime.observability_adapter import Available, DetailEvidence, Unreadable, snapshot
+
+        value = {
+            "nested": {"sensitivity": "public", "duration_ms": 18},
+            "items": [{"sensitivity": "public", "counts": [1, 2]}],
+        }
+        observed = snapshot(
+            compact=Unreadable(),
+            detail=Available(DetailEvidence(Projection(0, None, None, None, None), Journal(), [
+                {"category": "timing", "value": value, "sensitivity": "public"},
+            ])),
+            review=Unreadable(),
+        )
+
+        self.assertEqual(observed["detail"]["source_state"], "available")
+        observed["detail"]["data"]["diagnostics"][0]["value"]["items"][0]["counts"].append(3)
+        self.assertEqual(value["items"][0]["counts"], [1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()
