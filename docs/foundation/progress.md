@@ -21,3 +21,7 @@ t78: tests first failed on missing runtime/build modules. Health is explicitly
 simulation-only; zipapp tested from outside the checkout using isolated Python.
 t78 complete: 332581c; full suite and clean temporary clone bootstrap pass
 57/57 tests. Added A.4 as arhugula-control-plane-jat.0db.k39 through LIT.
+
+c90: RED missing runtime.contracts; GREEN 63/63 tests. Eight immutable wire
+records, closed schema shapes, codec semantic invariants and round-trip golden
+fixtures. No transport or authorization is implied by structural validity.

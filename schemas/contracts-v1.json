@@ -1,0 +1,543 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Arhugula control-plane contracts v1",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+    },
+    "bag": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/id"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/id"
+        },
+        "lane_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agent_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "voice",
+            "panel",
+            "keyboard",
+            "terminal",
+            "mcp",
+            "test",
+            "runtime"
+          ]
+        },
+        "provider_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sensitivity": {
+          "type": "string",
+          "enum": [
+            "public",
+            "private",
+            "secret"
+          ]
+        }
+      },
+      "required": [
+        "session_id",
+        "profile_id",
+        "lane_id",
+        "agent_id",
+        "source",
+        "provider_id",
+        "model_version",
+        "provenance",
+        "sensitivity"
+      ],
+      "additionalProperties": false
+    },
+    "command": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "command",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "capability_id": {
+          "$ref": "#/$defs/id"
+        },
+        "catalog_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requested_at_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "arguments": {
+          "$ref": "#/$defs/bag"
+        },
+        "context": {
+          "$ref": "#/$defs/context"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "command_id",
+        "correlation_id",
+        "capability_id",
+        "catalog_version",
+        "requested_at_ms",
+        "arguments",
+        "context"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "error",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "code": {
+          "$ref": "#/$defs/id"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "code",
+        "message",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "result",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "result_id": {
+          "$ref": "#/$defs/id"
+        },
+        "command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "blocked",
+            "failed",
+            "canceled",
+            "uncertain"
+          ]
+        },
+        "output": {
+          "$ref": "#/$defs/bag"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/error"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "result_id",
+        "command_id",
+        "correlation_id",
+        "status",
+        "output",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "event",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "event_id": {
+          "$ref": "#/$defs/id"
+        },
+        "command_id": {
+          "$ref": "#/$defs/id"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "event_type": {
+          "type": "string",
+          "enum": [
+            "command.started",
+            "command.finished"
+          ]
+        },
+        "timestamp_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "blocked",
+            "failed",
+            "canceled",
+            "uncertain",
+            "pending"
+          ]
+        },
+        "capability_id": {
+          "$ref": "#/$defs/id"
+        },
+        "catalog_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "policy_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "context": {
+          "$ref": "#/$defs/context"
+        },
+        "details": {
+          "$ref": "#/$defs/bag"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "event_id",
+        "command_id",
+        "correlation_id",
+        "event_type",
+        "timestamp_ms",
+        "status",
+        "capability_id",
+        "catalog_version",
+        "policy_revision",
+        "duration_ms",
+        "context",
+        "details"
+      ],
+      "additionalProperties": false
+    },
+    "capability": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "capability",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "capability_id": {
+          "$ref": "#/$defs/id"
+        },
+        "catalog_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "risk": {
+          "type": "string",
+          "enum": [
+            "safe",
+            "confirm",
+            "blocked"
+          ]
+        },
+        "arguments": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "provenance": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "capability_id",
+        "catalog_version",
+        "enabled",
+        "risk",
+        "arguments",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "policy",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "policy_id": {
+          "$ref": "#/$defs/id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowed_capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "confirmation_required": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "policy_id",
+        "revision",
+        "enabled",
+        "allowed_capabilities",
+        "confirmation_required"
+      ],
+      "additionalProperties": false
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "profile",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/id"
+        },
+        "policy_id": {
+          "$ref": "#/$defs/id"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "voice_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "profile_id",
+        "policy_id",
+        "enabled",
+        "voice_enabled"
+      ],
+      "additionalProperties": false
+    },
+    "provider": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "provider",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "provider_id": {
+          "$ref": "#/$defs/id"
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "vm",
+            "host"
+          ]
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "health": {
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "unavailable"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "provider_id",
+        "placement",
+        "model_version",
+        "enabled",
+        "health",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/command"
+    },
+    {
+      "$ref": "#/$defs/error"
+    },
+    {
+      "$ref": "#/$defs/result"
+    },
+    {
+      "$ref": "#/$defs/event"
+    },
+    {
+      "$ref": "#/$defs/capability"
+    },
+    {
+      "$ref": "#/$defs/policy"
+    },
+    {
+      "$ref": "#/$defs/profile"
+    },
+    {
+      "$ref": "#/$defs/provider"
+    }
+  ]
+}

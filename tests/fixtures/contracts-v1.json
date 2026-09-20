@@ -1,0 +1,119 @@
+[
+  {
+    "kind": "command",
+    "version": 1,
+    "command_id": "cmd-1",
+    "correlation_id": "corr-1",
+    "capability_id": "menu.open",
+    "catalog_version": 1,
+    "requested_at_ms": 1000,
+    "arguments": {
+      "name": "main"
+    },
+    "context": {
+      "session_id": "session-1",
+      "profile_id": "default",
+      "lane_id": null,
+      "agent_id": null,
+      "source": "test",
+      "provider_id": null,
+      "model_version": null,
+      "provenance": "fixture",
+      "sensitivity": "private"
+    }
+  },
+  {
+    "kind": "error",
+    "version": 1,
+    "code": "denied",
+    "message": "Policy denied capability",
+    "retryable": false
+  },
+  {
+    "kind": "result",
+    "version": 1,
+    "result_id": "result-1",
+    "command_id": "cmd-1",
+    "correlation_id": "corr-1",
+    "status": "blocked",
+    "output": {},
+    "error": {
+      "kind": "error",
+      "version": 1,
+      "code": "denied",
+      "message": "Policy denied capability",
+      "retryable": false
+    }
+  },
+  {
+    "kind": "event",
+    "version": 1,
+    "event_id": "event-1",
+    "command_id": "cmd-1",
+    "correlation_id": "corr-1",
+    "event_type": "command.finished",
+    "timestamp_ms": 1000,
+    "status": "blocked",
+    "capability_id": "menu.open",
+    "catalog_version": 1,
+    "policy_revision": 1,
+    "duration_ms": 0,
+    "context": {
+      "session_id": "session-1",
+      "profile_id": "default",
+      "lane_id": null,
+      "agent_id": null,
+      "source": "test",
+      "provider_id": null,
+      "model_version": null,
+      "provenance": "fixture",
+      "sensitivity": "private"
+    },
+    "details": {
+      "reason": "denied"
+    }
+  },
+  {
+    "kind": "capability",
+    "version": 1,
+    "capability_id": "menu.open",
+    "catalog_version": 1,
+    "enabled": true,
+    "risk": "safe",
+    "arguments": {
+      "name": "string"
+    },
+    "provenance": "fixture"
+  },
+  {
+    "kind": "policy",
+    "version": 1,
+    "policy_id": "default",
+    "revision": 1,
+    "enabled": true,
+    "allowed_capabilities": [
+      "menu.open"
+    ],
+    "confirmation_required": []
+  },
+  {
+    "kind": "profile",
+    "version": 1,
+    "profile_id": "default",
+    "policy_id": "default",
+    "enabled": true,
+    "voice_enabled": false
+  },
+  {
+    "kind": "provider",
+    "version": 1,
+    "provider_id": "fixture",
+    "placement": "vm",
+    "model_version": "fixture-v1",
+    "enabled": false,
+    "health": "unavailable",
+    "capabilities": [
+      "intent"
+    ]
+  }
+]
