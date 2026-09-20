@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.hjr",
+  "active_ticket": "arhugula-voice-core-b4k.ceb.z5x.7om",
   "parent_epic": "arhugula-voice-core-b4k",
   "branch": "feat/voice-core-contracts",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/voice-core",
@@ -13,14 +13,18 @@
     "hq3 integration proposal and plan prepared",
     "User approved P1 continuation in clean isolated worktree despite main diagnostics; merge/push deferred",
     "Task 1 .z5x.kpp CLOSED in 3676cb3: process-local ownership, generations, cleanup fault latch",
-    "Task 2 .z5x.hjr CLOSED in 5e6d60e: bounded PCM and synthetic-only energy VAD"
+    "Task 2 .z5x.hjr CLOSED in 5e6d60e: bounded PCM and synthetic-only energy VAD",
+    "Task 3 P1 .z5x.7om CLOSED: implementation 10b922c, independent Astra/high safety review and single test-first fix pass 7604a08",
+    "Reviewed thread/selector startup cleanup regressions; four failure subcases RED then GREEN; no live IO"
   ],
   "verification": [
-    "Task 1/2 missing-module RED observed",
-    "11 session + 11 PCM focused tests pass",
-    "Fresh full suite 159 tests pass in 6.791s",
-    "git diff --check passes",
-    "Whole P1 batch independent review pending"
+    "Task 1/2 missing-module RED observed; 11 session and 11 PCM tests passed at their boundaries",
+    "Independent Astra/high reviewer passed 78 voice tests on 3dcceed..10b922c",
+    "Review fixes: 17 process tests pass, including four injected startup/finalization failures with owned child reaping",
+    "Fresh full suite: python3 -W error::ResourceWarning -m unittest discover -s tests -q -> 194 tests OK in 8.538s at 7604a08",
+    "python3 -m ops.voice_replay -> 5/5 synthetic cases, passed=true, real_speech_validated=false",
+    "git diff --check passes; LIT doctor integrity_check=ok, no foreign-key/rank/cycle issues",
+    "Review findings, fix evidence and explicit excluded-capability rulings: docs/voice/p1-review.md"
   ],
   "risks": [
     "main contains foreign uncommitted diagnostics: do not edit, stage, merge or push",
@@ -28,9 +32,14 @@
     "P2-P8 live gates remain unauthorized; previous menu approval consumed",
     "Legacy command config exists outside repo; do not execute/change it",
     "Real VAD accuracy, transcriber isolation and TTS backend remain unproven",
-    "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims"
+    "Parent integration and release remain HIL-required; scoped P1 children use explicit manual claims",
+    "OwnedProcess is trusted process-group lifecycle, not sandboxing; escaped descendants require stronger isolation",
+    "WAV-stdin transcriber injection is not installed Voxtype FILE compatibility; backend isolation and bridge unproven",
+    "Task 3 P2 and Tasks 4-7 remain incomplete; no actual live voice release",
+    "LIT automatic remote sync is failing; changes remain local. Merge/push deferred while main diagnostics remain",
+    "lit next suggests .csj circle-back; do not claim/release it to bypass the open HIL integration gate"
   ],
-  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.7om",
-  "stop_reason": null,
-  "worker_stop": false
+  "next_ticket": "arhugula-voice-core-b4k.ceb.z5x.pab",
+  "stop_reason": "hil-required: Task 3 P2 needs specifically consented recording paths and approval for isolated local transcription characterization; P3-P8 remain separate gates. Merge/push held while main contains foreign diagnostics.",
+  "worker_stop": true
 }

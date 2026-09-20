@@ -119,3 +119,21 @@ Ruling: require explicit factories; WAV-stdin is an injected protocol, not a
 Voxtype FILE compatibility claim — costs backend bridge/characterization work.
 Ruling: preserve cancel()'s planned None return and expose cleanup_proven — costs
 one extra coordinator check before ownership can be released.
+
+P1 boundary review completed: Astra/high independently reviewed 3dcceed..10b922c
+and passed 78 voice tests. Two Important findings concerned startup/initialization
+exceptions bypassing owned child cleanup. Four regression subcases failed first;
+one fix pass 7604a08 passed 17 process tests and 194 full-suite tests. Fresh
+post-commit full suite passed 194/194 in 8.538s; replay 5/5, explicitly synthetic.
+No Critical findings or deferred Minors. See p1-review.md for exact findings,
+verification and six explicit rulings on capabilities outside this P1 scope.
+.z5x.7om CLOSED; Task 3 as a whole remains partial because P2 is unresolved.
+
+STOP: .z5x.pab is hil-required. Obtain exact consented recording paths and scope
+for isolated local transcription characterization before any real inference.
+P3-P8 remain separate; no new menu approval or live configuration permission.
+lit next suggests .csj circle-back, but the open HIL integration/acceptance gate
+prevents claiming voice release. Parent .ceb/.z5x and release remain open.
+Main still has foreign untracked diagnostics. Keep branch/worktree/scratch;
+do not merge or push. LIT local records are intact but remote sync is failing.
+docs/voice/handoff.json contains the stopped Memento-compatible continuation.
