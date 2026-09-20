@@ -50,6 +50,13 @@ MUTATIONS = (
      "if self._fault:\n                raise GatewayError(self._fault)",
      "if False:\n                raise GatewayError(self._fault)",
      'test_disable_blocks_admission_fallback_and_keeps_cleanup_fault'),
+    ('runtime.gateway.client',
+     'if not permitted or self._disabled or call.cancel_requested:', 'if not permitted:',
+     'tests.test_gateway_configuration.GatewayConfigurationTests.test_cancel_or_disable_inside_either_permit_prevents_that_effect'),
+    ('runtime.gateway.client',
+     'if self._active is not None or self._terminal is not None or self._inside_callback:',
+     'if False:',
+     'tests.test_gateway_configuration.GatewayConfigurationTests.test_cutover_from_either_permit_is_busy_and_cancellation_still_completes'),
 )
 
 
@@ -67,8 +74,9 @@ def fresh_module(name):
 
 def run_test(name):
     output = io.StringIO()
-    suite = unittest.defaultTestLoader.loadTestsFromName(
+    path = name if name.startswith('tests.') else (
         'tests.test_provider_configuration.ProviderConfigurationTests.' + name)
+    suite = unittest.defaultTestLoader.loadTestsFromName(path)
     result = unittest.TextTestRunner(stream=output).run(suite)
     if result.testsRun != 1 or result.errors:
         raise RuntimeError(output.getvalue())

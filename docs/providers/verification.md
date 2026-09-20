@@ -32,6 +32,20 @@ Session `01a0c02c-000b-7303-8737-74523c1cf28b`.
 The handoff message carries the immutable final SHA and its exact-head retest.
 This file records implementation evidence, not independent review or CI.
 
+## Supplemental permit concurrency proof
+
+Buford's reiterated requirement prompted three additional tests after `a237b2a`;
+no production change was needed. Cancel/disable invoked inside either primary or
+fallback permit prevents that effect even when the permit returns True. Cutover
+from either permit returns busy and cancellation completes. A disable on another
+thread serializes behind the admitted attempt, retires its job, then denies new
+effects after returning. Event-controlled threads join within bounded time.
+
+Two added mutations remove the post-permit cancellation checkpoint or permit
+reentrant cutover; both are detected. Provider mutations now total 14/14.
+These tests demonstrate serialized disable semantics: calling disable concurrently
+does not retroactively undo an effect admitted before disable acquired ownership.
+
 ## Decisions for review
 
 The public gateway claim is exclusive and starts disabled atomically; the token

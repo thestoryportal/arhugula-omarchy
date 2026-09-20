@@ -169,3 +169,108 @@ class GatewayConfigurationTests(unittest.TestCase):
             self.assertEqual(self.transport.job.polls, 0)
         self.assertIsNone(self.client.poll())
         self.assertEqual(len(self.local_calls), 1)
+
+    def test_cancel_or_disable_inside_either_permit_prevents_that_effect(self):
+        for placement in ('host', 'vm'):
+            for action in ('cancel', 'disable'):
+                with self.subTest(placement=placement, action=action):
+                    self.setUp()
+
+                    def permit(provider, service, now):
+                        if provider.placement == placement:
+                            getattr(self.client, action)()
+                        return True
+
+                    self.client.reconfigure(self.host, self.local, permit=permit)
+                    self.transport.job.reply = HttpReply(503, b'', fixtures.PEER)
+                    self.client.start(self.request)
+                    result = self.client.poll()
+                    self.assertEqual(len(self.transport.sent), int(placement == 'vm'))
+                    self.assertEqual(self.local_calls, [])
+                    self.assertEqual(result.failures[-1].code, 'canceled')
+                    self.assertTrue(self.client.cleanup_proven)
+                    self.assertIsNone(self.client.poll())
+
+    def test_cutover_from_either_permit_is_busy_and_cancellation_still_completes(self):
+        for placement in ('host', 'vm'):
+            with self.subTest(placement=placement):
+                self.setUp()
+                denied = []
+
+                def permit(provider, service, now):
+                    if provider.placement == placement:
+                        try:
+                            self.client.reconfigure(self.host)
+                        except GatewayError as error:
+                            denied.append(error.code)
+                        self.client.cancel()
+                    return True
+
+                self.client.reconfigure(self.host, self.local, permit=permit)
+                self.transport.job.reply = HttpReply(503, b'', fixtures.PEER)
+                self.client.start(self.request)
+                result = self.client.poll()
+                self.assertEqual(denied, ['busy'])
+                self.assertEqual(self.local_calls, [])
+                self.assertEqual(result.failures[-1].code, 'canceled')
+                self.assertTrue(self.client.cleanup_proven)
+
+    def test_threaded_disable_serializes_with_each_permit_and_retires_admitted_effect(self):
+        for placement in ('host', 'vm'):
+            with self.subTest(placement=placement):
+                self.setUp()
+                entered, release = threading.Event(), threading.Event()
+                attempted, disabled = threading.Event(), threading.Event()
+                failures = []
+
+                def permit(provider, service, now):
+                    if provider.placement == placement:
+                        entered.set()
+                        return release.wait(2)
+                    return True
+
+                def drive():
+                    try:
+                        if placement == 'host':
+                            self.client.start(self.request)
+                        else:
+                            self.client.poll()
+                    except Exception as error:
+                        failures.append(error)
+
+                def disable():
+                    attempted.set()
+                    try:
+                        self.client.disable()
+                        disabled.set()
+                    except Exception as error:
+                        failures.append(error)
+
+                self.client.reconfigure(self.host, self.local, permit=permit)
+                self.transport.job.reply = HttpReply(503, b'', fixtures.PEER)
+                if placement == 'vm':
+                    self.client.start(self.request)
+                caller = threading.Thread(target=drive, daemon=True)
+                disabler = threading.Thread(target=disable, daemon=True)
+                try:
+                    caller.start()
+                    self.assertTrue(entered.wait(2))
+                    disabler.start()
+                    self.assertTrue(attempted.wait(2))
+                    self.assertFalse(disabled.is_set())
+                finally:
+                    release.set()
+                    caller.join(3)
+                    if disabler.ident is not None:
+                        disabler.join(3)
+                self.assertFalse(caller.is_alive())
+                self.assertFalse(disabler.is_alive())
+                self.assertEqual(failures, [])
+                self.assertTrue(disabled.is_set())
+                self.assertEqual(self.client.poll().failures[-1].code, 'canceled')
+                effects = (len(self.transport.sent), len(self.local_calls))
+                self.assertEqual(effects, (1, int(placement == 'vm')))
+                with self.assertRaisesRegex(GatewayError, 'canceled'):
+                    self.client.start(replace(self.request, request_id='after-disable'))
+                self.assertEqual((len(self.transport.sent), len(self.local_calls)), effects)
+                self.assertTrue(self.client.cleanup_proven)
