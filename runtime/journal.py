@@ -7,7 +7,7 @@ import sqlite3
 import stat
 import threading
 
-from .contracts import ContractError, Event, decode, encode, loads
+from .contracts import ContractError, Event, Interaction, decode, encode, loads
 
 
 class JournalError(ValueError):
@@ -15,8 +15,8 @@ class JournalError(ValueError):
 
 
 def _event(value):
-    if not isinstance(value, Event):
-        raise JournalError("journal accepts only Event records")
+    if not isinstance(value, (Event, Interaction)):
+        raise JournalError("journal accepts only Event or Interaction records")
     return decode(encode(value))
 
 
@@ -174,7 +174,7 @@ class SQLiteJournal(MemoryJournal):
                 rows = self._connection.execute("SELECT sequence, event_id, payload FROM events WHERE sequence > ? ORDER BY sequence", (after,))
                 for sequence, identifier, payload in rows:
                     event = loads(payload)
-                    if not isinstance(event, Event) or event.event_id != identifier:
+                    if not isinstance(event, (Event, Interaction)) or event.event_id != identifier:
                         raise JournalError("stored event identity mismatch")
                     result.append((sequence, event))
                 return result

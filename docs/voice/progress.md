@@ -21,3 +21,11 @@ provided or captured. Cost if wrong: add approved recordings at integration.
 User subsequently authorized one live Omarchy-menu smoke after offline checks,
 without configuration/service changes. iz3 may use only `omarchy menu summon
 root` once; no microphone, bindings, service changes or general desktop actions.
+
+iz3 offline implementation: VM confirmation tokens and Interaction journal kind;
+data-only candidate routing, clarification, correction preview and three trusted
+confirmation channels; narrow fixed-argv menu executor and dry-run smoke CLI.
+RED imports plus context-binding/state-service/inferred-execution regressions.
+Ruling: inferred/fuzzy proposals always preview even at high confidence — lexical
+similarity can misread negation — cost is one extra confirmation, not surprise IO.
+Live smoke is still pending independent review; none has been launched yet.

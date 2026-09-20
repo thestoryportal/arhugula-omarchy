@@ -354,8 +354,10 @@ host placement is inference-only metadata. Local Unix-socket JSON and host
 authenticated HTTPS JSON are reserved transport seams, not enabled listeners.
 See `docs/decisions/0001-control-plane-stack.md` and `docs/foundation/`.
 
-The foundation supplies only injected fake executors. Confirmation-required
-actions remain blocked pending a trusted VM confirmation adapter. It serializes
+The foundation defaults to injected fake executors. Direct confirmation-required
+dispatch remains blocked; the voice slice adds a trusted VM-owned expiring,
+single-use preview API and a separate Interaction observation record. The only
+opt-in concrete executor opens the Omarchy root menu with fixed argv. It serializes
 dispatch under journal ownership, persists intent before execution, and refuses
 automatic replay of command IDs, including interrupted attempts. This provides
 conservative at-most-once dispatch, not exactly-once external side effects.

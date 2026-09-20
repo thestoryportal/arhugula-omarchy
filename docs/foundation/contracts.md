@@ -6,6 +6,11 @@ Policy, Profile, Provider, and Error. Golden examples live in
 `tests/fixtures/contracts-v1.json`; closed structural schemas live in
 `schemas/contracts-v1.json`. No network schema resolution is performed.
 
+The voice slice adds Interaction as a new independently versioned v1 kind for
+preview/confirmation/clarification observations. It is not an execution receipt.
+The journal stores both kinds; dispatch replay protection uses execution Events.
+Older decoders safely reject the new kind rather than treating it as execution.
+
 Every record requires `kind` and integer `version: 1`. Unknown versions, fields,
 enum values, duplicate JSON keys, non-finite numbers and malformed identifiers
 are rejected. Booleans are not integers. A future incompatible shape requires a

@@ -83,6 +83,18 @@ class Capability(Record):
 
 
 @dataclass(frozen=True)
+class Interaction(Record):
+    kind = "interaction"
+    event_id: str
+    interaction_id: str
+    correlation_id: str
+    timestamp_ms: int
+    context: Mapping
+    phase: str
+    details: Mapping
+
+
+@dataclass(frozen=True)
 class Policy(Record):
     kind = "policy"
     policy_id: str
@@ -112,7 +124,7 @@ class Provider(Record):
     capabilities: tuple[str, ...]
 
 
-_TYPES = {cls.kind: cls for cls in (Command, Error, Result, Event, Capability, Policy, Profile, Provider)}
+_TYPES = {cls.kind: cls for cls in (Command, Error, Result, Event, Interaction, Capability, Policy, Profile, Provider)}
 _DEFS = json.loads(files("schemas").joinpath("contracts-v1.json").read_text())["$defs"]
 
 

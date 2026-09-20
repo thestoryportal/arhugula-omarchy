@@ -512,6 +512,59 @@
         "capabilities"
       ],
       "additionalProperties": false
+    },
+    "interaction": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "interaction"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "event_id": {
+          "$ref": "#/$defs/id"
+        },
+        "interaction_id": {
+          "$ref": "#/$defs/id"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "timestamp_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "context": {
+          "$ref": "#/$defs/context"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "voice.preview",
+            "voice.confirmation",
+            "voice.clarification",
+            "voice.blocked"
+          ]
+        },
+        "details": {
+          "$ref": "#/$defs/bag"
+        }
+      },
+      "required": [
+        "kind",
+        "version",
+        "event_id",
+        "interaction_id",
+        "correlation_id",
+        "timestamp_ms",
+        "context",
+        "phase",
+        "details"
+      ],
+      "additionalProperties": false
     }
   },
   "oneOf": [
@@ -538,6 +591,9 @@
     },
     {
       "$ref": "#/$defs/provider"
+    },
+    {
+      "$ref": "#/$defs/interaction"
     }
   ]
 }

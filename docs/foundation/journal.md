@@ -2,7 +2,7 @@
 
 `MemoryJournal` and `SQLiteJournal(path)` share append, cursor-based read and
 callback replay. A cursor is the last processed sequence, starting at zero.
-Read returns detached lists of `(sequence, immutable Event)` pairs; replay calls
+Read returns detached lists of `(sequence, immutable Event | Interaction)` pairs; replay calls
 `consume(sequence, event)` in sequence order. It does not execute commands.
 
 Event IDs are unique. Reappending identical canonical content returns its
