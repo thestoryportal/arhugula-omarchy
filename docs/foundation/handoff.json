@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "active_ticket": "arhugula-control-plane-jat.0db.k39",
+  "active_ticket": "arhugula-control-plane-jat.dpk.m7m",
   "parent_epic": "arhugula-control-plane-jat",
   "branch": "feat/control-plane-foundation",
   "worktree": "/home/robbo/Work/arhugula-omarchy/.worktrees/foundation",
   "model": "gpt-6-astra",
   "effort": "high",
   "role": "implement",
-  "goal": "Complete repository-only control-plane foundation",
-  "completed_work": ["t78 stack/bootstrap; 332581c", "c90 contracts; 3717ca7", "gsk dispatch; 85c37e6", "k39 persistent journal; 52f6f56"],
-  "verification": ["79/79 tests pass", "t78 clean temporary clone bootstrap: pass", "isolated zipapp health: pass", "git diff --check: pass"],
-  "risks": ["Foundation is simulation-only; no live execution authorized", "A.4 journal missing from original LIT backlog; added as k39"],
-  "next_ticket": "arhugula-control-plane-jat.dpk.m7m",
+  "goal": "Continue approved repository-only LIT work after foundation release",
+  "completed_work": ["Foundation epic and both arcs closed", "t78 stack/bootstrap; 332581c", "c90 contracts; 3717ca7", "gsk dispatch; 85c37e6", "k39 journal; 52f6f56", "m7m independent review fixes and design reconciliation; 1d62afb"],
+  "verification": ["81/81 tests pass", "fresh temporary clone bootstrap: 81/81 pass", "isolated zipapp codecs/dispatch/SQLite: pass", "fork and parser review regressions: pass", "git diff --check: pass"],
+  "risks": ["Simulation-only; no live execution authorized", "Confirmation stays blocked until trusted adapter", "Later live voice smoke requires separate authority"],
+  "next_ticket": "arhugula-voice-core-b4k.ceb.v1t",
   "stop_reason": null
 }

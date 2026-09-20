@@ -48,3 +48,8 @@ claimed. Projections, retention/redaction and scaling remain D.1+. External
 same-user database tampering is outside the single-owner API contract. Duplicate
 attempts are explicitly coded; projection treatment remains D.1. All deferrals
 preserve the approved architecture rather than weakening current permissions.
+
+Foundation release: 1d62afb passed 81/81 tests both locally and in a fresh
+temporary clone. LIT atomic units, spine and reconciliation arcs are closed;
+epic rolls up closed. Next ordered unit is voice dictation contract v1t.
+Retain branches/worktrees for recovery; do not perform destructive cleanup.
