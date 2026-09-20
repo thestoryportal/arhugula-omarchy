@@ -98,6 +98,8 @@ implementation or prematurely closing an arc.
 Claim with `lit start`, maintain one writer per ticket/files, test and review an
 immutable commit range, record LIT evidence, commit and hand off. Keep locally
 verified work `awaiting-integration` until protected main landing and successful
-post-merge CI. Agent review and Astra signoff are not GitHub-user approval. Consult
+post-merge CI. Agent review and Astra signoff are evidence, not merge authority.
+Root owns push, PR, CI, merge, and post-main CI; no separate GitHub-user approval
+is required. Consult
 the handoff before following claims-first `lit next`: it can return an implemented
 unit that awaits integration rather than new coding work.
