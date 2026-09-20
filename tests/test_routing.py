@@ -80,6 +80,20 @@ class RoutingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             route_backlog(data)
 
+    def test_multiple_bare_capabilities_do_not_silently_drop_review_role(self):
+        result = route(ticket(labels=["debugging", "high-risk-review", "autonomous-safe"]))
+        self.assertEqual(result["stop_reason"], "routing-conflict")
+
+    def test_dependency_blocked_leaf_is_not_reported_ready(self):
+        data = {"version": 2, "issues": [ticket(labels=["capability:tests", "autonomous-safe"]),
+                {"id": "prerequisite", "issue_type": "epic", "status": "open"}],
+                "relations": [{"src_id": "unit", "dst_id": "prerequisite", "type": "blocks"}]}
+        result = route_backlog(data)[0]
+        self.assertEqual(result["stop_reason"], "blocked")
+        self.assertEqual(result["blocked_by"], ["prerequisite"])
+        data["issues"][1]["status"] = "closed"
+        self.assertEqual(route_backlog(data)[0]["decision"], "ready")
+
     def test_cli_reads_export_without_writing(self):
         result = subprocess.run([sys.executable, "-m", "ops.orchestration.routing"],
             input=json.dumps({"version": 2, "issues": [ticket("Write documentation", ["autonomous-safe"])], "relations": []}),

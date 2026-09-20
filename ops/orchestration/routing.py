@@ -45,6 +45,8 @@ def route(issue, ancestors=()):
         capability, source = "security", "risk-floor"
     if not capability:
         high_labels = labels & HIGH
+        if len(high_labels) > 1:
+            return stop("routing-conflict")
         if high_labels:
             capability = sorted(high_labels)[0]
         elif "validation" in labels:
@@ -125,7 +127,22 @@ def route_backlog(data):
     leaves = [i for i in issues.values() if i["id"] not in containers
               and i.get("issue_type") != "epic" and i.get("status") != "closed"
               and not i.get("archived_at") and not i.get("deleted_at")]
-    return [route(i, ancestors[i["id"]]) for i in sorted(leaves, key=lambda i: (i.get("rank", ""), i["id"]))]
+    results = []
+    for i in sorted(leaves, key=lambda i: (i.get("rank", ""), i["id"])):
+        result = route(i, ancestors[i["id"]])
+        scope = {i["id"], *(a["id"] for a in ancestors[i["id"]])}
+        blocked = set()
+        for relation in data.get("relations", []):
+            if relation["type"] == "blocks":
+                if relation["src_id"] not in issues or relation["dst_id"] not in issues:
+                    raise ValueError("invalid dependency relationship")
+                if relation["src_id"] in scope and issues[relation["dst_id"]].get("status") != "closed":
+                    blocked.add(relation["dst_id"])
+        result["blocked_by"] = sorted(blocked)
+        if blocked and result["decision"] == "ready":
+            result.update(decision="stop", stop_reason="blocked")
+        results.append(result)
+    return results
 
 
 def main():

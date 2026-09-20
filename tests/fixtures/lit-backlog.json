@@ -1,0 +1,943 @@
+{
+  "version": 2,
+  "issues": [
+    {
+      "id": "arhugula-orchestration-3hx",
+      "title": "Bootstrap autonomous LIT and session continuity",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "F",
+      "labels": [
+        "focus"
+      ]
+    },
+    {
+      "id": "arhugula-control-plane-jat",
+      "title": "Establish the Omarchy agent workspace control-plane foundation",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "V",
+      "labels": [
+        "architecture",
+        "spine"
+      ]
+    },
+    {
+      "id": "arhugula-control-plane-jat.0db",
+      "title": "Build the typed control-plane spine",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "k",
+      "labels": []
+    },
+    {
+      "id": "arhugula-control-plane-jat.0db.t78",
+      "title": "Freeze implementation stack and repository boundaries",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "s",
+      "labels": [
+        "spine"
+      ]
+    },
+    {
+      "id": "arhugula-control-plane-jat.0db.c90",
+      "title": "Define versioned command event and policy contracts",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "w",
+      "labels": [
+        "spine"
+      ]
+    },
+    {
+      "id": "arhugula-control-plane-jat.0db.gsk",
+      "title": "Implement the in-memory control-plane core",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "y",
+      "labels": [
+        "spine"
+      ]
+    },
+    {
+      "id": "arhugula-control-plane-jat.dpk",
+      "title": "Reconcile and release the control-plane foundation",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "z",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-control-plane-jat.dpk.m7m",
+      "title": "Run the foundation circle-back and document decisions",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zV",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-voice-core-b4k",
+      "title": "Deliver safe Omarchy voice control and dictation",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "zk",
+      "labels": [
+        "vertical-slice",
+        "voice"
+      ]
+    },
+    {
+      "id": "arhugula-voice-core-b4k.ceb",
+      "title": "Build the first end-to-end voice control slice",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zs",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-core-b4k.ceb.v1t",
+      "title": "Stabilize Home and End dictation contracts",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zw",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-core-b4k.ceb.f5v",
+      "title": "Implement adaptive KP_EQUAL command capture",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zy",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-core-b4k.ceb.iz3",
+      "title": "Route and confirm one safe Omarchy command",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zz",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-core-b4k.csj",
+      "title": "Reconcile and release voice control core",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzV",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-voice-core-b4k.csj.o19",
+      "title": "Run the voice-core circle-back and release first command control",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zzk",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-catalog-gateway-yll",
+      "title": "Build the capability catalog and local model gateway",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "zzs",
+      "labels": [
+        "models",
+        "platform"
+      ]
+    },
+    {
+      "id": "arhugula-catalog-gateway-yll.298",
+      "title": "Implement catalog discovery and host model services",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzw",
+      "labels": []
+    },
+    {
+      "id": "arhugula-catalog-gateway-yll.298.1qs",
+      "title": "Discover Omarchy Hyprland menus and bindings",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzy",
+      "labels": []
+    },
+    {
+      "id": "arhugula-catalog-gateway-yll.298.din",
+      "title": "Version and refresh the capability catalog",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzz",
+      "labels": []
+    },
+    {
+      "id": "arhugula-catalog-gateway-yll.298.ejy",
+      "title": "Implement the authenticated Mac host model gateway",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzV",
+      "labels": []
+    },
+    {
+      "id": "arhugula-catalog-gateway-yll.7kb",
+      "title": "Reconcile and release the catalog and model boundary",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzk",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-catalog-gateway-yll.7kb.0hj",
+      "title": "Run catalog and model-gateway circle-back",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zzzs",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-observability-xb8",
+      "title": "Deliver observability and model evaluation",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "zzzw",
+      "labels": [
+        "evaluation",
+        "platform"
+      ]
+    },
+    {
+      "id": "arhugula-observability-xb8.xug",
+      "title": "Build event projections and evaluation workspace",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzy",
+      "labels": []
+    },
+    {
+      "id": "arhugula-observability-xb8.xug.yoc",
+      "title": "Build rebuildable runtime event projections",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzz",
+      "labels": []
+    },
+    {
+      "id": "arhugula-observability-xb8.xug.4ym",
+      "title": "Build compact and detailed observability views",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzV",
+      "labels": []
+    },
+    {
+      "id": "arhugula-observability-xb8.xug.c6v",
+      "title": "Build replay comparison and promotion evaluation",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzk",
+      "labels": []
+    },
+    {
+      "id": "arhugula-observability-xb8.656",
+      "title": "Reconcile and release observability",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzs",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-observability-xb8.656.yv0",
+      "title": "Run observability and evaluation circle-back",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zzzzsT",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-voice-profiles-c8o",
+      "title": "Deliver conversational voice TTS and cloning",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "zzzzsw",
+      "labels": [
+        "models",
+        "voice"
+      ]
+    },
+    {
+      "id": "arhugula-voice-profiles-c8o.4us",
+      "title": "Build conversation lifecycle and voice profiles",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzztP",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-profiles-c8o.4us.jsq",
+      "title": "Implement conversational session lifecycle",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzts",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-profiles-c8o.4us.dn6",
+      "title": "Implement TTS provider routing and audio policy",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzuL",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-profiles-c8o.4us.mo4",
+      "title": "Implement versioned guided voice cloning",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzuo",
+      "labels": []
+    },
+    {
+      "id": "arhugula-voice-profiles-c8o.z3m",
+      "title": "Reconcile and release conversational voice",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzvH",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-voice-profiles-c8o.z3m.q21",
+      "title": "Run conversational voice circle-back",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zzzzvk",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-integrations-mcp-dib",
+      "title": "Deliver Omarchy application integrations and MCP",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "zzzzwD",
+      "labels": [
+        "integrations",
+        "security"
+      ]
+    },
+    {
+      "id": "arhugula-integrations-mcp-dib.eis",
+      "title": "Build trusted MCP and application capability adapters",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzwg",
+      "labels": []
+    },
+    {
+      "id": "arhugula-integrations-mcp-dib.eis.tlc",
+      "title": "Implement the policy-gated MCP broker",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzx9",
+      "labels": []
+    },
+    {
+      "id": "arhugula-integrations-mcp-dib.eis.51c",
+      "title": "Implement native and shortcut application adapters",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzxc",
+      "labels": []
+    },
+    {
+      "id": "arhugula-integrations-mcp-dib.eis.aq6",
+      "title": "Implement permissioned screen context and redaction",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzxkh",
+      "labels": []
+    },
+    {
+      "id": "arhugula-integrations-mcp-dib.ije",
+      "title": "Reconcile and release integrations",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzxtO",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-integrations-mcp-dib.ije.8b3",
+      "title": "Run integration and MCP circle-back",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zzzzy25",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-agent-workspace-ee5",
+      "title": "Deliver the Omarchy multi-agent workspace",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "zzzzyAm",
+      "labels": [
+        "agents",
+        "omarchy"
+      ]
+    },
+    {
+      "id": "arhugula-agent-workspace-ee5.a63",
+      "title": "Build agent lifecycle lanes and workflow projections",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzyJT",
+      "labels": []
+    },
+    {
+      "id": "arhugula-agent-workspace-ee5.a63.3hf",
+      "title": "Implement agent session lifecycle and handoffs",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzySA",
+      "labels": []
+    },
+    {
+      "id": "arhugula-agent-workspace-ee5.a63.pwb",
+      "title": "Implement LIT lanes and work assignment",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzyar",
+      "labels": []
+    },
+    {
+      "id": "arhugula-agent-workspace-ee5.a63.ecn",
+      "title": "Implement Hyprland workspace and presentation adapters",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzyjY",
+      "labels": []
+    },
+    {
+      "id": "arhugula-agent-workspace-ee5.oyk",
+      "title": "Reconcile and release the agent workspace",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzysF",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-agent-workspace-ee5.oyk.8hi",
+      "title": "Run agent workspace circle-back",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zzzzz0w",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-memory-hardening-7so",
+      "title": "Deliver memory learning setup and release hardening",
+      "issue_type": "epic",
+      "status": null,
+      "rank": "zzzzz9d",
+      "labels": [
+        "memory",
+        "release"
+      ]
+    },
+    {
+      "id": "arhugula-memory-hardening-7so.l8c",
+      "title": "Build memory learning setup and recovery",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzzIK",
+      "labels": []
+    },
+    {
+      "id": "arhugula-memory-hardening-7so.l8c.6br",
+      "title": "Implement full conversation archive and frontmatter retrieval",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzzR1",
+      "labels": []
+    },
+    {
+      "id": "arhugula-memory-hardening-7so.l8c.pi1",
+      "title": "Implement structured memory pruning and learning promotion",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzzZi",
+      "labels": []
+    },
+    {
+      "id": "arhugula-memory-hardening-7so.l8c.zcy",
+      "title": "Implement layered setup profiles backup and recovery",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzziP",
+      "labels": []
+    },
+    {
+      "id": "arhugula-memory-hardening-7so.4r7",
+      "title": "Reconcile and release hardening",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzzr6",
+      "labels": [
+        "circle-back"
+      ]
+    },
+    {
+      "id": "arhugula-memory-hardening-7so.4r7.g53",
+      "title": "Run full release hardening and reconcile the design",
+      "issue_type": "chore",
+      "status": "open",
+      "rank": "zzzzzv",
+      "labels": [
+        "circle-back",
+        "release"
+      ]
+    },
+    {
+      "id": "arhugula-orchestration-3hx.a5z",
+      "title": "Implement model routing and session handoff",
+      "issue_type": "feature",
+      "status": "closed",
+      "rank": "zzzzzx",
+      "labels": []
+    },
+    {
+      "id": "arhugula-orchestration-3hx.46x",
+      "title": "Validate unattended multi-session continuation",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzzy",
+      "labels": []
+    },
+    {
+      "id": "arhugula-orchestration-3hx.a5z.cqh",
+      "title": "Define LIT model-routing metadata and policy",
+      "issue_type": "task",
+      "status": "closed",
+      "rank": "zzzzzz",
+      "labels": [
+        "autonomous-safe",
+        "capability:model-routing",
+        "effort:high",
+        "model-routing",
+        "model:astra",
+        "role:implement"
+      ]
+    },
+    {
+      "id": "arhugula-orchestration-3hx.a5z.6x0",
+      "title": "Implement Codex Memento-compatible handoff",
+      "issue_type": "task",
+      "status": "closed",
+      "rank": "zzzzzzV",
+      "labels": [
+        "autonomous-safe",
+        "session-continuity"
+      ]
+    },
+    {
+      "id": "arhugula-orchestration-3hx.a5z.jl9",
+      "title": "Implement bounded autonomous LIT continuation loop",
+      "issue_type": "task",
+      "status": "closed",
+      "rank": "zzzzzzk",
+      "labels": [
+        "autonomous-safe",
+        "workflow"
+      ]
+    },
+    {
+      "id": "arhugula-orchestration-3hx.46x.mgt",
+      "title": "Dry-run Astra and Terra routing across the backlog",
+      "issue_type": "task",
+      "status": "in_progress",
+      "rank": "zzzzzzs",
+      "labels": [
+        "autonomous-safe",
+        "validation"
+      ]
+    },
+    {
+      "id": "arhugula-orchestration-3hx.46x.yvy",
+      "title": "Exercise handoff and continuation in isolated worktrees",
+      "issue_type": "task",
+      "status": "open",
+      "rank": "zzzzzzw",
+      "labels": [
+        "autonomous-safe",
+        "validation"
+      ]
+    },
+    {
+      "id": "arhugula-orchestration-3hx.8i8",
+      "title": "Reconcile and release autonomous orchestration",
+      "issue_type": "feature",
+      "status": "open",
+      "rank": "zzzzzzy",
+      "labels": [
+        "circle-back"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "src_id": "arhugula-control-plane-jat.0db",
+      "dst_id": "arhugula-control-plane-jat",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-control-plane-jat.0db.t78",
+      "dst_id": "arhugula-control-plane-jat.0db",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-control-plane-jat.0db.c90",
+      "dst_id": "arhugula-control-plane-jat.0db",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-control-plane-jat.0db.gsk",
+      "dst_id": "arhugula-control-plane-jat.0db",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-control-plane-jat.dpk",
+      "dst_id": "arhugula-control-plane-jat",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-control-plane-jat.dpk.m7m",
+      "dst_id": "arhugula-control-plane-jat.dpk",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-core-b4k.ceb",
+      "dst_id": "arhugula-voice-core-b4k",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-core-b4k.ceb.v1t",
+      "dst_id": "arhugula-voice-core-b4k.ceb",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-core-b4k.ceb.f5v",
+      "dst_id": "arhugula-voice-core-b4k.ceb",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-core-b4k.ceb.iz3",
+      "dst_id": "arhugula-voice-core-b4k.ceb",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-core-b4k.csj",
+      "dst_id": "arhugula-voice-core-b4k",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-core-b4k.csj.o19",
+      "dst_id": "arhugula-voice-core-b4k.csj",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-catalog-gateway-yll.298",
+      "dst_id": "arhugula-catalog-gateway-yll",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-catalog-gateway-yll.298.1qs",
+      "dst_id": "arhugula-catalog-gateway-yll.298",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-catalog-gateway-yll.298.din",
+      "dst_id": "arhugula-catalog-gateway-yll.298",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-catalog-gateway-yll.298.ejy",
+      "dst_id": "arhugula-catalog-gateway-yll.298",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-catalog-gateway-yll.7kb",
+      "dst_id": "arhugula-catalog-gateway-yll",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-catalog-gateway-yll.7kb.0hj",
+      "dst_id": "arhugula-catalog-gateway-yll.7kb",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-observability-xb8.xug",
+      "dst_id": "arhugula-observability-xb8",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-observability-xb8.xug.yoc",
+      "dst_id": "arhugula-observability-xb8.xug",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-observability-xb8.xug.4ym",
+      "dst_id": "arhugula-observability-xb8.xug",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-observability-xb8.xug.c6v",
+      "dst_id": "arhugula-observability-xb8.xug",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-observability-xb8.656",
+      "dst_id": "arhugula-observability-xb8",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-observability-xb8.656.yv0",
+      "dst_id": "arhugula-observability-xb8.656",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-profiles-c8o.4us",
+      "dst_id": "arhugula-voice-profiles-c8o",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-profiles-c8o.4us.jsq",
+      "dst_id": "arhugula-voice-profiles-c8o.4us",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-profiles-c8o.4us.dn6",
+      "dst_id": "arhugula-voice-profiles-c8o.4us",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-profiles-c8o.4us.mo4",
+      "dst_id": "arhugula-voice-profiles-c8o.4us",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-profiles-c8o.z3m",
+      "dst_id": "arhugula-voice-profiles-c8o",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-profiles-c8o.z3m.q21",
+      "dst_id": "arhugula-voice-profiles-c8o.z3m",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-integrations-mcp-dib.eis",
+      "dst_id": "arhugula-integrations-mcp-dib",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-integrations-mcp-dib.eis.tlc",
+      "dst_id": "arhugula-integrations-mcp-dib.eis",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-integrations-mcp-dib.eis.51c",
+      "dst_id": "arhugula-integrations-mcp-dib.eis",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-integrations-mcp-dib.eis.aq6",
+      "dst_id": "arhugula-integrations-mcp-dib.eis",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-integrations-mcp-dib.ije",
+      "dst_id": "arhugula-integrations-mcp-dib",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-integrations-mcp-dib.ije.8b3",
+      "dst_id": "arhugula-integrations-mcp-dib.ije",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5.a63",
+      "dst_id": "arhugula-agent-workspace-ee5",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5.a63.3hf",
+      "dst_id": "arhugula-agent-workspace-ee5.a63",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5.a63.pwb",
+      "dst_id": "arhugula-agent-workspace-ee5.a63",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5.a63.ecn",
+      "dst_id": "arhugula-agent-workspace-ee5.a63",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5.oyk",
+      "dst_id": "arhugula-agent-workspace-ee5",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5.oyk.8hi",
+      "dst_id": "arhugula-agent-workspace-ee5.oyk",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so.l8c",
+      "dst_id": "arhugula-memory-hardening-7so",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so.l8c.6br",
+      "dst_id": "arhugula-memory-hardening-7so.l8c",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so.l8c.pi1",
+      "dst_id": "arhugula-memory-hardening-7so.l8c",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so.l8c.zcy",
+      "dst_id": "arhugula-memory-hardening-7so.l8c",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so.4r7",
+      "dst_id": "arhugula-memory-hardening-7so",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so.4r7.g53",
+      "dst_id": "arhugula-memory-hardening-7so.4r7",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-voice-core-b4k",
+      "dst_id": "arhugula-control-plane-jat",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-catalog-gateway-yll",
+      "dst_id": "arhugula-control-plane-jat",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-observability-xb8",
+      "dst_id": "arhugula-control-plane-jat",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-voice-profiles-c8o",
+      "dst_id": "arhugula-voice-core-b4k",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-integrations-mcp-dib",
+      "dst_id": "arhugula-catalog-gateway-yll",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5",
+      "dst_id": "arhugula-catalog-gateway-yll",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-agent-workspace-ee5",
+      "dst_id": "arhugula-observability-xb8",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so",
+      "dst_id": "arhugula-agent-workspace-ee5",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-memory-hardening-7so",
+      "dst_id": "arhugula-observability-xb8",
+      "type": "blocks"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.a5z",
+      "dst_id": "arhugula-orchestration-3hx",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.46x",
+      "dst_id": "arhugula-orchestration-3hx",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.a5z.cqh",
+      "dst_id": "arhugula-orchestration-3hx.a5z",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.a5z.6x0",
+      "dst_id": "arhugula-orchestration-3hx.a5z",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.a5z.jl9",
+      "dst_id": "arhugula-orchestration-3hx.a5z",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.46x.mgt",
+      "dst_id": "arhugula-orchestration-3hx.46x",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.46x.yvy",
+      "dst_id": "arhugula-orchestration-3hx.46x",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-orchestration-3hx.8i8",
+      "dst_id": "arhugula-orchestration-3hx",
+      "type": "parent-child"
+    },
+    {
+      "src_id": "arhugula-control-plane-jat",
+      "dst_id": "arhugula-orchestration-3hx",
+      "type": "blocks"
+    }
+  ]
+}

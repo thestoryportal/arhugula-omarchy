@@ -60,6 +60,16 @@ matches materialized LIT labels, does not infer capabilities, and must not
 be used to bypass the top ticket's stop condition. Dry-run may show a model
 while denying autonomous eligibility; these are separate decisions.
 
+The report includes `blocked_by` for unresolved leaf or ancestor prerequisites.
+An otherwise-ready route becomes `stop: blocked`; existing safety or metadata
+stops retain priority. Multiple bare high-capability defaults conflict instead
+of arbitrarily choosing one; explicit `capability:` resolves that ambiguity.
+
+The reviewed current-backlog metadata is `ops/orchestration/backlog-metadata.json`.
+Preview with `python3 -m ops.orchestration.audit`; explicitly materialize with
+`python3 -m ops.orchestration.audit --apply`. All changes use `lit update`,
+preserve unrelated/safety labels and never add autonomous-safe automatically.
+
 Disable routing by not invoking the tool. No daemon or live system config is
 installed. Export version 2 and routing version 1 are required; schema changes
 need an explicit migration and regression tests.

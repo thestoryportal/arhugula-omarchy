@@ -46,3 +46,21 @@ process-group termination fixes the resource leak without changing policy.
 Task jl9: complete. Fresh full suite 34/34 with resource warnings treated as
 errors; live runner plan selected jl9 Astra/high; diff check passes. Real
 LIT and worker/resume integration remains the separate yvy unit.
+
+Task mgt: baseline 47d2054. Sanitized real LIT export fixture pins 35 open
+leaves (three implementation units already closed). Reviewed metadata covers
+all 38 original leaves, including closed units. Live CLI materialization
+updated 37 tickets, preserved safety/unrelated labels, and a second preview
+produced zero patches. All 35 open leaves have model assignments: 27 Astra,
+8 Terra; zero routing ambiguity/conflict. Safety eligibility remains separate.
+Fresh suite: 39/39 tests pass; diff check passes.
+
+Terra/medium read-only routing review: dependency-blocked reporting and mixed
+bare capability role loss reproduced RED and fixed GREEN. Report now includes
+blocked_by and refuses ambiguous bare high capability labels.
+Ruling: ready in a report must not imply a blocked issue is executable;
+dependency stops now apply as well as supervisor enforcement. Cost if wrong:
+more conservative dry-run output, no expansion of authority.
+Minor (deferred): legacy bare labels recognize high capabilities and validation
+but not all bounded capabilities. Use canonical capability: labels; broadening
+legacy aliases is not needed for the materialized backlog.
