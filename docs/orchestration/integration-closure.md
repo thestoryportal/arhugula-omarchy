@@ -29,6 +29,13 @@ A final closure record names:
 - successful required checks run after that main integration: `Python test suite`,
   `Ruff lint`, and `Runtime and package smoke`.
 
+The fixture's `post_main_checks: "success"` is an attested aggregate: all three
+named required jobs succeeded for the integrated main commit. Partial success is
+not `success`. Its `evidence_sha` represents an independently reviewed and verified
+commit; the actual closure record retains the reviewer/range disposition and CI
+run references. The fixture illustrates those facts, not a verifier that establishes
+them from untrusted flags. Buford verifies that evidence before closing the ticket.
+
 Missing evidence is not evidence. A stale or mismatched SHA is not a main
 landing. A failed, cancelled, or pending post-main check is not success. An
 agent review remains useful range evidence; it neither substitutes for the
