@@ -48,3 +48,15 @@ main landing, post-main CI, or a live cloning release. The workflow evaluates on
 synthetic metadata supplied by callers. It does not authenticate consent or evaluator
 authority, set a quality threshold, retain samples, invoke an evaluator, or authorize
 storage, providers, playback, or activation.
+
+## Constructor-correction supplement
+
+Buford independently reproduced that `MissingSampleRequirements` accepted
+`(unittest.mock.ANY,)` because tuple equality alone did not prove each element was a
+sample-ID string. The direct constructor regression failed before the correction and
+passes at `e9cbb81dadc2d7733df6843f94cb73cd795a4b7a`, which rejects every non-string or
+empty tuple element before comparing the canonical derived tuple. The same correction
+removed the unused production `QualityState` import; the mutation probe now supplies
+that mutation-only symbol in its own namespace. Focused workflow tests, 4/4 assertion
+mutation probes, fresh-package smoke, and the external 509-test ResourceWarning-error
+suite passed after the correction.
