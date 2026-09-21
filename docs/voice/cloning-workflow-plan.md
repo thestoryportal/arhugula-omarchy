@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a pure synthetic metadata workflow that reports descriptor incompleteness and evaluator failure while delegating candidate eligibility to `represent_candidate`.
+**Goal:** Add a pure synthetic metadata workflow that reports the exact required sample IDs still missing and evaluator failure while delegating candidate eligibility to `represent_candidate`.
 
 **Architecture:** `runtime/voice_cloning.py` owns immutable workflow request and result values. It accepts an evaluator outcome as data and delegates only a matching quality decision to `runtime.voice_candidates.represent_candidate`; it never invokes an evaluator or performs effects.
 
@@ -17,21 +17,24 @@
 - Accept evaluator-result data. Do not add a callback, provider, storage, audio, transcript, recording, upload, download, inference, playback, retention, deletion, consent, or activation capability.
 - Do not invent quality thresholds or real authority policies. Synthetic labels are not consent, evaluator authority, or activation authority.
 - Parse malformed or mismatched input loudly. Never convert evaluator failure into accepted or rejected quality, and never use a fallback result.
-- Keep every workflow value immutable and bind descriptor and evaluator outcome to the exact request.
+- Derive missing samples from one immutable required/supplied metadata representation; do not add a completeness flag.
+- Keep every workflow value immutable and bind descriptor and evaluator outcome to the exact request. Validate supplied authority binding before every result branch.
 
 ## Review focus
 
 - An evaluator result for a different candidate version or provenance digest raises rather than affects the requested candidate.
-- An incomplete descriptor with accepted quality returns `DescriptorIncomplete`, not a candidate or `CandidateRejection`.
+- Required-but-unsupplied sample IDs return a deterministic `MissingSampleRequirements`, not a candidate or `CandidateRejection`.
 - `EvaluatorFailure` and `QualityState.REJECTED` remain distinct observable outcomes.
-- Missing, unknown, denied, rejected, and incomplete evidence retain the existing `CandidateRejection` reason after delegation.
+- A missing evaluator result passes `None` through as canonical `quality-missing`; unknown, denied, rejected, and incomplete evidence retain existing reasons after delegation.
 - Mutation of a returned binding, provenance, descriptor, or failure result raises and cannot change a later evaluation.
 
 ## File structure
 
 - Create `runtime/voice_cloning.py`: immutable workflow types and the pure `evaluate_cloning_request` boundary.
 - Create `tests/test_voice_cloning.py`: behavior tests for workflow outcomes and malformed/cross-bound inputs.
+- Create `tests/probe_voice_cloning_mutations.py`: offline, in-memory mutation probes with passing controls.
 - Modify `docs/voice/cloning-workflow-design.md` only if implementation exposes a mismatch between approved design and actual contract.
+- Create `docs/voice/cloning-workflow-evidence.md`: exact-head local verification, scope audit, and limitations.
 
 ### Task 1: Define parsed workflow values
 
@@ -43,7 +46,7 @@
 **Interfaces:**
 
 - Consumes: `CandidateBinding`, `CandidateRequest`, and `QualityEvidence` from `runtime.voice_candidates`.
-- Produces: `DescriptorCompleteness`, `SyntheticDescriptor`, `CloningEvaluationRequest`, `QualityDecision`, `EvaluatorFailureReason`, and `EvaluatorFailure`.
+- Produces: `SyntheticDescriptor`, `CloningEvaluationRequest`, `QualityDecision`, `EvaluatorFailureReason`, and `EvaluatorFailure`.
 
 - [ ] **Step 1: Write the failing construction test**
 
@@ -55,7 +58,7 @@ def test_request_requires_one_matching_descriptor_binding(self):
     with self.assertRaisesRegex(ValueError, "binding"):
         CloningEvaluationRequest(
             CandidateRequest(binding),
-            SyntheticDescriptor(other, DescriptorCompleteness.COMPLETE),
+            SyntheticDescriptor(other, frozenset({"sample-a"}), frozenset({"sample-a"})),
         )
 ```
 
@@ -80,7 +83,7 @@ class CloningEvaluationRequest:
             raise ValueError("descriptor binding contradicts request")
 ```
 
-Use exact-type checks consistent with `runtime.voice_candidates`. Apply the same binding rule to `QualityDecision` and constrain `EvaluatorFailureReason` to a closed enum.
+Use exact-type checks consistent with `runtime.voice_candidates`. `SyntheticDescriptor` accepts only frozen sets of nonempty IDs and derives its sorted missing IDs from their difference. Apply the same exact-request rule to `QualityDecision` and constrain `EvaluatorFailureReason` to a closed enum.
 
 - [ ] **Step 4: Run focused construction tests**
 
@@ -104,15 +107,15 @@ git commit -m "feat: define synthetic cloning workflow values"
 
 **Interfaces:**
 
-- Consumes: `CloningEvaluationRequest`, `AuthorityEvidence | None`, and supplied `QualityDecision | EvaluatorFailure`.
-- Produces: `VoiceCandidate | CandidateRejection | DescriptorIncomplete | EvaluatorFailure`.
+- Consumes: `CloningEvaluationRequest`, `AuthorityEvidence | None`, and supplied `QualityDecision | EvaluatorFailure | None`.
+- Produces: `VoiceCandidate | CandidateRejection | MissingSampleRequirements | EvaluatorFailure`.
 
 - [ ] **Step 1: Write failing behavior tests**
 
 ```python
-def test_incomplete_descriptor_is_not_a_candidate(self):
-    result = evaluate_cloning_request(self.incomplete_request, self.authorized, self.accepted_decision)
-    self.assertEqual(result, DescriptorIncomplete(self.incomplete_request))
+def test_missing_required_sample_is_not_a_candidate(self):
+    result = evaluate_cloning_request(self.request_missing_sample_a, self.authorized, self.accepted_decision)
+    self.assertEqual(result, MissingSampleRequirements(self.request_missing_sample_a, ("sample-a",)))
     self.assertNotIsInstance(result, VoiceCandidate)
 
 def test_evaluator_failure_is_not_rejected_quality(self):
@@ -122,7 +125,7 @@ def test_evaluator_failure_is_not_rejected_quality(self):
 
 - [ ] **Step 2: Run them to verify RED**
 
-Run: `python -m unittest tests.test_voice_cloning.VoiceCloningTests.test_incomplete_descriptor_is_not_a_candidate tests.test_voice_cloning.VoiceCloningTests.test_evaluator_failure_is_not_rejected_quality`
+Run: `python -m unittest tests.test_voice_cloning.VoiceCloningTests.test_missing_required_sample_is_not_a_candidate tests.test_voice_cloning.VoiceCloningTests.test_evaluator_failure_is_not_rejected_quality`
 
 Expected: FAIL because `evaluate_cloning_request` does not exist.
 
@@ -131,20 +134,22 @@ Expected: FAIL because `evaluate_cloning_request` does not exist.
 ```python
 def evaluate_cloning_request(request, authority, evaluator_result):
     _parse_workflow_inputs(request, authority, evaluator_result)
-    if request.descriptor.completeness is DescriptorCompleteness.INCOMPLETE:
-        return DescriptorIncomplete(request)
+    missing = request.descriptor.missing_sample_ids
+    if missing:
+        return MissingSampleRequirements(request, missing)
     if type(evaluator_result) is EvaluatorFailure:
         return evaluator_result
-    return represent_candidate(request.request, authority, evaluator_result.evidence)
+    quality = None if evaluator_result is None else evaluator_result.evidence
+    return represent_candidate(request.request, authority, quality)
 ```
 
-`_parse_workflow_inputs` is the sole workflow input boundary. It rejects a result bound to another request and does not duplicate `represent_candidate` evidence-state rules.
+`_parse_workflow_inputs` is the sole workflow input boundary. It rejects a supplied authority binding that differs from the request before the missing-sample or evaluator-failure branch, rejects a result bound to another exact request, and does not duplicate `represent_candidate` evidence-state rules.
 
 - [ ] **Step 4: Run behavior tests including delegated denials**
 
 Run: `python -m unittest tests.test_voice_cloning -v`
 
-Expected: PASS for complete success, incomplete descriptor, evaluator failure, rejected quality, and every existing authority/quality denial with its exact reason.
+Expected: PASS for complete success, targeted missing samples, evaluator failure, missing quality (`None`), rejected quality, and every existing authority/quality denial with its exact reason.
 
 - [ ] **Step 5: Commit**
 
@@ -153,7 +158,7 @@ git add runtime/voice_cloning.py tests/test_voice_cloning.py
 git commit -m "feat: route synthetic cloning workflow outcomes"
 ```
 
-### Task 3: Verify immutability and preserve the design contract
+### Task 3: Extend coverage for immutability and exact request binding
 
 **Files:**
 
@@ -165,7 +170,7 @@ git commit -m "feat: route synthetic cloning workflow outcomes"
 - Consumes: all Task 1 and Task 2 workflow values.
 - Produces: executable evidence that frozen values preserve a fixed request and result.
 
-- [ ] **Step 1: Write failing immutability and cross-request tests**
+- [ ] **Step 1: Write cross-request coverage and immutable-value coverage**
 
 ```python
 def test_result_binding_and_failure_are_immutable(self):
@@ -178,11 +183,11 @@ def test_result_binding_and_failure_are_immutable(self):
 
 Add a separate assertion that a `QualityDecision` built for another request raises before any candidate outcome can be returned.
 
-- [ ] **Step 2: Run focused tests to verify RED**
+- [ ] **Step 2: Run focused tests and record the honest baseline**
 
 Run: `python -m unittest tests.test_voice_cloning -v`
 
-Expected: FAIL until frozen values and exact request binding are implemented.
+Expected: The new cross-request assertion is RED before its binding rule exists. Immutability constructor assertions start GREEN after Task 1 because frozen values are already delivered; record that passing control rather than manufacturing a RED.
 
 - [ ] **Step 3: Complete minimal contract correction**
 
@@ -194,9 +199,9 @@ Run: `python -m unittest tests.test_voice_cloning tests.test_voice_candidates -v
 
 Expected: PASS.
 
-Run: `python -m unittest discover -s tests -q`
+Run: `python -W error::ResourceWarning -m unittest discover -s tests -q`
 
-Expected: PASS with no modifications outside the workflow module, its tests, and the approved design document.
+Expected: PASS with no modifications outside the workflow module, workflow tests/probes, and approved evidence/design documents.
 
 - [ ] **Step 5: Commit**
 
@@ -205,9 +210,64 @@ git add tests/test_voice_cloning.py docs/voice/cloning-workflow-design.md
 git commit -m "test: cover immutable synthetic cloning outcomes"
 ```
 
+### Task 4: Run mutation probes and capture local evidence
+
+**Files:**
+
+- Create: `tests/probe_voice_cloning_mutations.py`
+- Create: `docs/voice/cloning-workflow-evidence.md`
+
+**Interfaces:**
+
+- Consumes: the completed `runtime.voice_cloning` source and named behavioral tests.
+- Produces: four passing controls, four detected in-memory mutations, and one exact-head evidence record.
+
+- [ ] **Step 1: Add the offline mutation runner**
+
+Match `tests/probe_conversation_mutations.py`: reload only `runtime.voice_cloning`, run each named test unmodified, assert its single-test baseline passes, replace exactly one source anchor in memory, compile it into the reloaded module, then assert the same test fails. Never write source or change Git state.
+
+```python
+MUTATIONS = (
+    ("if authority is not None:", "if False:", 1,
+     "test_contradictory_authority_binding_rejected_before_missing_sample_outcome"),
+    ("return MissingSampleRequirements(request, missing)", "return MissingSampleRequirements(request, ())", 1,
+     "test_missing_required_sample_is_not_a_candidate"),
+    ("return evaluator_result", "return represent_candidate(request.request, authority, None)", 1,
+     "test_evaluator_failure_is_not_rejected_quality"),
+    ("quality = None if evaluator_result is None else evaluator_result.evidence", "quality = evaluator_result.evidence", 1,
+     "test_missing_evaluator_result_preserves_quality_missing"),
+)
+```
+
+- [ ] **Step 2: Run passing controls and mutations**
+
+Run: `python -m tests.probe_voice_cloning_mutations`
+
+Expected: each named original control passes, each replacement is detected by its named behavioral test, and the runner reports `4/4 mutations detected; no files changed`.
+
+- [ ] **Step 3: Run source and fresh-package smoke**
+
+Run: `python -m runtime health`
+
+Expected: runtime health succeeds.
+
+Run: `smoke_dir=$(mktemp -d /tmp/arhugula-cloning-smoke.XXXXXX); python -m ops.build "$smoke_dir/arhugula.pyz" && python "$smoke_dir/arhugula.pyz" health && PYTHONPATH="$smoke_dir/arhugula.pyz" python -c 'from runtime.voice_cloning import SyntheticDescriptor; print(SyntheticDescriptor.__name__)'; rm -rf "$smoke_dir"`
+
+Expected: source health, fresh zipapp health, and the zipapp import of the new API succeed.
+
+- [ ] **Step 4: Write the evidence record and scope audit**
+
+Record the final full commit SHA, exact base, changed paths, focused tests, full ResourceWarning-as-error result, mutation controls/results, source/package smoke result, `git diff --check`, and limitations in `docs/voice/cloning-workflow-evidence.md`. State that this is local implementation evidence only; it is not review, CI, integration, or live-cloning evidence.
+
+- [ ] **Step 5: Commit verification evidence**
+
+```bash
+git add tests/probe_voice_cloning_mutations.py docs/voice/cloning-workflow-evidence.md
+git commit -m "test: verify synthetic cloning workflow"
+```
+
 ## Plan self-review
 
-The plan maps descriptor completeness to `DescriptorIncomplete`, evaluator execution failure to `EvaluatorFailure`, and all evidence eligibility to the existing `represent_candidate` single enforcer. It includes behavior tests for every required outcome, exact request binding, malformed values, lineage, and immutability. It contains no evaluator callback, effect adapter, real-world policy, or product work.
+The plan derives targeted missing samples from one immutable descriptor representation, maps evaluator execution failure to `EvaluatorFailure`, and sends missing quality and every other eligibility decision to the existing `represent_candidate` single enforcer. It includes behavior tests, passing mutation controls/probes, full ResourceWarning-as-error regression, source/package smoke, exact request binding, malformed values, lineage, and immutability. It contains no evaluator callback, effect adapter, real-world policy, or product work.
 
 This plan requires Buford's attestation before Task 1 begins.
-
