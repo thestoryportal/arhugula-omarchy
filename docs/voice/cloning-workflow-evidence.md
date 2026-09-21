@@ -60,3 +60,13 @@ removed the unused production `QualityState` import; the mutation probe now supp
 that mutation-only symbol in its own namespace. Focused workflow tests, 4/4 assertion
 mutation probes, fresh-package smoke, and the external 509-test ResourceWarning-error
 suite passed after the correction.
+
+## Routing-review supplement
+
+Hannibal's routing review, relayed by Buford, requested coverage for the remaining
+early-validation ordering: contradictory authority must raise before an otherwise
+matching evaluator failure can be returned. The expected-GREEN regression at
+`48e881fd29d765eb3eee4aaf020760aca1feb55e` asserts that ordering without changing
+production code. The focused workflow suite passed 11 tests, the four assertion
+mutation probes passed, fresh-package smoke passed, and the external
+ResourceWarning-error full suite passed 510 tests after this addition.
