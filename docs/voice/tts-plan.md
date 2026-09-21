@@ -3,7 +3,7 @@
 > For agentic workers: use superpowers:executing-plans inline after Buford attests
 > this written design and plan. Henrietta remains the sole assigned writer.
 > Buford routes independent review to the existing team; do not spawn substitutes.
-> Steps use checkboxes. No product code is authorized by revision 3.
+> Revision 4 authorized implementation; revision 6 resumed after the user pause.
 
 **Goal:** Exercise policy-bound TTS routing, fake playback and restoration with
 bounded resources, cancellation and content-free outcomes.
@@ -15,7 +15,8 @@ its fake output handles and borrows the existing conversation generation.
 **Tech Stack:** Python 3.11-compatible stdlib, unittest, existing zipapp builder;
 no dependencies, device tools or provider installation.
 
-**Spec:** [tts-design.md](tts-design.md), proposed; Buford attestation pending.
+**Spec:** [tts-design.md](tts-design.md), attested by Buford at
+`29c843e1fdfb445afdb8440131d315dfc8045bee`; re-attested in revision 6.
 
 ## Global constraints
 
@@ -68,7 +69,7 @@ Disabled configuration returns UNAVAILABLE. Missing policy/profile permission
 returns DENIED; mute returns MUTED; missing/Silent event returns SILENT. Owner
 acceptance is checked by the controller, not by this pure function.
 
-- [ ] Add record constructor tables: each numeric boundary, bool counts, mutable
+- [x] Add record constructor tables: each numeric boundary, bool counts, mutable
   collections, duplicate events/routes, mixed record variants, invalid IDs,
   unknown enum, hidden repr content. Exercise these contract assertions:
 
@@ -85,14 +86,14 @@ self.assertNotEqual(request_id(token, Event.RESPONSE),
                     request_id(token, Event.STATUS))
 ```
 
-- [ ] Add admission tables using explicit immutable fake policy/configuration:
+- [x] Add admission tables using explicit immutable fake policy/configuration:
   primary only; compatible fallback; wrong model/voice/revision; muted/missing
   policy/Silent STATUS; disabled Profile; foreign turn; unavailable context.
   Check 16,384 ASCII chars separately from 16,384 multibyte chars and gateway
   voice+text byte boundaries. Assert no silent truncation.
-- [ ] Run `python -B -m unittest tests.test_tts_records -v`; record RED caused
+- [x] Run `python -B -m unittest tests.test_tts_records -v`; record RED caused
   by missing behavior, not a malformed test fixture.
-- [ ] Implement the closed records and the two boundaries. The request-building
+- [x] Implement the closed records and the two boundaries. The request-building
   step is explicitly derived from the existing route and wire codec:
 
 ```python
@@ -105,7 +106,7 @@ parsed_request = parse_request(request_bytes(raw_request))
 # Ready(parsed_request, rule.mix); fixed Denied code on a codec error.
 ```
 
-- [ ] Repeat focused tests to GREEN, read the diff, then commit only the two
+- [x] Repeat focused tests to GREEN, read the diff, then commit only the two
   owned files: `git add runtime/voice/tts_records.py tests/test_tts_records.py`
   followed by `git commit -m 'feat: define offline TTS audio policy records'`.
 
@@ -128,20 +129,20 @@ cancel() -> None
 # properties: notice: Notice; cleanup_proven: bool
 ```
 
-- [ ] Build explicit fake fixtures using existing gateway/configuration test
+- [x] Build explicit fake fixtures using existing gateway/configuration test
   patterns. `Rig` in `tests/tts_fakes.py` owns the following test API: `output`,
   `owner`, `generation`, mutable `snapshot`, `configuration`, deterministic
   `clock`, `events`, `host_requests`, `local_requests`, `player`, `mix`, and
   `utterance(text='answer', event=Event.RESPONSE)`. Set up one real conversation
   generation, real gateway Admission, fake Transport/Local jobs and a real
   Configuration with synthetic evidence/receipts. No installed config is read.
-- [ ] Add `Rig.host_audio(pcm)` to enqueue a valid HttpReply via response_bytes,
+- [x] Add `Rig.host_audio(pcm)` to enqueue a valid HttpReply via response_bytes,
   `Rig.host_error(code)` to enqueue RemoteError via that same codec,
   `Rig.local_audio(pcm)` for fallback, and `Rig.next_turn()` to advance the
   immutable snapshot token. Fixed constant PCM is `b'\x00\x00' * 240`.
   Record fake boundary calls in `events`; do not assert private controller flags.
   Playback poll defaults to PENDING and has an explicit completion setting.
-- [ ] Write this success contract before the controller:
+- [x] Write this success contract before the controller:
 
 ```python
 rig = Rig()
@@ -157,20 +158,20 @@ self.assertTrue(rig.owner.accepts(rig.generation))  # borrowed lease retained
 self.assertIsNone(rig.output.poll())
 ```
 
-- [ ] Add host-transient/VM-success cases with decreasing fake-clock budget,
+- [x] Add host-transient/VM-success cases with decreasing fake-clock budget,
   preserved logical voice and primary failure provenance; auth, invalid PCM,
   expired health, disabled configuration and denied fallback produce no output.
   Test no fallback after player/mix failure, no second synthesis start, and the
   absence of player/mix calls for muted/silent/unavailable cases.
-- [ ] Add current-turn, owner/session, profile/context/audio-policy/configuration
+- [x] Add current-turn, owner/session, profile/context/audio-policy/configuration
   drift before start, during synthesis and before playback; boundary PCM sizes
   0/1/2/480000/480002 bytes; wrong wire sample format; stale/replayed same event
   with changed text; busy start preserves the original job; snapshot errors.
-- [ ] Run `python -B -m unittest tests.test_tts -v`; record RED. Implement the
+- [x] Run `python -B -m unittest tests.test_tts -v`; record RED. Implement the
   state transitions from the spec with one owned call, borrowed generation and
   one terminal result. Route synthesis exclusively through gateway methods.
   Treat invalid callback results as fixed failure, never arbitrary diagnostics.
-- [ ] Repeat focused tests to GREEN. Commit only records/controller/test deltas:
+- [x] Repeat focused tests to GREEN. Commit only records/controller/test deltas:
   `git add runtime/voice/tts.py tests/tts_fakes.py tests/test_tts.py` then
   `git commit -m 'feat: compose offline TTS routing and fake playback'`.
 
@@ -183,21 +184,21 @@ self.assertIsNone(rig.output.poll())
 factory/apply/start/poll/cancel/restore boundaries and deterministic threading
 events; no sleeps used as correctness evidence.
 
-- [ ] Test every acquisition stage: callback cancels then returns a handle;
+- [x] Test every acquisition stage: callback cancels then returns a handle;
   callback raises after partial allocation; malformed returned handle; nested
   start/poll; cancellation during synthesis cleanup, playback cleanup, mix
   restoration and completion construction. Cross-thread cancel invalidates
   before waiting; release blocked fake callbacks with Events in test finally.
-- [ ] Test cancellation/drift before playback factory, after mix apply and after
+- [x] Test cancellation/drift before playback factory, after mix apply and after
   player start; all acquired resources retire once, remaining cleanup is tried
   even after earlier failure, and no successful completion escapes.
-- [ ] Pin the gateway-internal sampling limit: mutate audio policy inside a
+- [x] Pin the gateway-internal sampling limit: mutate audio policy inside a
   transient host-result/cleanup callback, allow the existing gateway to finish
   its synchronous fallback transition, then assert no player/mix calls and
   proven retirement when control returns to TTS. This is not evidence of atomic
   per-attempt policy admission. Stronger synthesis gating needs a separately
   authorized shared binding; do not copy the gateway lifecycle to simulate it.
-- [ ] Pin restoration behavior with explicit prior mix state and this fault
+- [x] Pin restoration behavior with explicit prior mix state and this fault
   contract (fixture mix.restore_result controls literal proof):
 
 ```python
@@ -214,19 +215,19 @@ with self.assertRaises(FaultedError):
 self.assertFalse(rig.output.start(rig.utterance('retry')))
 ```
 
-- [ ] Test literal False, non-bool truthy return and exceptions independently
+- [x] Test literal False, non-bool truthy return and exceptions independently
   for player cancel and mix restore; gateway cleanup failure suppresses both
   output factories. Repeat cancel cannot reset a fault or duplicate restoration.
   Clean TTS cancellation leaves the borrowed conversation lease accepted.
-- [ ] Test a late old-generation failure/cancel against a separately admitted
+- [x] Test a late old-generation failure/cancel against a separately admitted
   successor: the successor stays accepted, the old output stays faulted, and
   no broad owner.cancel or clean release is issued. Document that early shared
   release is an unsupported caller sequence, not an integration success case.
-- [ ] Run `python -B -m unittest tests.test_tts_interleavings -v` to RED before
-  each corresponding behavior change. Implement deferred cleanup after callback
-  unwind and a cancellation/publication gate; recheck generation before success.
-  Aggregate cleanup proof without short-circuiting the remaining cleanup calls.
-- [ ] Run `python -B -m unittest tests.test_tts_records tests.test_tts
+- [x] Run `python -B -m unittest tests.test_tts_interleavings -v`. Task 2 already
+  supplied deferred cleanup and cancellation/publication checks; all 13 cases
+  passed without production changes. No Task 3 RED is claimed. The ruling and
+  its residual interleaving risk are recorded in [tts.md](tts.md).
+- [x] Run `python -B -m unittest tests.test_tts_records tests.test_tts
   tests.test_tts_interleavings -v` as one shell line to GREEN. Commit these owned
   files with `git commit -m 'fix: prove TTS cancellation and mix restoration'`.
 
@@ -237,22 +238,22 @@ self.assertFalse(rig.output.start(rig.utterance('retry')))
 **Consumes:** Final public API. **Produces:** Repeatable offline evidence and
 limitations for independent actual-code review.
 
-- [ ] Add isolated in-memory mutations with passing original controls and a
+- [x] Add isolated in-memory mutations with passing original controls and a
   named assertion failure for each: mute bypass; current-turn comparison removal;
   configuration-revision bypass; route/voice mismatch acceptance; changed-content
   replay acceptance; unproven synthesis accepted; playback cleanup ignored;
   restoration ignored; final cancellation gate removed; premature callback
   cleanup; success published before restore. Broken imports/crashes do not count
   as detections. Do not mutate shared modules or files on disk.
-- [ ] Run `python -B tests/probe_tts_mutations.py`; require every probe detects
+- [x] Run `python -B tests/probe_tts_mutations.py`; require every probe detects
   its change and controls pass. Fix surviving mutants with meaningful contract
   tests and repeat only the affected checks before final regression.
-- [ ] Create `tests/tts_package_smoke.py` accepting a pyz path. Remove checkout
+- [x] Create `tests/tts_package_smoke.py` accepting a pyz path. Remove checkout
   runtime paths before import, assert runtime.__file__ contains that pyz path,
   construct fake collaborators in the smoke script (no tests package imports),
   then exercise primary, fallback, mute and cancellation/restoration through
   the packaged public API. Constant PCM only; no subprocess audio tools.
-- [ ] Run the final checks below. Use a fresh mktemp directory; record its actual
+- [x] Run the final checks below. Use a fresh mktemp directory; record its actual
   path, exact commands, outputs and tested Git SHA in `docs/voice/tts.md`.
 
 ```bash
@@ -266,15 +267,16 @@ python -B "$tts_package_dir/tts.pyz" health
 python -B tests/tts_package_smoke.py "$tts_package_dir/tts.pyz"
 ```
 
-- [ ] Run `ruff check . --select E4,E7,E9,F` if available. If unavailable, record
+- [x] Run `ruff check . --select E4,E7,E9,F` if available. If unavailable, record
   that fact without claiming lint success or installing packages; Buford retains
   the required CI gate. Local Unix-socket fixture tests may need sandbox
   escalation; do not alter tests or production code to hide that environment.
-- [ ] Read back docs and audit changed-file scope. Commit owned evidence/tools,
+- Release receipt (LIT): read back docs and audit changed-file scope; commit owned
+  evidence/tools,
   obtain `git rev-parse HEAD` and `git diff --name-only <base> HEAD`, and send
   Buford the immutable actual-code head, evidence path, limitations and writer
   release. Buford routes review; independent review/CI claims remain separate.
-- [ ] Save personal learnings at the authorized transition. Preserve all foreign
+- [x] Save personal learnings at the authorized transition. Preserve all foreign
   work and the worktree. Do not close the LIT leaf or infer live acceptance.
 
 ## Current design-stage evidence
@@ -286,16 +288,18 @@ removal. Worktree began clean at the exact assigned base.
 `python -B -W error::ResourceWarning -m unittest discover -s tests -q` at that
 base: **499 tests passed in 11.755s**, exit 0. Existing local Unix-socket fixtures
 ran with approved sandbox escalation. This is baseline evidence, not TTS test
-evidence. No TTS implementation, RED/GREEN, mutation or package result is claimed.
+evidence. At that design-stage pin, no TTS implementation, RED/GREEN, mutation or package
+result was claimed. Final implementation evidence is in [tts.md](tts.md).
 
-## Attestation request and stop
+## Attestation disposition and release boundary
 
-Buford: attest the written design and plan before authorizing implementation.
-In particular, attest borrowing the existing generation with matching-lease fault
+Buford attested the written design and plan in revision 4 and re-attested them
+in revision 6, including borrowing the existing generation with matching-lease fault
 reporting, the explicit absence of a conversation output coordinator, and the
 requirement for compatible logical voices across the whole configured route set.
-Also attest the stated gateway-internal sampling limit: stale results are
+The attestation also accepts the stated gateway-internal sampling limit: stale results are
 suppressed before playback, but no atomic per-attempt audio-policy permit is
 claimed within the existing gateway. Stronger behavior requires a separate seam.
-The proposed execution method is Henrietta inline with existing-team review
-routed by Buford. Product implementation remains stopped until matching authority.
+Execution is Henrietta inline with existing-team review routed by Buford.
+Stop after final writer release; no next-lane claim or clear. Detailed measured
+results, the constructor correction, and execution rulings are in [tts.md](tts.md).

@@ -3,7 +3,8 @@
 HENRIETTA-TTS-1, revision 3; existing ticket `arhugula-voice-profiles-c8o.4us.dn6`.
 Author: Henrietta, session `01a0c097-f8c8-7c41-8bbb-b2f4ce462e85`.
 Base: `5a37dca4fb060da692903f03b21a9293e7ef8706`.
-Status: proposed written design, awaiting Buford attestation before product code.
+Status: attested at `29c843e1fdfb445afdb8440131d315dfc8045bee` in revision 4,
+re-attested in revision 6. Implementation evidence is in [tts.md](tts.md).
 
 ## Outcome and authority
 

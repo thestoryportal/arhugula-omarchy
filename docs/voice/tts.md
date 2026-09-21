@@ -1,8 +1,55 @@
 # Offline TTS implementation evidence
 
 Plan: [tts-plan.md](tts-plan.md). Spec: [tts-design.md](tts-design.md).
-Buford attested both at `29c843e1fdfb445afdb8440131d315dfc8045bee`, revision 4.
-Implementation is in progress; no live release or independent review claimed.
+Buford attested both at `29c843e1fdfb445afdb8440131d315dfc8045bee`, revision 4,
+and re-attested them in revision 6. The implementation uses only fake/offline
+effects; local verification is separate from independent review and release.
+
+## Interface and binding
+
+`runtime.voice.tts.TtsOutput` receives the existing SessionOwner, a dedicated
+GatewayClient and its Configuration, catalog revision, AudioSnapshot supplier,
+and inert player/mix factories. No default backend, provider mapping, activation,
+device selection, daemon or output binding is installed.
+
+Supply `Utterance(response.token, Event.RESPONSE, response.text)` from a trusted
+response source. `start` reports admission, `poll` advances work and returns one
+content-free Completion, and `cancel` invalidates pending output. Consume any
+terminal result before starting another utterance. `notice` and `cleanup_proven`
+do not call collaborators. STATUS is silent without an explicit Spoken rule.
+
+AudioPolicy binds profile/policy identity, revisions, event rules, logical voices
+and bounded work. The whole configured host/fallback route set must support the
+selected logical voice. Wire parsing, health, budget permits, replay and transient
+fallback remain with the existing gateway/configuration owners. TTS never retries
+after output begins or treats playback failure as a synthesis fallback trigger.
+
+Mix leases restore only their owned changes. Completion requires synthesis
+cleanup, player quiescence and mix restoration; truthy values are insufficient.
+Unknown factory outcomes or cleanup fault the local controller and the matching
+borrowed shared generation. Clean TTS retirement leaves the conversation lease
+owned. A late failure cannot fault/cancel a successor's generation.
+
+## Scope limits
+
+The trusted caller must publish the latest output-eligible turn after conversation
+response delivery, since Conversation.pending is then None. No conversation/TTS
+coordinator is installed: the caller must cancel and prove output cleanup before
+new capture, handoff or releasing shared ownership. Direct Conversation.end with
+an outstanding output borrower is unsupported.
+
+The outer snapshot check cannot atomically gate gateway-internal fallback.
+An internal fallback can start before an audio-policy change is resampled; its
+result is discarded and cleaned before player/mix effects. A dedicated regression
+pins this accepted offline limit. Real synthesis/output would need separately
+authorized per-attempt and device bindings. Revision sampling also cannot detect
+unseen change-and-revert; callbacks must be bounded, and foreground polling is
+required. Poll counts do not impose a wall-time deadline on arbitrary Python.
+
+Text/PCM are transient and excluded from status/errors/repr. Retirement drops
+controller references; this is neither secure erasure nor an archive policy.
+P4/.8l3 provider and real-playback decisions, P8 human acceptance, voice cloning,
+retention and full voice-stack release remain external. No live effects were run.
 
 ## Execution ledger
 
@@ -46,3 +93,33 @@ Implementation is in progress; no live release or independent review claimed.
   that constructor instead of keeping a second wire parsing site.
   GREEN: 10 records tests, 38 focused tests, full 537 tests in 12.390s; 12/12
   mutations still detected. This is implementer verification, not review clearance.
+
+## Final local verification
+
+Runtime/controller source is pinned at `b92fdd0ca2145a4579d3854aab2eeca2c0647cd0`.
+The final handoff commit adds verification tools and documentation; its immutable
+SHA is in the LIT writer-release receipt to avoid a self-referential commit hash.
+
+| Command | Observed result |
+| --- | --- |
+| `python -B -m unittest tests.test_tts_records tests.test_tts tests.test_tts_interleavings -q` | 38 tests passed |
+| `python -B -W error::ResourceWarning -m unittest discover -s tests -q` | 537 tests passed in 12.226s, exit 0 |
+| `python -B tests/probe_tts_mutations.py` | 12/12 mutations detected by assertion failures; original controls passed |
+| `git diff --check` | Passed |
+| `python -B -m runtime health` | Simulation, state ok, external_execution false |
+| `python -B -m ops.build /tmp/henrietta-tts-package-aQBitr/tts.pyz` | Fresh stdlib zipapp built |
+| `python -B /tmp/henrietta-tts-package-aQBitr/tts.pyz health` | Simulation, state ok, external_execution false |
+| `python -B tests/tts_package_smoke.py /tmp/henrietta-tts-package-aQBitr/tts.pyz` | Packaged primary/fallback/mute/cancel passed; packaged imports confirmed |
+
+The full suite used approved sandbox escalation for existing local Unix-socket
+fixtures. No microphone, output device, real provider, window or network synthesis
+was exercised. Ruff executable and Python module are absent locally; lint success
+is not claimed. Buford retains the required CI lint/test/package gates.
+
+Independent status at handoff preparation: Buford relayed Hannibal's scoped Ready
+controller/interleaving verdict through `55c9546` in LIT
+`cmt-080e52e1-e165-42a4-a08c-ffda834b9686`: 28 isolated tests passed and no material
+new defect found. Hannibal's initial records finding is corrected with RED/GREEN
+evidence; correction clearance and final tool/docs review remain pending. These
+verdicts remain separate from implementer evidence. Integration, main landing,
+post-main verification and LIT closure remain Buford-owned.
