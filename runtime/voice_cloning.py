@@ -8,7 +8,6 @@ from runtime.voice_candidates import (
     CandidateRejection,
     CandidateRequest,
     QualityEvidence,
-    QualityState,
     VoiceCandidate,
     represent_candidate,
 )
@@ -99,7 +98,8 @@ class MissingSampleRequirements:
     def __post_init__(self):
         if type(self.request) is not CloningEvaluationRequest:
             raise ValueError("missing samples require a parsed request")
-        if type(self.sample_ids) is not tuple or not self.sample_ids:
+        if (type(self.sample_ids) is not tuple or not self.sample_ids
+                or any(type(sample_id) is not str or not sample_id for sample_id in self.sample_ids)):
             raise ValueError("missing samples require a nonempty immutable tuple")
         if self.sample_ids != self.request.descriptor.missing_sample_ids:
             raise ValueError("missing samples must equal request-derived missing IDs")

@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import unittest
 
+from runtime.voice_candidates import QualityState
+
 
 MUTATIONS = (
     ("if authority is not None:", "if False:", 1,
@@ -45,6 +47,7 @@ def main():
         source = Path(module.__file__).read_text()
         if source.count(before) != count:
             raise RuntimeError("mutation anchor changed: " + before)
+        module.QualityState = QualityState
         exec(compile(source.replace(before, after, 1), module.__file__, "exec"), module.__dict__)
         mutated, output = run(name)
         if mutated.errors or not mutated.failures:

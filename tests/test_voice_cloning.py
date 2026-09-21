@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import ANY
 
 from runtime.voice_candidates import (
     AuthorityEvidence,
@@ -92,6 +93,8 @@ class VoiceCloningTests(unittest.TestCase):
             MissingSampleRequirements(request, ["sample-a"])
         with self.assertRaisesRegex(ValueError, "missing"):
             MissingSampleRequirements(request, ("other",))
+        with self.assertRaisesRegex(ValueError, "missing"):
+            MissingSampleRequirements(request, (ANY,))
         with self.assertRaisesRegex(ValueError, "reason"):
             EvaluatorFailure(request, "unavailable")
 
