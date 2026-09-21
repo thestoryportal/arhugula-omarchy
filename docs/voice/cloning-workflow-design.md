@@ -96,7 +96,7 @@ No result authorizes any action outside the metadata decision. `VoiceCandidate` 
 - Mismatched descriptor/request/evaluator bindings, contradictory authority bindings even on missing-sample and evaluator-failure paths, contradictory lineage, malformed enum values, and forged values fail loudly.
 - Every public result constructor rejects malformed, mutable, and semantically inconsistent values. In particular, `MissingSampleRequirements` rejects empty, mutable, or non-derived sample IDs.
 - Returned workflow values, nested bindings, provenance, descriptor sets, and evaluator failure data are frozen. The constructor tests for that contract start green once Task 1 establishes frozen types; later coverage records that fact rather than manufacturing a false RED.
-- The mutation runner detects removal of authority-binding validation, replacement of derived missing IDs with an empty tuple, conversion of evaluator failure into missing quality, and a `None`-quality mutation that returns accepted quality. Its four passing controls and detected mutations are recorded in `docs/voice/cloning-workflow-evidence.md`; only named assertion failures count as detection.
+- The mutation runner detects removal of authority-binding validation, removal of the derived-missing-sample branch, conversion of evaluator failure into missing quality, and a `None`-quality mutation that returns accepted quality. Its four passing controls and detected mutations are recorded in `docs/voice/cloning-workflow-evidence.md`; only named assertion failures count as detection.
 
 ## Verification and limitation record
 

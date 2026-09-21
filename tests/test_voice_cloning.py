@@ -121,6 +121,21 @@ class VoiceCloningTests(unittest.TestCase):
 
         self.assertIs(result, failure)
 
+    def test_contradictory_authority_binding_rejected_before_missing_sample_outcome(self):
+        self.require_workflow()
+        other = CandidateBinding(CandidateVersion("other", 1), Provenance("other", "sha256:other"))
+        matching_decision = QualityDecision(
+            self.request_missing_sample_a,
+            QualityEvidence(self.binding, QualityState.SYNTHETIC_ACCEPTED),
+        )
+
+        with self.assertRaisesRegex(ValueError, "authority binding"):
+            evaluate_cloning_request(
+                self.request_missing_sample_a,
+                AuthorityEvidence(other, AuthorityState.SYNTHETIC_AUTHORIZED),
+                matching_decision,
+            )
+
     def test_missing_evaluator_result_preserves_quality_missing(self):
         self.require_workflow()
 

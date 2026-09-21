@@ -241,7 +241,7 @@ Match `tests/probe_conversation_mutations.py`: reload only `runtime.voice_clonin
 MUTATIONS = (
     ("if authority is not None:", "if False:", 1,
      "test_contradictory_authority_binding_rejected_before_missing_sample_outcome"),
-    ("return MissingSampleRequirements(request, missing)", "return MissingSampleRequirements(request, ())", 1,
+    ("if missing:", "if False:", 1,
      "test_missing_required_sample_is_not_a_candidate"),
     ("return evaluator_result", "return represent_candidate(request.request, authority, None)", 1,
      "test_evaluator_failure_is_not_rejected_quality"),
