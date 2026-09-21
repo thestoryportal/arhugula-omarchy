@@ -15,3 +15,12 @@ Implementation is in progress; no live release or independent review claimed.
 - Task 1 started at `29c843e1fdfb445afdb8440131d315dfc8045bee`.
 - Task 1 RED: eight behavioral tests failed on the missing records module.
   GREEN: `python -B -m unittest tests.test_tts_records -q`, eight passed.
+- Task 1 complete at `99186e4c957c442e012f1193c5cf25ec246516f6`:
+  full regression `python -B -W error::ResourceWarning -m unittest discover -s tests -q`,
+  507 tests passed in 14.094s. Paused at this clean commit; revision 6 explicitly
+  resumed the remaining native lane through Buford's new session.
+- Task 2 started from that records pin; no old work or shared files resumed.
+- Task 2 RED: 15 controller tests failed on the missing module. GREEN:
+  `python -B -m unittest tests.test_tts -q`, 15 passed. Real gateway/configuration
+  objects surround constant-PCM fake effects. Full regression result follows
+  in the stable-pin LIT receipt; adversarial Task 3 remains pending.
