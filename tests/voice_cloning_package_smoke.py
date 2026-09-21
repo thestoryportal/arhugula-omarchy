@@ -39,7 +39,5 @@ assert evaluate_cloning_request(complete, authority, failure) is failure
     run([sys.executable, "-c", probe], env={**clean_env, "PYTHONPATH": str(PYZ), "ARHUGULA_PYZ": str(PYZ)})
     print(f"package smoke passed; retained artifact: {ARTIFACT_DIR}")
 
-
 if __name__ == "__main__":
     main()
-
