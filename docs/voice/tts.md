@@ -24,3 +24,17 @@ Implementation is in progress; no live release or independent review claimed.
   `python -B -m unittest tests.test_tts -q`, 15 passed. Real gateway/configuration
   objects surround constant-PCM fake effects. Full regression result follows
   in the stable-pin LIT receipt; adversarial Task 3 remains pending.
+- Task 2 complete at `b4f223a47131938495b3ea3469832041355377c8`:
+  full regression passed 522 tests in 12.571s. Sent to Buford for Hannibal review
+  in LIT `cmt-c103f90d-ad84-4ef5-83f1-abe426abe5ba`.
+- Task 3: 13 adversarial tests pass, including callback/cross-thread cancellation,
+  unknown factories, literal cleanup proofs, final publication cancellation and
+  late successor protection. All 36 focused tests pass.
+- Ruling: Task 2 already implements the deferred-cleanup behavior exercised by
+  Task 3; retain it and commit the extra behavioral coverage without an artificial
+  production change — cost if wrong: an untested interleaving, addressed by the
+  mutation probes and independent actual-code review. No new RED/GREEN fix is
+  claimed for these already-passing characterization tests.
+- Task 4 initial probes: 12/12 safeguards detected by assertion failures with
+  passing originals, including premature cleanup and success without retirement.
+  The probe modifies Python modules in memory, never source files.
