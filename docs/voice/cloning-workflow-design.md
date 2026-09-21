@@ -54,6 +54,8 @@ class MissingSampleRequirements:
 
 `QualityDecision` accepts only a request and `QualityEvidence` whose binding equals that request's binding. `EvaluatorFailure` instead holds a closed `EvaluatorFailureReason` such as `UNAVAILABLE` or `INVALID_RESPONSE`; it has no `QualityEvidence`. Both variants contain the whole `CloningEvaluationRequest`, preventing an evaluator result for one version, descriptor digest, or required/supplied sample set from being used for another.
 
+Every public workflow result constructor parses its own values. `QualityDecision` rejects a malformed or mismatched evidence binding; `EvaluatorFailure` rejects a malformed request or reason; and `MissingSampleRequirements` accepts only an exact request plus a nonempty exact tuple equal to that request's derived `missing_sample_ids`. It therefore cannot claim no missing samples, mutable sample IDs, or IDs that differ from the descriptor. Frozen dataclasses protect the resulting values after this construction boundary.
+
 The public function is:
 
 ```python
@@ -92,12 +94,13 @@ No result authorizes any action outside the metadata decision. `VoiceCandidate` 
 - An evaluator failure yields `EvaluatorFailure` unchanged even when descriptor and authority are qualifying; `REJECTED` remains a separate `CandidateRejection` path through `represent_candidate`.
 - A missing evaluator result (`None`) passes through `represent_candidate` as missing quality and preserves `quality-missing`; unknown, denied, rejected, and incomplete evidence preserve their exact existing reason.
 - Mismatched descriptor/request/evaluator bindings, contradictory authority bindings even on missing-sample and evaluator-failure paths, contradictory lineage, malformed enum values, and forged values fail loudly.
+- Every public result constructor rejects malformed, mutable, and semantically inconsistent values. In particular, `MissingSampleRequirements` rejects empty, mutable, or non-derived sample IDs.
 - Returned workflow values, nested bindings, provenance, descriptor sets, and evaluator failure data are frozen. The constructor tests for that contract start green once Task 1 establishes frozen types; later coverage records that fact rather than manufacturing a false RED.
-- The mutation runner detects removal of authority-binding validation, replacement of derived missing IDs with an empty tuple, conversion of evaluator failure into missing quality, and loss of the `None` quality path. Its four passing controls and detected mutations are recorded in `docs/voice/cloning-workflow-evidence.md`.
+- The mutation runner detects removal of authority-binding validation, replacement of derived missing IDs with an empty tuple, conversion of evaluator failure into missing quality, and a `None`-quality mutation that returns accepted quality. Its four passing controls and detected mutations are recorded in `docs/voice/cloning-workflow-evidence.md`; only named assertion failures count as detection.
 
 ## Verification and limitation record
 
-The future evidence document records the exact final pin, changed-path scope audit, focused tests, full `ResourceWarning`-as-error regression, four mutation controls/probes, runtime health, fresh zipapp health, and a zipapp import/exercise of the new API. It records only local evidence, not review, CI, integration, or live-release claims.
+The future evidence document records the exact final pin, changed-path scope audit, focused tests, full `ResourceWarning`-as-error regression, four mutation controls/probes, runtime health, and a fresh zipapp package smoke. That smoke runs outside checkout paths, proves `runtime.__file__` originates inside the fresh pyz, and exercises success, targeted missing samples, and evaluator failure through the packaged API. It retains its temporary artifact path unless an exact validated path is deliberately deleted. The record is local evidence only, not review, CI, integration, or live-release claims.
 
 ## Implementation gate
 

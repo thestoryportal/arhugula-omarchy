@@ -33,6 +33,7 @@
 - Create `runtime/voice_cloning.py`: immutable workflow types and the pure `evaluate_cloning_request` boundary.
 - Create `tests/test_voice_cloning.py`: behavior tests for workflow outcomes and malformed/cross-bound inputs.
 - Create `tests/probe_voice_cloning_mutations.py`: offline, in-memory mutation probes with passing controls.
+- Create `tests/voice_cloning_package_smoke.py`: fresh-pyz API smoke outside checkout runtime paths.
 - Modify `docs/voice/cloning-workflow-design.md` only if implementation exposes a mismatch between approved design and actual contract.
 - Create `docs/voice/cloning-workflow-evidence.md`: exact-head local verification, scope audit, and limitations.
 
@@ -48,7 +49,7 @@
 - Consumes: `CandidateBinding`, `CandidateRequest`, and `QualityEvidence` from `runtime.voice_candidates`.
 - Produces: `SyntheticDescriptor`, `CloningEvaluationRequest`, `QualityDecision`, `EvaluatorFailureReason`, and `EvaluatorFailure`.
 
-- [ ] **Step 1: Write the failing construction test**
+- [ ] **Step 1: Write failing public-constructor tests**
 
 ```python
 def test_request_requires_one_matching_descriptor_binding(self):
@@ -60,6 +61,15 @@ def test_request_requires_one_matching_descriptor_binding(self):
             CandidateRequest(binding),
             SyntheticDescriptor(other, frozenset({"sample-a"}), frozenset({"sample-a"})),
         )
+
+    descriptor = SyntheticDescriptor(binding, frozenset({"sample-a"}), frozenset())
+    request = CloningEvaluationRequest(CandidateRequest(binding), descriptor)
+    with self.assertRaisesRegex(ValueError, "missing"):
+        MissingSampleRequirements(request, ())
+    with self.assertRaisesRegex(ValueError, "missing"):
+        MissingSampleRequirements(request, ["sample-a"])
+    with self.assertRaisesRegex(ValueError, "missing"):
+        MissingSampleRequirements(request, ("other",))
 ```
 
 - [ ] **Step 2: Run it to verify RED**
@@ -83,7 +93,7 @@ class CloningEvaluationRequest:
             raise ValueError("descriptor binding contradicts request")
 ```
 
-Use exact-type checks consistent with `runtime.voice_candidates`. `SyntheticDescriptor` accepts only frozen sets of nonempty IDs and derives its sorted missing IDs from their difference. Apply the same exact-request rule to `QualityDecision` and constrain `EvaluatorFailureReason` to a closed enum.
+Use exact-type checks consistent with `runtime.voice_candidates`. `SyntheticDescriptor` accepts only frozen sets of nonempty IDs and derives sorted missing IDs from their difference. Apply the same exact-request rule to `QualityDecision`, constrain `EvaluatorFailureReason` to a closed enum, and require `MissingSampleRequirements(request, sample_ids)` to accept only a nonempty exact tuple equal to `request.descriptor.missing_sample_ids`.
 
 - [ ] **Step 4: Run focused construction tests**
 
@@ -215,12 +225,13 @@ git commit -m "test: cover immutable synthetic cloning outcomes"
 **Files:**
 
 - Create: `tests/probe_voice_cloning_mutations.py`
+- Create: `tests/voice_cloning_package_smoke.py`
 - Create: `docs/voice/cloning-workflow-evidence.md`
 
 **Interfaces:**
 
 - Consumes: the completed `runtime.voice_cloning` source and named behavioral tests.
-- Produces: four passing controls, four detected in-memory mutations, and one exact-head evidence record.
+- Produces: four passing controls, four assertion-detected in-memory mutations, an isolated fresh-pyz API smoke result, and one exact-head evidence record.
 
 - [ ] **Step 1: Add the offline mutation runner**
 
@@ -234,16 +245,18 @@ MUTATIONS = (
      "test_missing_required_sample_is_not_a_candidate"),
     ("return evaluator_result", "return represent_candidate(request.request, authority, None)", 1,
      "test_evaluator_failure_is_not_rejected_quality"),
-    ("quality = None if evaluator_result is None else evaluator_result.evidence", "quality = evaluator_result.evidence", 1,
+    ("quality = None if evaluator_result is None else evaluator_result.evidence", "quality = QualityEvidence(request.request.binding, QualityState.SYNTHETIC_ACCEPTED) if evaluator_result is None else evaluator_result.evidence", 1,
      "test_missing_evaluator_result_preserves_quality_missing"),
 )
 ```
+
+The runner accepts a mutation only when the mutated named test has at least one assertion failure and zero errors. An import error, `AttributeError`, or another test-runner error aborts the probe as invalid evidence.
 
 - [ ] **Step 2: Run passing controls and mutations**
 
 Run: `python -m tests.probe_voice_cloning_mutations`
 
-Expected: each named original control passes, each replacement is detected by its named behavioral test, and the runner reports `4/4 mutations detected; no files changed`.
+Expected: each named original control passes, each replacement causes a named behavioral assertion failure with zero errors, and the runner reports `4/4 mutations detected; no files changed`.
 
 - [ ] **Step 3: Run source and fresh-package smoke**
 
@@ -251,9 +264,11 @@ Run: `python -m runtime health`
 
 Expected: runtime health succeeds.
 
-Run: `smoke_dir=$(mktemp -d /tmp/arhugula-cloning-smoke.XXXXXX); python -m ops.build "$smoke_dir/arhugula.pyz" && python "$smoke_dir/arhugula.pyz" health && PYTHONPATH="$smoke_dir/arhugula.pyz" python -c 'from runtime.voice_cloning import SyntheticDescriptor; print(SyntheticDescriptor.__name__)'; rm -rf "$smoke_dir"`
+Implement `tests/voice_cloning_package_smoke.py` as a standalone smoke runner. It creates a unique temporary directory, builds `arhugula.pyz`, then invokes a clean Python subprocess with that directory as cwd and no checkout `PYTHONPATH`. The subprocess asserts `runtime.__file__` begins with the fresh pyz path and exercises packaged complete success, `MissingSampleRequirements(("sample-a",))`, and `EvaluatorFailure`. It prints the retained exact temporary directory path; do not delete it automatically.
 
-Expected: source health, fresh zipapp health, and the zipapp import of the new API succeed.
+Run: `python tests/voice_cloning_package_smoke.py`
+
+Expected: source health, fresh zipapp health, the packaged API cases, and the imported-runtime path assertion succeed. The output names the retained artifact path.
 
 - [ ] **Step 4: Write the evidence record and scope audit**
 
@@ -262,7 +277,7 @@ Record the final full commit SHA, exact base, changed paths, focused tests, full
 - [ ] **Step 5: Commit verification evidence**
 
 ```bash
-git add tests/probe_voice_cloning_mutations.py docs/voice/cloning-workflow-evidence.md
+git add tests/probe_voice_cloning_mutations.py tests/voice_cloning_package_smoke.py docs/voice/cloning-workflow-evidence.md
 git commit -m "test: verify synthetic cloning workflow"
 ```
 
