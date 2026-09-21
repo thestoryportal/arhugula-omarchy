@@ -3,9 +3,13 @@ from dataclasses import dataclass
 from enum import Enum
 
 from runtime.voice_candidates import (
+    AuthorityEvidence,
     CandidateBinding,
+    CandidateRejection,
     CandidateRequest,
     QualityEvidence,
+    VoiceCandidate,
+    represent_candidate,
 )
 
 
@@ -98,3 +102,42 @@ class MissingSampleRequirements:
             raise ValueError("missing samples require a nonempty immutable tuple")
         if self.sample_ids != self.request.descriptor.missing_sample_ids:
             raise ValueError("missing samples must equal request-derived missing IDs")
+
+
+def _parse_workflow_inputs(
+    request: object,
+    authority: object,
+    evaluator_result: object,
+) -> None:
+    # [LAW:single-enforcer] One workflow boundary checks cross-request metadata.
+    if type(request) is not CloningEvaluationRequest:
+        raise ValueError("cloning evaluation requires a parsed request")
+    if authority is not None:
+        if type(authority) is not AuthorityEvidence:
+            raise ValueError("authority evidence is malformed")
+        if authority.binding != request.request.binding:
+            raise ValueError("authority binding contradicts request")
+    if evaluator_result is None:
+        return
+    if type(evaluator_result) not in (QualityDecision, EvaluatorFailure):
+        raise ValueError("evaluator result is malformed")
+    if evaluator_result.request != request:
+        raise ValueError("evaluator result contradicts request")
+
+
+def evaluate_cloning_request(
+    request: CloningEvaluationRequest,
+    authority: AuthorityEvidence | None,
+    evaluator_result: QualityDecision | EvaluatorFailure | None,
+) -> VoiceCandidate | CandidateRejection | MissingSampleRequirements | EvaluatorFailure:
+    """Return a pure synthetic workflow outcome from supplied metadata."""
+    # [LAW:effects-at-boundaries] Evaluator execution is supplied data, never invoked here.
+    _parse_workflow_inputs(request, authority, evaluator_result)
+    missing = request.descriptor.missing_sample_ids
+    if missing:
+        return MissingSampleRequirements(request, missing)
+    if type(evaluator_result) is EvaluatorFailure:
+        return evaluator_result
+    quality = None if evaluator_result is None else evaluator_result.evidence
+    # [LAW:single-enforcer] Candidate eligibility remains owned by represent_candidate.
+    return represent_candidate(request.request, authority, quality)

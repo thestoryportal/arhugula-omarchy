@@ -1,12 +1,16 @@
 import unittest
 
 from runtime.voice_candidates import (
+    AuthorityEvidence,
+    AuthorityState,
     CandidateBinding,
+    CandidateRejection,
     CandidateRequest,
     CandidateVersion,
     Provenance,
     QualityEvidence,
     QualityState,
+    VoiceCandidate,
 )
 
 try:
@@ -17,8 +21,9 @@ try:
         MissingSampleRequirements,
         QualityDecision,
         SyntheticDescriptor,
+        evaluate_cloning_request,
     )
-except ModuleNotFoundError as error:
+except ImportError as error:
     WORKFLOW_IMPORT_ERROR = error
 else:
     WORKFLOW_IMPORT_ERROR = None
@@ -31,6 +36,19 @@ class VoiceCloningTests(unittest.TestCase):
             Provenance("fixture-v2", "sha256:fixture-v2"),
         )
         self.request = CandidateRequest(self.binding)
+        self.authorized = AuthorityEvidence(self.binding, AuthorityState.SYNTHETIC_AUTHORIZED)
+        complete_descriptor = SyntheticDescriptor(
+            self.binding, frozenset({"sample-a", "sample-b"}), frozenset({"sample-a", "sample-b"})
+        )
+        self.complete_request = CloningEvaluationRequest(self.request, complete_descriptor)
+        self.accepted_decision = QualityDecision(
+            self.complete_request,
+            QualityEvidence(self.binding, QualityState.SYNTHETIC_ACCEPTED),
+        )
+        self.request_missing_sample_a = CloningEvaluationRequest(
+            self.request,
+            SyntheticDescriptor(self.binding, frozenset({"sample-a", "sample-b"}), frozenset({"sample-b"})),
+        )
 
     def require_workflow(self):
         self.assertIsNone(WORKFLOW_IMPORT_ERROR, "runtime.voice_cloning must exist")
@@ -80,6 +98,53 @@ class VoiceCloningTests(unittest.TestCase):
         other = CandidateBinding(CandidateVersion("other", 1), Provenance("other", "sha256:other"))
         with self.assertRaisesRegex(ValueError, "binding"):
             QualityDecision(request, QualityEvidence(other, QualityState.SYNTHETIC_ACCEPTED))
+
+    def test_missing_required_sample_is_not_a_candidate(self):
+        self.require_workflow()
+        accepted_decision = QualityDecision(
+            self.request_missing_sample_a,
+            QualityEvidence(self.binding, QualityState.SYNTHETIC_ACCEPTED),
+        )
+
+        result = evaluate_cloning_request(
+            self.request_missing_sample_a, self.authorized, accepted_decision
+        )
+
+        self.assertEqual(result, MissingSampleRequirements(self.request_missing_sample_a, ("sample-a",)))
+        self.assertNotIsInstance(result, VoiceCandidate)
+
+    def test_evaluator_failure_is_not_rejected_quality(self):
+        self.require_workflow()
+        failure = EvaluatorFailure(self.complete_request, EvaluatorFailureReason.UNAVAILABLE)
+
+        result = evaluate_cloning_request(self.complete_request, self.authorized, failure)
+
+        self.assertIs(result, failure)
+
+    def test_missing_evaluator_result_preserves_quality_missing(self):
+        self.require_workflow()
+
+        result = evaluate_cloning_request(self.complete_request, self.authorized, None)
+
+        self.assertEqual(result, CandidateRejection(("quality-missing",)))
+
+    def test_workflow_delegates_each_candidate_eligibility_denial(self):
+        self.require_workflow()
+        cases = (
+            (None, self.accepted_decision, "authority-missing"),
+            (AuthorityEvidence(self.binding, AuthorityState.UNKNOWN), self.accepted_decision, "authority-unknown"),
+            (AuthorityEvidence(self.binding, AuthorityState.DENIED), self.accepted_decision, "authority-denied"),
+            (self.authorized, QualityDecision(self.complete_request, QualityEvidence(self.binding, QualityState.UNKNOWN)), "quality-unknown"),
+            (self.authorized, QualityDecision(self.complete_request, QualityEvidence(self.binding, QualityState.REJECTED)), "quality-rejected"),
+            (self.authorized, QualityDecision(self.complete_request, QualityEvidence(self.binding, QualityState.INCOMPLETE)), "quality-incomplete"),
+        )
+
+        for authority, evaluator_result, reason in cases:
+            with self.subTest(reason=reason):
+                self.assertEqual(
+                    evaluate_cloning_request(self.complete_request, authority, evaluator_result),
+                    CandidateRejection((reason,)),
+                )
 
 
 if __name__ == "__main__":
