@@ -146,6 +146,31 @@ class VoiceCloningTests(unittest.TestCase):
                     CandidateRejection((reason,)),
                 )
 
+    def test_evaluator_result_for_a_different_request_fails_before_outcome(self):
+        self.require_workflow()
+        other_request = CloningEvaluationRequest(
+            self.request,
+            SyntheticDescriptor(self.binding, frozenset({"sample-a"}), frozenset({"sample-a"})),
+        )
+        foreign_result = QualityDecision(
+            other_request,
+            QualityEvidence(self.binding, QualityState.SYNTHETIC_ACCEPTED),
+        )
+
+        with self.assertRaisesRegex(ValueError, "evaluator result"):
+            evaluate_cloning_request(self.complete_request, self.authorized, foreign_result)
+
+    def test_result_binding_and_failure_are_immutable(self):
+        self.require_workflow()
+        result = evaluate_cloning_request(self.complete_request, self.authorized, self.accepted_decision)
+
+        with self.assertRaises(AttributeError):
+            result.binding.version.version = 9
+        with self.assertRaises(AttributeError):
+            self.complete_request.descriptor.required_sample_ids = frozenset()
+        with self.assertRaises(AttributeError):
+            EvaluatorFailure(self.complete_request, EvaluatorFailureReason.UNAVAILABLE).reason = "rejected"
+
 
 if __name__ == "__main__":
     unittest.main()
