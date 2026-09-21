@@ -206,11 +206,24 @@ class Completion:
 class Denied:
     code: Code
 
+    def __post_init__(self):
+        _require(type(self.code) is Code)
+
 
 @dataclass(frozen=True)
 class Ready:
     request: Request = field(repr=False)
     mix: MixIntent
+
+    def __post_init__(self):
+        _require(type(self.mix) in (Unchanged, Duck, Pause))
+        try:
+            # [LAW:parse-dont-validate] Direct construction retains the same wire proof.
+            parsed = parse_request(request_bytes(self.request))
+        except GatewayError:
+            raise ValueError('tts.invalid-record') from None
+        _require(type(parsed.payload) is SpeechInput)
+        object.__setattr__(self, 'request', parsed)
 
 
 Admission = Denied | Ready
@@ -261,8 +274,6 @@ def admit(utterance: Utterance, snapshot: AudioSnapshot,
                       candidate.host.provider.model_version, catalog_version,
                       p.limits.synthesis_ms, SpeechInput(utterance.text, rule.voice))
     try:
-        # [LAW:parse-dont-validate] Preserve the existing wire codec's proof and bounds.
-        request = parse_request(request_bytes(request))
-    except GatewayError:
+        return Ready(request, rule.mix)
+    except ValueError:
         return Denied(Code.LIMIT)
-    return Ready(request, rule.mix)

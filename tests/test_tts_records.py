@@ -5,6 +5,7 @@ import unittest
 
 from runtime.gateway.admission import Bearer
 from runtime.gateway.client import Endpoint, Host, Local, Failure
+from runtime.gateway.wire import LlmInput, Request, SpeechInput
 from runtime.providers.configuration import Active, Candidate, Disabled
 from runtime.providers.records import parse_manifest, parse_policy
 from tests.test_conversation_records import fixture, token
@@ -35,6 +36,27 @@ class TtsRecordsTests(unittest.TestCase):
         self.r = tts_records
         self.snapshot, self.active = values(self.r)
         self.u = self.r.Utterance(token(), self.r.Event.RESPONSE, 'private answer')
+
+    def test_direct_denied_construction_requires_closed_code(self):
+        for value in ('not-a-code', None, True, []):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'tts.invalid-record'):
+                self.r.Denied(value)
+        self.assertEqual(self.r.Denied(self.r.Code.MUTED).code, self.r.Code.MUTED)
+
+    def test_direct_ready_construction_preserves_wire_proof_and_mix_type(self):
+        r = self.r
+        request = Request('r1', 'host', 'm1', 7, 100, SpeechInput('answer', 'natural'))
+        invalid = (([], []), (request, []), (replace(request, budget_ms=True), r.Unchanged()),
+                   (replace(request, payload=SpeechInput('x' * 32768, 'natural')), r.Unchanged()),
+                   (replace(request, payload=SpeechInput('', 'natural')), r.Unchanged()),
+                   (replace(request, payload=LlmInput('text', '', ())), r.Unchanged()))
+        for raw, mix in invalid:
+            with self.subTest(raw=type(raw), mix=type(mix)), self.assertRaisesRegex(
+                    ValueError, 'tts.invalid-record'):
+                r.Ready(raw, mix)
+        ready = r.Ready(request, r.Pause())
+        self.assertEqual(ready.request, request)
+        self.assertNotIn('answer', repr(ready))
 
     def test_numeric_and_mix_bounds_reject_bool_mutation(self):
         r = self.r

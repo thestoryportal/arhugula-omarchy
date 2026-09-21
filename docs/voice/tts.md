@@ -38,3 +38,11 @@ Implementation is in progress; no live release or independent review claimed.
 - Task 4 initial probes: 12/12 safeguards detected by assertion failures with
   passing originals, including premature cleanup and success without retirement.
   The probe modifies Python modules in memory, never source files.
+- Hannibal records finding, relayed and independently reproduced by Buford in
+  LIT `cmt-34ab31d4-3607-4f39-a14b-0f3a102bda9c`: public Denied/Ready constructors
+  admitted malformed direct values. Two new regression tests reproduced it
+  before correction. Denied now requires Code; Ready now owns canonical gateway
+  parsing plus the speech-payload/mix type constraints. Admission delegates to
+  that constructor instead of keeping a second wire parsing site.
+  GREEN: 10 records tests, 38 focused tests, full 537 tests in 12.390s; 12/12
+  mutations still detected. This is implementer verification, not review clearance.
