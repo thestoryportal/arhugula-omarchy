@@ -111,6 +111,26 @@ class SessionContextTests(unittest.TestCase):
         self.assertEqual(result["reported_context_window_tokens"], 1000)
         self.assertIsNone(result["metric_error"])
 
+    def test_invalid_window_has_distinct_diagnostic_and_holds_admission(self):
+        self.write(
+            _codex(
+                "session_meta", {"session_id": "codex-1", "model_context_window": 0}
+            ),
+            _codex("event_msg", {"type": "task_started", "turn_id": "turn-1"}),
+            _codex(
+                "event_msg",
+                {"type": "token_count", "info": {"last_token_usage": _usage(40)}},
+            ),
+            _codex("event_msg", {"type": "task_complete", "turn_id": "turn-1"}),
+        )
+        summary = inspect_transcript("codex", self.path)
+        self.assertIsNone(summary["metric_error"])
+        self.assertEqual(summary["window_error"], "invalid-context-window")
+        self.assertIn(
+            "invalid-reported-window",
+            admit(summary, task_budget=20, reserve=10, ceiling=100)["reasons"],
+        )
+
     def test_claude_repeated_response_blocks_are_one_request(self):
         first = _claude_message("msg-1", 2, 40, 8, "tool_use")
         second = _claude_message("msg-2", 3, 50, 10, "end_turn")
@@ -142,6 +162,37 @@ class SessionContextTests(unittest.TestCase):
         self.assertEqual(result["observed_responses"], 1)
         self.assertEqual(result["latest_request_input_tokens"], 50)
         self.assertEqual(result["status"], "complete")
+
+    def test_long_claude_session_fails_closed_at_exact_dedup_limit(self):
+        self.write(
+            *(
+                _claude(
+                    "assistant",
+                    message=_claude_message(f"msg-{index}", 2, 40, 8, "end_turn"),
+                )
+                for index in range(4097)
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "response dedup limit"):
+            inspect_transcript("claude", self.path)
+
+    def test_dedup_limit_keeps_exact_counts_and_latest_request(self):
+        self.write(
+            *(
+                _claude(
+                    "assistant",
+                    message=_claude_message(f"msg-{index}", 2, 40, 8, "end_turn"),
+                )
+                for index in range(4096)
+            ),
+            _claude(
+                "assistant", message=_claude_message("msg-0", 9, 90, 1, "end_turn")
+            ),
+        )
+        summary = inspect_transcript("claude", self.path)
+        self.assertEqual(summary["observed_responses"], 4096)
+        self.assertEqual(summary["completion_count"], 4096)
+        self.assertEqual(summary["latest_request_input_tokens"], 50)
 
     def test_completion_active_and_interrupted_are_distinct(self):
         self.write(_codex("session_meta", {"session_id": "codex-1"}))
@@ -523,6 +574,81 @@ class WatchTests(unittest.TestCase):
         )
         self.assertEqual(self.events.read_text().splitlines(), recorded)
         self.assertEqual(len(calls), len(recorded))
+
+    def test_long_watch_retains_counts_without_historical_event_arrays(self):
+        for index in range(40):
+            self.append(
+                _claude(
+                    "assistant",
+                    message=_claude_message(f"msg-{index}", 2, 40, 8, "end_turn"),
+                ),
+                _claude(
+                    "system",
+                    subtype="compact_boundary",
+                    compactMetadata={
+                        "trigger": "auto",
+                        "preTokens": 60,
+                        "postTokens": 20,
+                    },
+                ),
+            )
+            watch_once(self.config, self.state, self.events)
+        saved = json.loads(self.state.read_text())
+        summary = saved["sessions"]["reviewer"]["summary"]
+        self.assertEqual(summary["completion_count"], 40)
+        self.assertEqual(summary["compaction_count"], 40)
+        self.assertLessEqual(len(summary["completion_times"]), 1)
+        self.assertLessEqual(len(summary["compactions"]), 3)
+        self.assertEqual(saved.get("sent_notifications", []), [])
+        self.assertEqual(saved["events_offset"], self.events.stat().st_size)
+        self.assertEqual(watch_once(self.config, self.state, self.events), [])
+
+    def test_event_tail_replay_after_state_checkpoint_crash(self):
+        self.append(
+            _claude("assistant", message=_claude_message("msg-1", 2, 40, 8, "end_turn"))
+        )
+        watch_once(self.config, self.state, self.events)
+        checkpoint = self.state.read_bytes()
+        self.append(
+            _claude("assistant", message=_claude_message("msg-2", 2, 50, 8, "end_turn"))
+        )
+        added = watch_once(self.config, self.state, self.events)
+        recorded = self.events.read_bytes()
+        self.state.write_bytes(checkpoint)
+        self.assertEqual(watch_once(self.config, self.state, self.events), [])
+        self.assertEqual(self.events.read_bytes(), recorded)
+        self.assertEqual(len(added), 2)
+
+    def test_existing_monitor_state_upgrades_without_losing_counts(self):
+        self.append(
+            _claude(
+                "assistant", message=_claude_message("msg-1", 2, 40, 8, "end_turn")
+            ),
+            _claude(
+                "system", subtype="compact_boundary", compactMetadata={"preTokens": 60}
+            ),
+        )
+        watch_once(self.config, self.state, self.events)
+        saved = json.loads(self.state.read_text())
+        summary = saved["sessions"]["reviewer"]["summary"]
+        summary.pop("window_error")
+        summary["completion_times"] = ["2026-09-23T03:00:00Z"]
+        summary["compactions"] = summary["compactions"] * 5
+        saved.pop("events_offset")
+        saved["sent_notifications"] = ["old-delivery"]
+        self.state.write_text(json.dumps(saved))
+        self.assertEqual(watch_once(self.config, self.state, self.events), [])
+        upgraded = json.loads(self.state.read_text())
+        self.assertEqual(
+            upgraded["sessions"]["reviewer"]["summary"]["completion_count"], 1
+        )
+        self.assertEqual(
+            upgraded["sessions"]["reviewer"]["summary"]["compaction_count"], 1
+        )
+        self.assertLessEqual(
+            len(upgraded["sessions"]["reviewer"]["summary"]["compactions"]), 3
+        )
+        self.assertNotIn("sent_notifications", upgraded)
 
     def test_cli_inspect_and_admit_emit_json_and_hold_exit_status(self):
         self.append(

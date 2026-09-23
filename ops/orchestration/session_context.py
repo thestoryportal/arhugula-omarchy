@@ -20,6 +20,9 @@ import threading
 from typing import Any
 from uuid import UUID
 
+MAX_RESPONSE_IDS = 4096
+MAX_PENDING_EVENTS = 4096
+
 
 def _fresh(kind: str) -> dict[str, Any]:
     if kind not in {"codex", "claude"}:
@@ -35,7 +38,9 @@ def _fresh(kind: str) -> dict[str, Any]:
         "cached_input_tokens": None,
         "reported_context_window_tokens": None,
         "metric_error": None,
+        "window_error": None,
         "compactions": [],
+        "compaction_count": 0,
         "completion_times": [],
         "completion_count": 0,
         "observed_responses": 0,
@@ -45,6 +50,7 @@ def _fresh(kind: str) -> dict[str, Any]:
         "_last_response_hash": None,
         "_active_turn_id": None,
         "_last_codex_compaction": False,
+        "_event_compactions": [],
     }
 
 
@@ -74,14 +80,14 @@ def _window(state: dict[str, Any], value: Any) -> None:
     if value is None:
         return
     if not _nonnegative(value) or value == 0:
-        state["metric_error"] = "invalid-context-window"
+        state["window_error"] = "invalid-context-window"
         state["reported_context_window_tokens"] = None
         return
     previous = state["reported_context_window_tokens"]
     if previous is not None and previous != value:
-        state["metric_error"] = "conflicting-context-window"
+        state["window_error"] = "conflicting-context-window"
         state["reported_context_window_tokens"] = None
-    elif state["metric_error"] not in {
+    elif state["window_error"] not in {
         "invalid-context-window",
         "conflicting-context-window",
     }:
@@ -125,14 +131,26 @@ def _claude_usage(state: dict[str, Any], usage: Any) -> None:
 def _compaction(
     state: dict[str, Any], time: Any, pre: Any, post: Any, trigger: Any
 ) -> None:
-    state["compactions"].append(
-        {
-            "time": time if isinstance(time, str) else None,
-            "pre_tokens": pre if _nonnegative(pre) else None,
-            "post_tokens": post if _nonnegative(post) else None,
-            "trigger": trigger if isinstance(trigger, str) else None,
-        }
-    )
+    detail = {
+        "time": time if isinstance(time, str) else None,
+        "pre_tokens": pre if _nonnegative(pre) else None,
+        "post_tokens": post if _nonnegative(post) else None,
+        "trigger": trigger if isinstance(trigger, str) else None,
+    }
+    state["compaction_count"] += 1
+    state["compactions"] = (state["compactions"] + [detail])[-3:]
+    if state.get("_capture_events"):
+        state["_event_compactions"].append(detail)
+        if len(state["_event_compactions"]) > MAX_PENDING_EVENTS:
+            raise ValueError("pending compaction event limit exceeded")
+
+
+def _completion(state: dict[str, Any], time: Any) -> None:
+    state["completion_count"] += 1
+    if state.get("_capture_events"):
+        state["completion_times"].append(time)
+        if len(state["completion_times"]) > MAX_PENDING_EVENTS:
+            raise ValueError("pending completion event limit exceeded")
 
 
 def _feed_codex(state: dict[str, Any], record: dict[str, Any]) -> None:
@@ -171,8 +189,7 @@ def _feed_codex(state: dict[str, Any], record: dict[str, Any]) -> None:
             if state["_active_turn_id"] in {None, payload.get("turn_id")}:
                 state["status"] = "complete"
                 state["_active_turn_id"] = None
-                state["completion_times"].append(record.get("timestamp"))
-                state["completion_count"] += 1
+                _completion(state, record.get("timestamp"))
         elif event in {"turn_aborted", "task_aborted", "task_failed"}:
             state["status"] = "unknown"
             state["_active_turn_id"] = None
@@ -201,13 +218,15 @@ def _feed_claude(state: dict[str, Any], record: dict[str, Any]) -> None:
             state["metric_error"] = "missing-response-id"
             return
         digest = hashlib.sha256(identifier.encode()).hexdigest()
-        if (
-            digest in state["_seen_response_hashes"]
-            and digest != state["_last_response_hash"]
-        ):
+        seen = state["_seen_response_set"]
+        completed = state["_completed_response_set"]
+        if digest in seen and digest != state["_last_response_hash"]:
             return
-        if digest not in state["_seen_response_hashes"]:
+        if digest not in seen:
+            if len(seen) >= MAX_RESPONSE_IDS:
+                raise ValueError("response dedup limit exceeded")
             state["_seen_response_hashes"].append(digest)
+            seen.add(digest)
             state["observed_responses"] += 1
             state["_last_response_hash"] = digest
             state["latest_request_input_tokens"] = None
@@ -223,10 +242,10 @@ def _feed_claude(state: dict[str, Any], record: dict[str, Any]) -> None:
             if stop == "tool_use"
             else "unknown"
         )
-        if stop == "end_turn" and digest not in state["_completed_response_hashes"]:
+        if stop == "end_turn" and digest not in completed:
             state["_completed_response_hashes"].append(digest)
-            state["completion_times"].append(record.get("timestamp"))
-            state["completion_count"] += 1
+            completed.add(digest)
+            _completion(state, record.get("timestamp"))
     elif kind == "system":
         subtype = record.get("subtype")
         if subtype == "compact_boundary":
@@ -253,9 +272,31 @@ def _feed(state: dict[str, Any], record: Any) -> None:
 
 
 def _scan(
-    kind: str, transcript: Path, prior: dict[str, Any] | None = None, offset: int = 0
+    kind: str,
+    transcript: Path,
+    prior: dict[str, Any] | None = None,
+    offset: int = 0,
+    *,
+    capture_events: bool = False,
 ) -> tuple[dict[str, Any], int]:
     state = _fresh(kind) if prior is None else prior
+    if (
+        len(state["_seen_response_hashes"]) > MAX_RESPONSE_IDS
+        or len(state["_completed_response_hashes"]) > MAX_RESPONSE_IDS
+    ):
+        raise ValueError("response dedup limit exceeded")
+    state["_seen_response_set"] = set(state["_seen_response_hashes"])
+    state["_completed_response_set"] = set(state["_completed_response_hashes"])
+    if len(state["_seen_response_set"]) != len(
+        state["_seen_response_hashes"]
+    ) or not state["_completed_response_set"].issubset(state["_seen_response_set"]):
+        raise ValueError("invalid response dedup state")
+    state["_capture_events"] = capture_events
+    state.setdefault("window_error", None)
+    state.setdefault("compaction_count", len(state["compactions"]))
+    state["compactions"] = state["compactions"][-3:]
+    state["completion_times"] = []
+    state["_event_compactions"] = []
     state["partial_tail"] = False
     with transcript.open("rb") as stream:
         stream.seek(offset)
@@ -277,7 +318,9 @@ def _scan(
                 raise ValueError(f"invalid JSON at byte {start}") from error
             _feed(state, record)
             offset = stream.tell()
-    state["compaction_count"] = len(state["compactions"])
+    state.pop("_seen_response_set")
+    state.pop("_completed_response_set")
+    state.pop("_capture_events")
     return state, offset
 
 
@@ -328,6 +371,8 @@ def admit(
     request = summary.get("latest_request_input_tokens")
     if not _nonnegative(request) or summary.get("metric_error"):
         reasons.append("missing-request-metric")
+    if summary.get("window_error"):
+        reasons.append("invalid-reported-window")
     remaining = (
         ceiling - request if _nonnegative(ceiling) and _nonnegative(request) else None
     )
@@ -393,7 +438,7 @@ def _load_state(path: Path) -> dict[str, Any]:
             "version": 1,
             "sessions": {},
             "pending_notifications": [],
-            "sent_notifications": [],
+            "events_offset": 0,
         }
     state = json.loads(path.read_text())
     if not isinstance(state, dict) or state.get("version") != 1:
@@ -402,7 +447,8 @@ def _load_state(path: Path) -> dict[str, Any]:
         state.get("pending_notifications"), list
     ):
         raise ValueError("invalid watch state")
-    state.setdefault("sent_notifications", [])
+    state.pop("sent_notifications", None)
+    state.setdefault("events_offset", 0)
     return state
 
 
@@ -422,11 +468,18 @@ def _save_state(path: Path, state: dict[str, Any]) -> None:
             os.unlink(temporary)
 
 
-def _existing_event_ids(path: Path) -> set[str]:
+def _existing_event_ids(path: Path, offset: int) -> set[str]:
+    if not _nonnegative(offset):
+        raise ValueError("invalid event offset")
     if not path.exists():
+        if offset:
+            raise ValueError("event log disappeared")
         return set()
+    if path.stat().st_size < offset:
+        raise ValueError("event log truncated")
     identifiers = set()
-    with path.open() as stream:
+    with path.open("rb") as stream:
+        stream.seek(offset)
         for number, line in enumerate(stream, 1):
             try:
                 event = json.loads(line)
@@ -490,7 +543,11 @@ def _scan_watch_session(
     if stat.st_size < previous["offset"]:
         raise ValueError(f"transcript truncated for role {session['role']}")
     summary, offset = _scan(
-        session["kind"], path, previous["summary"], previous["offset"]
+        session["kind"],
+        path,
+        previous["summary"],
+        previous["offset"],
+        capture_events=True,
     )
     previous.update(offset=offset, summary=summary, file_identity=identity)
     return previous
@@ -512,12 +569,20 @@ def _candidate_events(
         and not summary["identity_conflict"]
     )
     if identity_ok:
+        if len(summary["completion_times"]) != (
+            summary["completion_count"] - saved["completion_emitted"]
+        ) or len(summary["_event_compactions"]) != (
+            summary["compaction_count"] - saved["compaction_emitted"]
+        ):
+            raise ValueError("missing event metadata in watch state")
         for index in range(saved["completion_emitted"], summary["completion_count"]):
             event = {
                 **base,
                 "type": "completion",
                 "ordinal": index + 1,
-                "time": summary["completion_times"][index],
+                "time": summary["completion_times"][
+                    index - saved["completion_emitted"]
+                ],
                 "action": "operator-review",
             }
             event["event_id"] = _event_id(session, "completion", index + 1)
@@ -527,13 +592,15 @@ def _candidate_events(
                 **base,
                 "type": "compaction",
                 "ordinal": index + 1,
-                **summary["compactions"][index],
+                **summary["_event_compactions"][index - saved["compaction_emitted"]],
                 "action": "operator-review",
             }
             event["event_id"] = _event_id(session, "compaction", index + 1)
             events.append(event)
     saved["completion_emitted"] = summary["completion_count"]
     saved["compaction_emitted"] = summary["compaction_count"]
+    summary["completion_times"] = []
+    summary["_event_compactions"] = []
     admission = {
         "decision": decision["decision"],
         "reasons": decision["reasons"],
@@ -586,7 +653,6 @@ def _deliver_pending(
                 f"queue failed: {result.returncode}: {result.stderr.strip()[:200]}"
             )
         state["pending_notifications"].pop(0)
-        state["sent_notifications"].append(event_id)
         _save_state(state_path, state)
 
 
@@ -602,7 +668,7 @@ def watch_once(
     config = _load_config(Path(config_path))
     state_path, events_path = Path(state_path), Path(events_path)
     state = _load_state(state_path)
-    known_ids = _existing_event_ids(events_path)
+    known_ids = _existing_event_ids(events_path, state["events_offset"])
     emitted = []
     if notify and config.get("notification_thread") is None:
         raise ValueError("--notify requires notification_thread")
@@ -623,13 +689,14 @@ def watch_once(
                 _append_event(events_path, event)
                 known_ids.add(event["event_id"])
                 emitted.append(event)
-            if (
-                notify
-                and event["event_id"] not in state["sent_notifications"]
-                and event["event_id"] not in state["pending_notifications"]
-            ):
+            if notify and event["event_id"] not in state["pending_notifications"]:
+                if len(state["pending_notifications"]) >= MAX_PENDING_EVENTS:
+                    raise ValueError("pending notification limit exceeded")
                 state["pending_notifications"].append(event["event_id"])
         state["sessions"][role] = saved
+        state["events_offset"] = (
+            events_path.stat().st_size if events_path.exists() else 0
+        )
         _save_state(state_path, state)
     if notify:
         _deliver_pending(config, state, state_path, events_path, queue_runner)
