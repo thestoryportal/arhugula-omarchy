@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "roles": {
+    "buford": {
+      "client": "codex",
+      "model": "gpt-6-sol",
+      "effort": "medium",
+      "role_file": "docs/orchestration/roles/buford.md"
+    },
+    "implementer": {
+      "client": "codex",
+      "model": "gpt-6-sol",
+      "effort": "medium",
+      "role_file": "docs/orchestration/roles/implementer.md"
+    },
+    "reviewer": {
+      "client": "claude",
+      "model": "claude-sonnet-5",
+      "effort": "medium",
+      "role_file": "docs/orchestration/roles/reviewer.md"
+    },
+    "runtime": {
+      "client": "claude",
+      "model": "claude-sonnet-5",
+      "effort": "medium",
+      "role_file": "docs/orchestration/roles/runtime.md"
+    },
+    "senior-reviewer": {
+      "client": "claude",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "role_file": "docs/orchestration/roles/reviewer.md"
+    },
+    "senior-buford": {
+      "client": "codex",
+      "model": "gpt-6-astra",
+      "effort": "medium",
+      "role_file": "docs/orchestration/roles/buford.md"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "repair_paused": true,
+  "notification_thread": "01a0cc21-9334-7450-be94-47bd20db84c8",
+  "ticket": "arhugula-orchestration-7ji",
+  "sessions": [
+    {
+      "role": "buford",
+      "kind": "codex",
+      "session_id": "01a0cc21-9334-7450-be94-47bd20db84c8",
+      "transcript": "/home/robbo/.codex/sessions/2026/09/22/rollout-2026-09-22T20-39-07-01a0cc21-9334-7450-be94-47bd20db84c8.jsonl",
+      "ceiling": 200000,
+      "task_budget": 20000,
+      "reserve": 15000
+    },
+    {
+      "role": "implementer",
+      "kind": "codex",
+      "session_id": "01a0cc0e-8c3c-76d0-816e-8bc6e62157eb",
+      "transcript": "/home/robbo/.codex/sessions/2026/09/22/rollout-2026-09-22T20-18-20-01a0cc0e-8c3c-76d0-816e-8bc6e62157eb.jsonl",
+      "ceiling": 200000,
+      "task_budget": 30000,
+      "reserve": 15000
+    },
+    {
+      "role": "reviewer",
+      "kind": "claude",
+      "session_id": "b8550e64-0656-4acb-b914-92c400ae33e2",
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/b8550e64-0656-4acb-b914-92c400ae33e2.jsonl",
+      "ceiling": 60000,
+      "task_budget": 15000,
+      "reserve": 8000
+    },
+    {
+      "role": "runtime",
+      "kind": "claude",
+      "session_id": "9d04caf9-cc39-46d2-8a80-96303983f5af",
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/9d04caf9-cc39-46d2-8a80-96303983f5af.jsonl",
+      "ceiling": 60000,
+      "task_budget": 15000,
+      "reserve": 8000
+    }
+  ]
+}
