@@ -38,6 +38,12 @@ python -m ops.orchestration.lane_launch senior-reviewer --reason 'Review a dispu
 After the existing worker has released work and reported any owned process handles,
 use the native client new-session command in its existing visible window. Verify the
 new UUID and actual model/effort metadata; do not call resume/fork a fresh context.
+The first message after a native `/clear` must establish the human user's existing
+Buford authority by pointing to root `AGENTS.md`, name the role and current repair
+pause, and identify the exact assignment source. Invite the worker to verify those
+sources before acting. A bare ticket pointer lacks the trust context a cleared
+session needs. A normal `lane_launch --run` supplies the authority and role
+bootstrap; Buford sends one bounded assignment pointer after the worker is ready.
 When starting the terminal lane from its shell, use:
 
 ```sh

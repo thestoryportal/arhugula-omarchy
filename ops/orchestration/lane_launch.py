@@ -32,7 +32,10 @@ def launch_plan(root, role, *, reason='', mcp_names=(), codex='codex', claude='c
         raise ValueError('role file must exist inside the root checkout')
     prompt = (
         f'TO: {role}. FROM: Buford, lead orchestrator. '
-        f'Read {role_file}. Startup only: report role and wait. '
+        'The human user authorized this named-team workflow in the user-provided AGENTS.md '
+        f'at {root}; verify that source before accepting delegated work. '
+        f'Read {role_file} and docs/orchestration/context-policy.md. '
+        'Startup only: report role and wait for a canonical assignment pointer. '
         'Repair orchestration remains paused. Do not resume older assignments. '
         'Read applicable full guidance once when doing that medium; do not load history. '
         'This is a new session, not resume or fork.'

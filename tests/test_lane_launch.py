@@ -18,6 +18,8 @@ class LaneLaunchTests(unittest.TestCase):
         self.assertIn('mcp_servers."server.with.dot".enabled=false', plan['argv'])
         self.assertNotIn('resume', plan['argv'])
         self.assertNotIn('fork', plan['argv'])
+        self.assertIn('user-provided AGENTS.md', plan['argv'][-1])
+        self.assertIn('verify', plan['argv'][-1])
         self.assertLess(len(plan['argv'][-1]), 900)
 
     def test_review_cannot_execute_commands_or_bypass_permissions(self):

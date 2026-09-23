@@ -90,7 +90,10 @@ A source/test GO is not installed-runtime acceptance. Pin revisions, artifact ha
 installation origins, config and actual results. User pause overrides queued tasks.
 A fresh Buford needs one verified identity update and explicit transfer from its
 predecessor; worker refresh needs one verified identity update and assignment pointer.
-No repeated startup acknowledgment loop after identity is established. Preserve
+The first post-clear message must also identify the user's root `AGENTS.md`
+authority, the worker's role and the active pause so the new session can verify
+provenance before accepting the pointer. No repeated startup acknowledgment loop
+after identity is established. Preserve
 transcripts and worktrees; no automatic deletions, process kills or main merges.
 
 Launch profiles remove unrelated app/plugin discovery only for these invocations.
