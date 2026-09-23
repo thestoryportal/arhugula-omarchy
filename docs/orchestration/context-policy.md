@@ -71,9 +71,9 @@ requires an explicit optimization assignment; a repair pause is not bypassed by
 renaming an existing repair.
 
 Models: routine Buford and coding use Sol/medium; routine independent review and
-runtime use Sonnet/medium. Escalate an explicitly bounded difficult architecture,
-concurrency, security or acceptance decision to Astra or Opus/high. Escalation must
-name the decision and return to the routine profile after its task boundary.
+runtime use Sonnet/medium. Buford remains Sol/medium; Astra requires a new explicit user request. Escalate
+an explicitly bounded difficult concurrency/security review to Opus/high. Reviewer
+escalation must name the decision and return to the routine profile after its task boundary.
 Never silently change an active writer's model. No paid API fallback.
 
 Prefer one bounded command with a retained log over many conversational polls.

@@ -25,8 +25,8 @@
     {
       "role": "reviewer",
       "kind": "claude",
-      "session_id": "b8550e64-0656-4acb-b914-92c400ae33e2",
-      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/b8550e64-0656-4acb-b914-92c400ae33e2.jsonl",
+      "session_id": "377d0a88-123b-4ead-8aa6-36fa677a3579",
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/377d0a88-123b-4ead-8aa6-36fa677a3579.jsonl",
       "ceiling": 60000,
       "task_budget": 15000,
       "reserve": 8000

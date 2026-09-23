@@ -6,11 +6,11 @@ routing; historical identity and evidence remain in session-roster-history.md.
 Use the existing visible sessions. Do not create same-named child substitutes.
 
 The registered Buford holds orchestration authority following
-explicit transfer. This active session remains Astra until a safe boundary; the
-next routine Buford launch uses Sol/medium. Coder ownership of the optimization
-CLI is unchanged by the repair pause. Both Claude sessions have compacted; neither
-may be called an uncompacted fresh session. A new reviewer starts at the next
-review boundary using the role policy and one assignment pointer.
+explicit transfer. The live Buford model picker confirms GPT-6 Sol/medium;
+new Buford launches also use Sol/medium. Coder ownership of the optimization
+CLI is unchanged by the repair pause. The reviewer was cleared in its existing
+window; its new UUID and Sonnet/medium setting are confirmed. The runtime session has compacted and remains paused.
+Use the role policy and one assignment pointer at the next review boundary.
 
 All repair work is paused for arhugula-orchestration-7ji. Optimization assignments
 are explicitly bounded and do not resume repairs. Preserve released repair 5f0e5aa1,
