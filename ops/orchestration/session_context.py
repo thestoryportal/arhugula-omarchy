@@ -695,10 +695,11 @@ def main(argv: list[str] | None = None) -> int:
             events = watch_once(
                 args.config, args.state, args.events, notify=args.notify
             )
-            print(
-                json.dumps({"emitted": len(events), "events": str(args.events)}),
-                flush=True,
-            )
+            if args.once or events:
+                print(
+                    json.dumps({"emitted": len(events), "events": str(args.events)}),
+                    flush=True,
+                )
             if args.once:
                 break
             stopped.wait(args.interval)
