@@ -609,7 +609,13 @@ def _candidate_events(
         "required_tokens": decision["required_tokens"],
         "operational_ceiling_tokens": decision["operational_ceiling_tokens"],
     }
-    marker = json.dumps(admission, sort_keys=True, separators=(",", ":"))
+    marker = json.dumps(
+        {key: admission[key] for key in (
+            "decision", "reasons", "required_tokens", "operational_ceiling_tokens"
+        )},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     if marker != saved["last_admission_key"]:
         saved["admission_revision"] += 1
         event = {

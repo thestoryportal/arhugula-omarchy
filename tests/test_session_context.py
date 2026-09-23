@@ -419,6 +419,25 @@ class WatchTests(unittest.TestCase):
             for record in records:
                 stream.write(json.dumps(record) + "\n")
 
+    def test_admission_event_waits_for_decision_change(self):
+        self.append(
+            _claude("assistant", message=_claude_message("msg-1", 2, 40, 8, "end_turn"))
+        )
+        first = watch_once(self.config, self.state, self.events)
+        self.assertEqual([event["type"] for event in first], ["completion", "admission"])
+        self.append(
+            _claude("assistant", message=_claude_message("msg-2", 3, 45, 8, "end_turn"))
+        )
+        second = watch_once(self.config, self.state, self.events)
+        self.assertEqual([event["type"] for event in second], ["completion"])
+        self.append(
+            _claude("assistant", message=_claude_message("msg-3", 2, 72, 8, "end_turn"))
+        )
+        third = watch_once(self.config, self.state, self.events)
+        self.assertEqual([event["type"] for event in third], ["completion", "admission"])
+        self.assertEqual(third[-1]["decision"], "hold")
+        self.assertIn("insufficient-headroom", third[-1]["reasons"])
+
     def test_events_are_incremental_and_deduplicated_across_restart(self):
         self.append(
             _claude("user", message={"content": "private instruction"}),
@@ -617,7 +636,7 @@ class WatchTests(unittest.TestCase):
         self.state.write_bytes(checkpoint)
         self.assertEqual(watch_once(self.config, self.state, self.events), [])
         self.assertEqual(self.events.read_bytes(), recorded)
-        self.assertEqual(len(added), 2)
+        self.assertEqual([event["type"] for event in added], ["completion"])
 
     def test_existing_monitor_state_upgrades_without_losing_counts(self):
         self.append(
