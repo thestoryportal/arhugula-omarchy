@@ -1,0 +1,14 @@
+[Unit]
+Description=Arhugula local session context monitor
+
+[Service]
+Type=simple
+WorkingDirectory=/home/robbo/Work/arhugula-omarchy
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStartPre=/usr/bin/mkdir -p %h/.local/state/arhugula
+ExecStart=/usr/bin/python3 -m ops.orchestration.session_context watch --config docs/orchestration/session-control.json --state %h/.local/state/arhugula/session-context.json --events %h/.local/state/arhugula/session-events.jsonl --interval 15
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target

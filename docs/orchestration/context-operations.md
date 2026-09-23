@@ -75,6 +75,15 @@ but must not send model-waking notifications. The monitor cannot assign work, li
 pause, kill a process or clear a session. A supervisor must preserve its PID and log;
 stop only that PID when retiring it. There are no automatic paid model calls.
 
+The user service at `ops/orchestration/arhugula-session-context.service` supervises
+the installed root monitor every 15 seconds. Install its source file in the root
+checkout, then link and start it with `systemctl --user link
+/home/robbo/Work/arhugula-omarchy/ops/orchestration/arhugula-session-context.service`
+and `systemctl --user enable --now arhugula-session-context.service`. Check
+`systemctl --user status arhugula-session-context.service` and inspect the private
+event file under `~/.local/state/arhugula`. The service omits `--notify` while
+repairs are paused. Stop and disable only this named service when retiring it.
+
 Verify restart deduplication before enabling notifications. A failed delivery must
 remain visible and retryable. Alerts carry only metadata and an event-file pointer;
 Buford records actual assignments/findings in LIT. Queue receipt is not execution.
