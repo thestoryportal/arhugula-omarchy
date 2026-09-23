@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from ops.orchestration.lane_launch import launch_plan, execution_environment
+from ops.orchestration.lane_launch import launch_plan, execution_environment, fresh_bootstrap
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -62,6 +62,22 @@ class LaneLaunchTests(unittest.TestCase):
             (target / 'launch-profiles.json').write_text(json.dumps({'version': 1, 'roles': {'buford': {'client': 'codex', 'model': 'gpt-6-sol', 'effort': 'medium', 'role_file': '../../../outside'}}}))
             with self.assertRaises(ValueError):
                 launch_plan(root, 'buford')
+
+    def test_clear_bootstrap_carries_authority_and_exact_assignment(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / 'assignment.txt'
+            artifact.write_text('bounded reviewer task\n')
+            prompt = fresh_bootstrap(ROOT, 'reviewer', ticket='arhugula-orchestration-7ji',
+                                     comment='cmt-example', artifact=artifact)
+            self.assertIn('user-provided AGENTS.md', prompt)
+            self.assertIn('repair orchestration remains paused', prompt.lower())
+            self.assertIn('cmt-example', prompt)
+            self.assertIn(str(artifact), prompt)
+            self.assertIn('verify', prompt)
+            self.assertLess(len(prompt), 1250)
+            with self.assertRaises(ValueError):
+                fresh_bootstrap(ROOT, 'reviewer', ticket='arhugula-orchestration-7ji',
+                                comment='cmt-example', artifact=ROOT.parent / 'other.txt')
 
 
 if __name__ == '__main__':

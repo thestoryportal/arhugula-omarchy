@@ -44,6 +44,17 @@ pause, and identify the exact assignment source. Invite the worker to verify tho
 sources before acting. A bare ticket pointer lacks the trust context a cleared
 session needs. A normal `lane_launch --run` supplies the authority and role
 bootstrap; Buford sends one bounded assignment pointer after the worker is ready.
+For a native same-window `/clear`, generate the complete first message from the
+durable launcher template and paste it once into that window:
+
+```sh
+python -m ops.orchestration.lane_launch reviewer --bootstrap-only \
+  --ticket arhugula-orchestration-7ji --comment cmt-EXACT \
+  --artifact /absolute/path/to/exact-comment-snapshot.txt
+```
+
+The snapshot must exist inside the root workspace and match the named canonical
+LIT comment. Verify the fresh UUID and actual model/effort after the first response.
 When starting the terminal lane from its shell, use:
 
 ```sh

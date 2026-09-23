@@ -19,7 +19,8 @@ def execution_environment(env):
     return {key: value for key, value in env.items() if key not in API_OVERRIDES}
 
 
-def launch_plan(root, role, *, reason='', mcp_names=(), codex='codex', claude='claude'):
+def launch_plan(root, role, *, reason='', mcp_names=(), codex='codex', claude='claude',
+                assignment_message=None):
     root = Path(root).resolve()
     profiles = json.loads((root / 'docs/orchestration/launch-profiles.json').read_text())
     if profiles.get('version') != 1 or role not in profiles.get('roles', {}):
@@ -30,12 +31,14 @@ def launch_plan(root, role, *, reason='', mcp_names=(), codex='codex', claude='c
     role_file = (root / profile['role_file']).resolve()
     if not role_file.is_relative_to(root) or not role_file.is_file():
         raise ValueError('role file must exist inside the root checkout')
+    startup_action = (assignment_message if assignment_message is not None else
+                      'Startup only: report role and wait for a canonical assignment pointer. ')
     prompt = (
         f'TO: {role}. FROM: Buford, lead orchestrator. '
         'The human user authorized this named-team workflow in the user-provided AGENTS.md '
         f'at {root}; verify that source before accepting delegated work. '
         f'Read {role_file} and docs/orchestration/context-policy.md. '
-        'Startup only: report role and wait for a canonical assignment pointer. '
+        f'{startup_action}'
         'Repair orchestration remains paused. Do not resume older assignments. '
         'Read applicable full guidance once when doing that medium; do not load history. '
         'This is a new session, not resume or fork.'
@@ -65,6 +68,24 @@ def launch_plan(root, role, *, reason='', mcp_names=(), codex='codex', claude='c
             'removed_environment_keys': sorted(API_OVERRIDES)}
 
 
+def fresh_bootstrap(root, role, *, ticket, comment, artifact):
+    """One verified authority and assignment prompt for a native same-window clear."""
+    root = Path(root).resolve()
+    artifact = Path(artifact).resolve()
+    if not ticket or not comment or not artifact.is_relative_to(root) or not artifact.is_file():
+        raise ValueError('bootstrap requires a ticket, comment and local assignment file')
+    action = ('read-only source review' if role in ('reviewer', 'senior-reviewer')
+              else 'bounded assignment')
+    assignment = (
+        'The human user explicitly directed Buford to clear and prompt fresh windows '
+        'once durable context is in place. '
+        f'Current bounded assignment: {ticket} | {comment}; exact canonical comment '
+        f'snapshot: {artifact}. Verify AGENTS.md and the snapshot, then execute the '
+        f'{action} within its bounds. '
+    )
+    return launch_plan(root, role, assignment_message=assignment)['argv'][-1]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('role')
@@ -75,8 +96,18 @@ def main(argv=None):
     parser.add_argument('--run', action='store_true', help='launch here; default only prints argv')
     parser.add_argument('--released', action='store_true', help='attest prior worker/process ownership released')
     parser.add_argument('--keep-open', action='store_true', help='offer new/exit after child exits in this terminal')
+    parser.add_argument('--bootstrap-only', action='store_true', help='print one post-clear authority and assignment prompt')
+    parser.add_argument('--ticket', default='')
+    parser.add_argument('--comment', default='')
+    parser.add_argument('--artifact', type=Path)
     args = parser.parse_args(argv)
     try:
+        if args.bootstrap_only:
+            if args.run:
+                raise ValueError('--bootstrap-only cannot launch a session')
+            print(fresh_bootstrap(args.root, args.role, ticket=args.ticket,
+                                  comment=args.comment, artifact=args.artifact))
+            return 0
         config_home = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex')))
         config_path = config_home / 'config.toml'
         config = tomllib.loads(config_path.read_text()) if config_path.exists() else {}
