@@ -27,9 +27,9 @@
       "kind": "claude",
       "session_id": "e6e3ecac-7cce-4580-a684-0e3aa3e4b583",
       "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/e6e3ecac-7cce-4580-a684-0e3aa3e4b583.jsonl",
-      "ceiling": 60000,
+      "ceiling": 110000,
       "task_budget": 15000,
-      "reserve": 8000
+      "reserve": 10000
     },
     {
       "role": "runtime",

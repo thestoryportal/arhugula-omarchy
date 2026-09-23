@@ -19,8 +19,11 @@ must be explicitly identified as optimization work; do not turn off the repair p
 to run it. Admission is a prerequisite, not work authorization. Use the registered
 identity, pinned assignment and observed completion state as well.
 
-The initial 200k Codex and 60k Claude ceilings are operator budgets. They are not
-model limits. The former 100k Claude auto-compact launch setting produced observed
+The 200k Codex, 110k reviewer and 60k runtime ceilings are operator budgets. They
+are not model limits. The reviewer budget was raised after two full source reviews
+reached 89.7k and 78.4k without compaction; estimate large reviews individually
+with `admit --task-budget` rather than relying on the 15k routine registry default.
+The former 100k Claude auto-compact launch setting produced observed
 compactions at 63.8k/67.2k; this does not establish why the client chose that moment.
 New launches use the native auto setting. Keep a budget for full first-use Laws
 reads, task output, reporting and cleanup. Adjust budgets from measured assignments.

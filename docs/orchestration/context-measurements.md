@@ -11,6 +11,7 @@ so the sessions below are not a controlled A/B test.
 | Prior Opus reviewer `b8550e64` | Native compaction boundary recorded 63,828 pre / 22,490 post tokens, lasting about 103 seconds. Its one-off launch script specified `--autocompact 100k`. |
 | Runtime Sonnet `9d04caf9` | Native compaction boundary recorded 67,217 pre / 14,576 post tokens, lasting about 212 seconds. Its one-off launch script also specified `--autocompact 100k`. |
 | Fresh Sonnet reviewer `377d0a88` | Initial two response inputs were 11,307 and 14,148. The completed policy source review reached 89,740 before any compaction; the reviewer then released and was refreshed in the same window. This pass included full Laws:Code and Laws:Prompt/craft reads. |
+| Fresh Sonnet reviewer `e6e3ecac` | First response input was 11,620. Its monitor source review reached 78,444 without compaction after reading full Laws:Code. The 110k reviewer ceiling is an operational budget calibrated from these two completed reviews, not a model limit. |
 
 The observed compaction boundaries do not prove a model context limit or that the
 100k launch setting caused compaction at those counts. The fresh reviewer still
