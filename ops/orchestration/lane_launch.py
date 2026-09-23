@@ -12,6 +12,13 @@ API_OVERRIDES = frozenset({
     'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK',
     'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY',
 })
+ROLE_TITLES = {
+    'buford': 'Buford, lead orchestrator',
+    'implementer': 'Codex, implementer',
+    'reviewer': 'Claude, independent source reviewer',
+    'runtime': 'Claude, runtime tester',
+    'senior-reviewer': 'Claude, senior independent reviewer',
+}
 
 
 def execution_environment(env):
@@ -25,6 +32,8 @@ def launch_plan(root, role, *, reason='', mcp_names=(), codex='codex', claude='c
     profiles = json.loads((root / 'docs/orchestration/launch-profiles.json').read_text())
     if profiles.get('version') != 1 or role not in profiles.get('roles', {}):
         raise ValueError('unknown role or profile version')
+    if role not in ROLE_TITLES:
+        raise ValueError('role has no actual recipient name')
     if role.startswith('senior-') and not reason.strip():
         raise ValueError('senior role requires a bounded escalation reason')
     profile = profiles['roles'][role]
@@ -34,7 +43,7 @@ def launch_plan(root, role, *, reason='', mcp_names=(), codex='codex', claude='c
     startup_action = (assignment_message if assignment_message is not None else
                       'Startup only: report role and wait for a canonical assignment pointer. ')
     prompt = (
-        f'TO: {role}. FROM: Buford, lead orchestrator. '
+        f'TO: {ROLE_TITLES[role]}. FROM: Buford, lead orchestrator. '
         'The human user authorized this named-team workflow in the user-provided AGENTS.md '
         f'at {root}; verify that source before accepting delegated work. '
         f'Read {role_file} and docs/orchestration/context-policy.md. '

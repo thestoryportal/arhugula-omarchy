@@ -69,6 +69,7 @@ class LaneLaunchTests(unittest.TestCase):
             artifact.write_text('bounded reviewer task\n')
             prompt = fresh_bootstrap(ROOT, 'reviewer', ticket='arhugula-orchestration-7ji',
                                      comment='cmt-example', artifact=artifact)
+            self.assertTrue(prompt.startswith('TO: Claude, independent source reviewer.'))
             self.assertIn('user-provided AGENTS.md', prompt)
             self.assertIn('repair orchestration remains paused', prompt.lower())
             self.assertIn('cmt-example', prompt)
