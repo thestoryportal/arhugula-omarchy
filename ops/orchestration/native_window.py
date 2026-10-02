@@ -1,5 +1,6 @@
 """Deliver literal input to one verified native window without changing focus."""
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+import ast
 import json
 from pathlib import Path
 import re
@@ -8,7 +9,7 @@ import sqlite3
 import uuid
 from datetime import datetime,timezone
 
-from .artifacts import capture, DEFAULT_ROOT
+from .artifacts import capture, DEFAULT_ROOT, file_binding
 
 
 def key_events(text):
@@ -90,6 +91,70 @@ class WindowCapability:
         return self
 
 
+@dataclass(frozen=True)
+class RetainedContext:
+    """Explicit proof for one expired maintenance boundary, never prompt delivery."""
+    proof: dict
+
+    @classmethod
+    def parse(cls,grant,cap,cwd,frontier,previous):
+        try:
+            return cls._parse(grant,cap,cwd,frontier,previous)
+        except (KeyError,TypeError,AttributeError,IndexError,SyntaxError) as error:
+            raise ValueError('malformed retained native context evidence') from error
+
+    @classmethod
+    def _parse(cls,grant,cap,cwd,frontier,previous):
+        # [LAW:parse-dont-validate] Bind the retained observation once; current
+        # ownership is a separate capability, not a substitute creation event.
+        evidence={}
+        for key in ('receipt','config','frontier'):
+            bound=grant[key]
+            if file_binding(bound['path'])!=bound:
+                raise ValueError('retained native context evidence changed')
+            evidence[key]=json.loads(Path(bound['path']).read_text())
+        receipt=evidence['receipt']
+        if (receipt['exit']!=0 or receipt['terminal']!='exited' or receipt['cwd']!=str(cwd)
+                or evidence['config']['window']!=asdict(cap) or evidence['frontier']!=frontier
+                or file_binding(receipt['stdout']['path'])!=receipt['stdout']):
+            raise ValueError('retained native context witness binding mismatch')
+        proof=json.loads(Path(receipt['stdout']['path']).read_text())
+        identifier=uuid.UUID(proof['session_id']);created=(identifier.int>>80)/1000
+        if (identifier.version!=7 or proof['session_id']==previous or proof['user_input'] is not True
+                or created<datetime.fromisoformat(frontier['prepared_at']).timestamp()
+                or proof['created_at']!=datetime.fromtimestamp(created,timezone.utc).isoformat()
+                or not re.fullmatch(f'pid:{cap.native_pid}:[a-zA-Z0-9-]+',proof['process_uuid'])
+                or type(proof['creation_log_id']) is not int or proof['creation_log_id']<=0
+                or not proof['transcript']):
+            raise ValueError('retained native creation proof mismatch')
+        # This bounded recovery accepts the already witnessed read-only program.
+        # Parse its complete AST without executing artifact-supplied Python.
+        argv=receipt['argv']
+        if len(argv)!=3 or argv[1]!='-c':
+            raise ValueError('retained native witness command mismatch')
+        program=ast.parse(argv[2])
+        try:
+            source=ast.literal_eval(program.body[2].value.args[1].args[0].func.value.args[0])
+            config=ast.literal_eval(program.body[4].value.args[0].func.value.args[0])
+            boundary=ast.literal_eval(program.body[5].value.args[0].func.value.args[0])
+        except (IndexError,AttributeError,ValueError) as error:
+            raise ValueError('retained native witness inputs missing') from error
+        if ((cwd/config).resolve()!=Path(grant['config']['path']).resolve()
+                or (cwd/boundary).resolve()!=Path(grant['frontier']['path']).resolve()):
+            raise ValueError('retained native witness input paths mismatch')
+        expected=("import sys,json\nfrom pathlib import Path\n"
+            f"sys.path.insert(0,str(Path({source!r}).resolve()))\n"
+            "from ops.orchestration.native_window import NativeWindow,WindowCapability\n"
+            f"config=json.loads(Path({config!r}).read_text())\n"
+            f"frontier=json.loads(Path({boundary!r}).read_text())\n"
+            "w=NativeWindow(WindowCapability(**config['window']),Path.cwd())\n"
+            f"proof=w.context(frontier,{previous!r})\nprint(json.dumps(proof))\n"
+            f"if proof is None or proof['session_id']!={proof['session_id']!r} or not proof['user_input']:raise SystemExit('expected current user intervention proof missing')\n")
+        if ast.dump(program)!=ast.dump(ast.parse(expected)):
+            raise ValueError('retained native witness program mismatch')
+        return cls(proof)
+
+
 class NativeWindow:
     def __init__(self,capability,cwd,artifact_root=DEFAULT_ROOT,*,codex_home=None):
         self.cap=capability;self.cwd=Path(cwd);self.root=artifact_root
@@ -129,8 +194,7 @@ class NativeWindow:
             paths.add(path)
         return sorted(paths)
 
-    def context(self,frontier,previous):
-        """Prove native TUI thread creation even before lazy rollout persistence."""
+    def owned_threads(self,frontier):
         self.check()
         argv=(self.proc/'cmdline').read_bytes().decode().rstrip('\0').split('\0')
         if (frontier['native_lane']!={'cwd':str(self.cwd),'source':'cli','originator':'codex-tui'}
@@ -145,6 +209,42 @@ class NativeWindow:
             if not re.search(r'lock:\s+\d+: FLOCK\s+ADVISORY\s+WRITE '+str(self.cap.native_pid)+r' ',info):
                 raise ValueError('native thread writer ownership is unproven')
             owned.add(str(uuid.UUID(path.stem)))
+        return owned
+
+    def recovery_context(self,frontier,previous,grant):
+        if grant is None:
+            return self.context(frontier,previous)
+        retained=RetainedContext.parse(grant,self.cap,self.cwd,frontier,previous)
+        proof=retained.proof
+        current=self.context(frontier,previous)
+        if current is not None and any(current[key]!=proof[key] for key in
+                ('session_id','created_at','process_uuid','creation_log_id','transcript')):
+            raise ValueError('current native creation contradicts retained witness')
+        owned=self.owned_threads(frontier)
+        if proof['session_id'] not in owned:
+            raise ValueError('retained native writer lock is no longer held')
+        with sqlite3.connect((self.home/'logs_2.sqlite').as_uri()+'?mode=ro',uri=True) as db:
+            processes={row[0] for row in db.execute(
+                "SELECT DISTINCT process_uuid FROM logs WHERE thread_id=? AND process_uuid LIKE ?",
+                (proof['session_id'],f'pid:{self.cap.native_pid}:%'))}
+            if processes!={proof['process_uuid']}:
+                raise ValueError('current native process provenance differs from retained witness')
+        paths=[str(p) for p in self.rollouts() if p.name.endswith('-'+proof['session_id']+'.jsonl')]
+        if paths!=[proof['transcript']]:
+            raise ValueError('retained native rollout is no longer exclusively owned')
+        with Path(proof['transcript']).open() as stream:
+            try:row=json.loads(next(stream))
+            except StopIteration as error:
+                raise ValueError('retained native rollout is empty') from error
+        if (row.get('type')!='session_meta' or row['payload'].get('id')!=proof['session_id']
+                or {k:row['payload'].get(k) for k in ('cwd','source','originator')}!=frontier['native_lane']):
+            raise ValueError('retained native rollout provenance changed')
+        self.check()
+        return {**proof,'retained_context':grant}
+
+    def context(self,frontier,previous):
+        """Prove native TUI thread creation even before lazy rollout persistence."""
+        owned=self.owned_threads(frontier)
         prepared=datetime.fromisoformat(frontier['prepared_at']).timestamp()
         # [LAW:parse-dont-validate] A held native writer lock plus the native TUI
         # thread/start event proves creation; title alone never authorizes input.

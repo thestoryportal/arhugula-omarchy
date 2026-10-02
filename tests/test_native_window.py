@@ -45,6 +45,84 @@ class NativeWindowTests(unittest.TestCase):
             db.commit();return identifier
         return window,home,db,frontier,create
 
+    def retained_context_fixture(self):
+        from dataclasses import asdict
+        from ops.orchestration.artifacts import file_binding
+        window,home,db,frontier,create=self.native_context_fixture();identifier=create()
+        path=home/('rollout-2026-10-02T01-00-00-'+identifier+'.jsonl')
+        stream=path.open('w+');self.addCleanup(stream.close)
+        rows=[{'type':'session_meta','payload':{'id':identifier,**frontier['native_lane']}},
+              {'type':'response_item','payload':{'role':'user','content':[{'text':'human report'}]}}]
+        stream.write(''.join(json.dumps(row)+'\n' for row in rows));stream.flush()
+        db.execute('INSERT INTO logs(ts,ts_nanos,thread_id,process_uuid,feedback_log_body,target) VALUES(?,?,?,?,?,?)',
+                   (int(time.time()),0,identifier,f'pid:{os.getpid()}:process','op: TurnInput { request: ... }','handlers'))
+        db.commit();proof=window.context(frontier,'old')
+        config=home/'config.json';config.write_text(json.dumps({'window':asdict(window.cap)}))
+        boundary=home/'frontier.json';boundary.write_text(json.dumps(frontier))
+        code=("import sys,json\nfrom pathlib import Path\n"
+              "sys.path.insert(0,str(Path('.worktrees/buford-loop-optimization-20261002').resolve()))\n"
+              "from ops.orchestration.native_window import NativeWindow,WindowCapability\n"
+              f"config=json.loads(Path({str(config)!r}).read_text())\n"
+              f"frontier=json.loads(Path({str(boundary)!r}).read_text())\n"
+              "w=NativeWindow(WindowCapability(**config['window']),Path.cwd())\n"
+              "proof=w.context(frontier,'old')\nprint(json.dumps(proof))\n"
+              f"if proof is None or proof['session_id']!={identifier!r} or not proof['user_input']:raise SystemExit('expected current user intervention proof missing')\n")
+        out=home/'stdout.log';out.write_text(json.dumps(proof)+'\n')
+        receipt=home/'receipt.json';receipt.write_text(json.dumps({'argv':['python','-c',code],
+            'cwd':str(window.cwd),'exit':0,'terminal':'exited','stdout':file_binding(out)}))
+        grant={'receipt':file_binding(receipt),'config':file_binding(config),'frontier':file_binding(boundary)}
+        # Native log retention removes creation evidence while preserving recent activity.
+        db.execute("DELETE FROM logs WHERE target='codex_core::shell_snapshot'")
+        for _ in range(999):
+            db.execute('INSERT INTO logs(ts,ts_nanos,thread_id,process_uuid,feedback_log_body,target) VALUES(?,?,?,?,?,?)',
+                       (int(time.time()),0,identifier,f'pid:{os.getpid()}:process','current activity','handlers'))
+        db.commit()
+        return window,home,db,frontier,proof,grant,stream
+
+    def test_pruned_creation_requires_explicit_retained_maintenance_witness(self):
+        window,home,db,frontier,proof,grant,stream=self.retained_context_fixture()
+        self.assertEqual(db.execute('SELECT count(*) FROM logs').fetchone()[0],1000)
+        self.assertIsNone(window.context(frontier,'old'))
+        self.assertIsNone(window.recovery_context(frontier,'old',None))
+        self.assertEqual(window.recovery_context(frontier,'old',grant)['session_id'],proof['session_id'])
+        self.assertTrue(window.recovery_context(frontier,'old',grant)['user_input'])
+        self.assertIsNone(window.context(frontier,'old'))
+
+    def test_retained_witness_refuses_changed_proof_and_current_ownership(self):
+        from dataclasses import replace
+        from ops.orchestration.artifacts import file_binding
+        for kind in ('unbound','stdout','session','process','window','frontier','failed','argv',
+                     'foreign-rollout','empty-rollout','closed-rollout','unlocked','current-process','missing','contradiction'):
+            with self.subTest(kind=kind):
+                window,home,db,frontier,proof,grant,stream=self.retained_context_fixture()
+                receipt_path=Path(grant['receipt']['path']);receipt=json.loads(receipt_path.read_text())
+                if kind=='missing':grant.pop('receipt')
+                elif kind=='contradiction':window.context=lambda *args:{**proof,'creation_log_id':9999}
+                elif kind=='unbound':receipt_path.write_text('{}')
+                elif kind=='window':window.cap=replace(window.cap,native_start='changed')
+                elif kind=='frontier':frontier={**frontier,'prepared_at':datetime.now(timezone.utc).isoformat()}
+                elif kind=='foreign-rollout':
+                    stream.seek(0);stream.truncate();stream.write(json.dumps({'type':'session_meta','payload':{'id':'foreign'}})+'\n');stream.flush()
+                elif kind=='empty-rollout':stream.seek(0);stream.truncate();stream.flush()
+                elif kind=='closed-rollout':stream.close()
+                elif kind=='unlocked':
+                    for fd in (window.proc/'fd').iterdir():
+                        try:target=fd.resolve(strict=True)
+                        except FileNotFoundError:continue
+                        if target.name==proof['session_id']+'.lock':fcntl.flock(int(fd.name),fcntl.LOCK_UN)
+                elif kind=='current-process':db.execute("UPDATE logs SET process_uuid='pid:999:foreign'");db.commit()
+                else:
+                    if kind in ('stdout','session','process'):
+                        if kind=='session':proof['session_id']=str(uuid.uuid4())
+                        elif kind=='process':proof['process_uuid']='pid:999:foreign'
+                        else:proof['user_input']=False
+                        Path(receipt['stdout']['path']).write_text(json.dumps(proof)+'\n')
+                        if kind!='stdout':receipt['stdout']=file_binding(receipt['stdout']['path'])
+                    elif kind=='failed':receipt['exit']=1
+                    elif kind=='argv':receipt['argv'][2]+="proof={'session_id':'foreign'}\n"
+                    receipt_path.write_text(json.dumps(receipt));grant['receipt']=file_binding(receipt_path)
+                with self.assertRaises(ValueError):window.recovery_context(frontier,'old',grant)
+
     def test_real_writer_fd_proves_deferred_context_with_no_rollout(self):
         window,home,db,frontier,create=self.native_context_fixture();identifier=create()
         proof=window.context(frontier,'old')

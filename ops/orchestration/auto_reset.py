@@ -243,7 +243,7 @@ class AutoReset:
         # maintenance recovery; first-prompt delivery retains the literal title.
         title=re.sub(r'^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ','',self.window.title())
         if not self.title_matches(failed,title):raise ValueError('same-window recovery nonce title mismatch')
-        proof=self.window.context(frontier,failed['reset']['previous_session'])
+        proof=self.window.recovery_context(frontier,failed['reset']['previous_session'],grant.get('retained_context'))
         actual=identity(grant['transcript'])
         human=json.loads(Path(grant['human_authority']['path']).read_text())
         if (proof is None or proof['session_id']!=grant['session_id'] or actual['session_id']!=proof['session_id']

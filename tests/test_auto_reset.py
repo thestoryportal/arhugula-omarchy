@@ -26,6 +26,8 @@ class WindowSeam:
             return {'session_id':actual['session_id'],'user_input':bool(actual['user_count']),
                     'transcript':str(self.rollouts[0])}
         return {'session_id':self.next_id,'user_input':False,'transcript':None}
+    def recovery_context(self,frontier,previous,grant):
+        return self.context(frontier,previous)
 
 
 class AutoResetTests(unittest.TestCase):
@@ -94,6 +96,28 @@ class AutoResetTests(unittest.TestCase):
                 'delivery':file_binding(delivery)}));grant['implementer_refresh']=file_binding(refresh)
         authority=self.root/'recovery-authority.json';authority.write_text(json.dumps(grant))
         return controller,authority,fresh
+
+    def test_pruned_context_recovery_passes_only_explicit_grant_to_native_boundary(self):
+        controller,authority,fresh=self.recovery_fixture()
+        proof=self.window.context({},'old');self.window.context=lambda *args:None
+        before=self.loop.status();lines=list(self.window.lines)
+        observed=[]
+        def recovery(frontier,previous,retained):
+            observed.append(retained)
+            return proof if retained=={'explicit':'bound witness'} else None
+        self.window.recovery_context=recovery
+        with self.assertRaisesRegex(ValueError,'human frontier'):
+            controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status(),before)
+        grant=json.loads(authority.read_text());grant['retained_context']={'explicit':'bound witness'}
+        authority.write_text(json.dumps(grant))
+        recovered=controller.recover_maintenance(authority)
+        self.assertEqual(observed,[None,grant['retained_context']])
+        self.assertEqual(recovered['phase'],'maintenance_recovered')
+        self.assertFalse(recovered['automatic_acceptance'])
+        self.assertEqual(self.window.lines,lines)
+        self.assertEqual(self.loop.status()['epoch'],before['epoch'])
+        self.assertTrue(self.loop.status()['production_paused'])
 
     def test_recovery_preserves_failed_evidence_counters_pause_and_deadline(self):
         controller,authority,fresh=self.recovery_fixture()
