@@ -71,7 +71,8 @@ class LocalAdapterTests(unittest.TestCase):
             self.adapter.inspect(allowed=["link"])
 
     def test_real_verification_failure_carries_exit_status(self):
-        adapter = LocalAdapter(self.tree, ["git", "rev-parse", "--verify", "refs/heads/missing"])
+        adapter = LocalAdapter(self.tree, ["git", "rev-parse", "--verify", "refs/heads/missing"],
+                               artifact_root=Path(self.directory.name) / 'artifacts')
         passed, evidence = adapter.verify()
         self.assertFalse(passed)
         self.assertIn("exit=128", evidence)

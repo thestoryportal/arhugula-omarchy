@@ -9,6 +9,7 @@ import tempfile
 
 from .continuation import Stop
 from .handoff import validate
+from .artifacts import capture, DEFAULT_ROOT
 
 
 def command(argv, cwd, *, timeout=60, input=None):
@@ -28,11 +29,12 @@ def command(argv, cwd, *, timeout=60, input=None):
 
 
 class LocalAdapter:
-    def __init__(self, cwd, verify_argv, *, timeout=60, lit_argv=("lit",)):
+    def __init__(self, cwd, verify_argv, *, timeout=60, lit_argv=("lit",), artifact_root=DEFAULT_ROOT):
         self.cwd = Path(cwd).resolve()
         self.verify_argv = verify_argv
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
+        self.artifact_root = artifact_root
 
     def checked(self, argv, cwd=None):
         result = command(argv, cwd or self.cwd, timeout=self.timeout)
@@ -111,9 +113,9 @@ class LocalAdapter:
         return dict(branch=branch, head=head, worktree=str(self.cwd))
 
     def verify(self):
-        result = command(self.verify_argv, self.cwd, timeout=self.timeout)
-        evidence = f"{shlex.join(self.verify_argv)}; exit={result.returncode}\n{result.stdout[-6000:]}{result.stderr[-6000:]}"
-        return result.returncode == 0, evidence
+        result = capture(self.verify_argv, self.cwd, root=self.artifact_root, timeout=self.timeout)
+        evidence = f"{shlex.join(self.verify_argv)}; exit={result['exit']}; receipt={result['receipt']}\n{result['summary']}"
+        return result['terminal'] == 'exited' and result['exit'] == 0, evidence
 
     def commit(self, ticket, files):
         self.inspect(allowed=files)
