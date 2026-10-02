@@ -286,12 +286,27 @@ class AutoResetTests(unittest.TestCase):
         self.assertEqual(len(self.window.lines),1)
 
     def test_exact_nonce_title_permits_only_native_activity_prefix(self):
+        controller,authority,fresh=self.recovery_fixture()
+        state=controller.status();self.config['cwd']=str(self.root)
+        self.window.name='⠇ '+state['title']+' | '+self.root.name
+        self.assertEqual(controller.recover_maintenance(authority)['phase'],'maintenance_recovered')
+
+    def test_pre_prompt_spinner_title_holds_even_before_input_evidence_arrives(self):
         self.hold();controller=self.controller();controller.step();controller.step()
         state=controller.status();self.config['cwd']=str(self.root)
         self.window.name='⠇ '+state['title']+' | '+self.root.name
-        self.assertTrue(controller.title_matches(state))
-        self.window.name='foreign '+state['title']+' | '+self.root.name
-        self.assertFalse(controller.title_matches(state))
+        controller.step()
+        self.assertEqual(controller.status()['phase'],'waiting_title')
+        self.assertEqual(len(self.window.lines),1)
+
+    def test_recovery_refuses_arbitrary_prefix_and_suffix_titles(self):
+        controller,authority,fresh=self.recovery_fixture()
+        state=controller.status();self.config['cwd']=str(self.root)
+        for title in ('foreign '+state['title']+' | '+self.root.name,
+                      '⠇ '+state['title']+' extra | '+self.root.name,
+                      '⠇ ⠇ '+state['title']+' | '+self.root.name):
+            self.window.name=title
+            with self.assertRaisesRegex(ValueError,'nonce title mismatch'):controller.recover_maintenance(authority)
 
     def test_deferred_preexisting_input_refuses_prompt(self):
         self.hold();controller=self.controller();controller.step();controller.step()

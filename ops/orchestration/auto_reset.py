@@ -163,7 +163,7 @@ class AutoReset:
             state['phase']='waiting_title';self.save(state);return state
         if phase=='waiting_title':
             self.unchanged_parent(state)
-            if not self.title_matches(state):return state
+            if not self.title_matches(state,self.window.title()):return state
             frontier=json.loads((Path(state['reset']['directory'])/'frontier.json').read_text())
             proof=self.window.context(frontier,state['reset']['previous_session'])
             if proof is None:return state
@@ -188,9 +188,7 @@ class AutoReset:
             return self.publish(state,result)
         raise ValueError('unknown autoreset phase')
 
-    def title_matches(self,state):
-        # Codex prefixes the exact named title with one native activity glyph.
-        title=re.sub(r'^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ','',self.window.title())
+    def title_matches(self,state,title):
         return title in (state['title'],state['title']+' | '+Path(self.config.get('cwd','.')).name)
 
     def recover_maintenance(self,authority):
@@ -241,7 +239,10 @@ class AutoReset:
             for evidence in json.loads(Path(failed['reset']['manifest']['path']).read_text())['files']:
                 if file_binding(evidence['path'])!=evidence:raise ValueError('failed reset package evidence changed')
         frontier=json.loads((Path(failed['reset']['directory'])/'frontier.json').read_text())
-        if not self.title_matches(failed):raise ValueError('same-window recovery nonce title mismatch')
+        # [LAW:effects-at-boundaries] Parse native activity only for explicit
+        # maintenance recovery; first-prompt delivery retains the literal title.
+        title=re.sub(r'^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ','',self.window.title())
+        if not self.title_matches(failed,title):raise ValueError('same-window recovery nonce title mismatch')
         proof=self.window.context(frontier,failed['reset']['previous_session'])
         actual=identity(grant['transcript'])
         human=json.loads(Path(grant['human_authority']['path']).read_text())
