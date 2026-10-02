@@ -50,7 +50,7 @@ def excluded_scope(data, quarantined):
 
 def identity(transcript):
     result = dict(session_id=None, model=None, effort=None, status='unknown', input_tokens=None,
-                  created_at=None, cwd=None, source=None, originator=None, first_user=None,last_user_hash=None)
+                  created_at=None, cwd=None, source=None, originator=None, first_user=None,last_user_hash=None,user_count=0)
     with Path(transcript).open() as stream:
         for row in map(json.loads, stream):
             payload = row.get('payload', {})
@@ -67,6 +67,7 @@ def identity(transcript):
                 if not text.startswith(('# AGENTS.md instructions for ','<environment_context>')):
                     if result['first_user'] is None:result['first_user']=text
                     result['last_user_hash']=hashlib.sha256(text.encode()).hexdigest()
+                    result['user_count']+=1
             elif row.get('type') == 'turn_context':
                 result.update(model=payload.get('model'), effort=payload.get('effort',payload.get('reasoning_effort')))
             elif row.get('type') == 'event_msg':
@@ -325,7 +326,8 @@ class Loop:
             if automatic is not None:
                 extra=[file_binding(automatic['continuation']),file_binding(automatic['goal_receipt'])]
                 # [DEVICE:negative-examples] The native supervisor owns the one bootstrap.
-                prompt=(f'You are Buford, {state["model"]}/{state["effort"]}, in the same visible native lane. '
+                prompt=(f'TO: Actual fresh Buford, lead orchestrator. FROM: Outgoing Buford, lead orchestrator, UUID {state["session_id"]}. '
+                    f'You are Buford, {state["model"]}/{state["effort"]}, in the same visible native lane. '
                     f'BUFORD_CONTEXT_HANDOFF {nonce} {file_binding(directory/"frontier.json")["sha256"]}. '
                     'The user explicitly requires autonomous native clear and automatic complete prompt submission, '
                     'without HIL or manual append. First run lit quickstart; read root AGENTS.md, '
@@ -393,9 +395,11 @@ class Loop:
                 raise ValueError('native context must have a fresh identity')
             frontier=json.loads((Path(reset['directory'])/'frontier.json').read_text())
             token=f'BUFORD_CONTEXT_HANDOFF {frontier["nonce"]} {file_binding(Path(reset["directory"])/"frontier.json")["sha256"]}'
+            expected=(Path(reset['directory'])/'resume-prompt.txt').read_text().rstrip('\n')
             created=actual['created_at']
             if (not created or datetime.fromisoformat(created.replace('Z','+00:00')) < datetime.fromisoformat(frontier['prepared_at'])
                     or token not in (actual['first_user'] or '')
+                    or (actual['first_user'] or '').rstrip('\n')!=expected or actual['user_count']!=1
                     or {k:actual[k] for k in ('cwd','source','originator')}!=frontier['native_lane']
                     or actual['session_id'] in {s['session_id'] for s in self._control()['sessions'] if s['role']!='buford'}):
                 raise ValueError('actual fresh handoff-bound native lane evidence required')
@@ -423,7 +427,8 @@ class Loop:
             state['last_bootstrap']={'seconds':round(time.monotonic()-began,3),'reads':reads,
                                      'previous_session':reset['previous_session'],
                                      'manifest':reset['manifest'],'nonce':frontier['nonce'],
-                                     'transcript':str(Path(transcript).absolute())}
+                                     'transcript':str(Path(transcript).absolute()),
+                                     'received_prompt_sha256':hashlib.sha256(expected.encode()).hexdigest()}
             self._save(state)
             return self.status()
 

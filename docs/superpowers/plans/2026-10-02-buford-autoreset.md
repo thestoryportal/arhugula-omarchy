@@ -36,9 +36,9 @@ embedded Codex 0.159.2, transient systemd user service, physical Mac artifact st
 **Interfaces:** `WindowCapability` binds window/process identity; `NativeWindow`
 reads actual state and delivers a literal ASCII line to that exact window.
 
-- [ ] Write tests for address/PID reuse, layout/caps refusal and literal key delivery.
-- [ ] Run them RED; implement the boundary; run GREEN.
-- [ ] Run actual owned-terminal transport witness; retain raw receipt; commit.
+- [x] Write tests for address/PID reuse, layout/caps refusal and literal key delivery.
+- [x] Run them RED; implement the boundary; run GREEN.
+- [x] Run actual owned-terminal transport witness; retain raw receipt; commit.
 
 ### Task 2: Autonomous reset lifecycle and goal lineage
 
@@ -48,9 +48,9 @@ reads actual state and delivers a literal ASCII line to that exact window.
 bindings, uses native transport, invokes `Loop.bootstrap`, and publishes a verified
 native receipt. `GoalLineage.record` consumes actual native receipts and derives totals.
 
-- [ ] Write behavioral tests for active/stale/uncertain/deadline/recovery/fifth boundaries.
-- [ ] Observe RED; implement persistent effects and fully generated continuation text.
-- [ ] Verify GREEN with real journal/bootstrap and independent external seams; commit.
+- [x] Write behavioral tests for active/stale/uncertain/deadline/recovery/fifth boundaries.
+- [x] Observe RED; implement persistent effects and fully generated continuation text.
+- [x] Verify GREEN with real journal/bootstrap and independent external seams; commit.
 
 ### Task 3: Adoption, independent review and actual native trial
 
@@ -59,8 +59,8 @@ source-acceptance and native-trial receipts under `.local/buford-loop/`.
 **Interfaces:** runtime service starts outside the active parent; generated first
 message verifies acceptance and continues without human append or new permission gate.
 
-- [ ] Run full suite and obtain one fresh independent whole-extension review.
-- [ ] Resolve meaningful defects with RED-to-GREEN regressions and a green suite.
+- [x] Run full suite and obtain one fresh independent whole-extension review.
+- [x] Resolve meaningful defects with RED-to-GREEN regressions and a green suite.
 - [ ] Install only owned changes, record LIT evidence and preserve existing sealed packages.
 - [ ] Arm live same-window reset after this parent becomes idle; fresh context verifies
   its actual receipt and continues acceptance/production autonomously.

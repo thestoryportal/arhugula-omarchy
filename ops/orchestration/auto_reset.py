@@ -10,13 +10,18 @@ import socket
 import sys
 import time
 import uuid
+from datetime import datetime
 
 from .artifacts import DEFAULT_ROOT,file_binding
 from .continuation import Lease
 from .goal_lineage import GoalLineage
 from .loop import Loop,NativeLit,identity
 from .native_window import NativeWindow,WindowCapability
+from .native_goal import read_goal
 from .records import atomic_json,private_directory
+
+
+def user_frontier(actual):return {'count':actual['user_count'],'hash':actual['last_user_hash']}
 
 
 class AutoReset:
@@ -38,6 +43,8 @@ class AutoReset:
         if ((release['session_id'],release['epoch'])!=(state['session_id'],state['epoch'])
                 or release.get('completed')!=sorted(state['completed'])):
             waiting={'phase':'waiting_release'};self.save(waiting);return waiting
+        actual=identity(routing['transcript'])
+        if release['user_frontier']!=user_frontier(actual):raise ValueError('user input changed since release')
         goal=json.loads(Path(release['goal_receipt']).read_text())['goal']
         if goal['threadId']!=state['session_id']:raise ValueError('actual current goal receipt required')
         GoalLineage(self.config['goal_ledger']).record(release['goal_receipt'],self.config['deadline'])
@@ -48,44 +55,71 @@ class AutoReset:
             'goal_ledger':self.config['goal_ledger'],'deadline':self.config['deadline']})
         frontier=json.loads((directory/'frontier.json').read_text())
         prepared={'phase':'waiting_idle','old_transcript':routing['transcript'],
-            'old_user_hash':identity(routing['transcript'])['last_user_hash'],
-            'routing':file_binding(self.loop.control),'reset':reset,'nonce':frontier['nonce'],
+            'old_user_frontier':release['user_frontier'],
+            'routing':file_binding(self.loop.control),'control_snapshot':self.loop._control(),
+            'reset':reset,'nonce':frontier['nonce'],
             'title':'Buford-auto-'+frontier['nonce'],'started':None,
             'goal_receipt':file_binding(release['goal_receipt'])}
         self.save(prepared);return prepared
 
-    def unchanged_parent(self,state):
-        if file_binding(self.loop.control)!=state['routing']:raise ValueError('routing/pause changed after preparation')
+    def unchanged_parent(self,state,recovery_transcript=None):
+        if file_binding(self.loop.control)!=state['routing']:
+            pending=self.loop.status().get('pending_bootstrap')
+            expected=json.loads(json.dumps(state['control_snapshot']))
+            buford=next(s for s in expected['sessions'] if s['role']=='buford')
+            if recovery_transcript is None or pending!=identity(recovery_transcript)['session_id']:
+                raise ValueError('routing/pause changed after preparation')
+            previous=buford['session_id'];buford.update(session_id=pending,transcript=str(Path(recovery_transcript).absolute()))
+            if expected.get('notification_thread')==previous:expected['notification_thread']=pending
+            if self.loop._control()!=expected:raise ValueError('routing/pause changed outside pending bootstrap')
         actual=identity(state['old_transcript'])
-        if actual['last_user_hash']!=state['old_user_hash']:raise ValueError('user input changed after preparation')
+        if user_frontier(actual)!=state['old_user_frontier']:raise ValueError('user input changed after preparation')
         return actual
 
-    def fresh(self,state):
+    def cleared(self,state):
         frontier=json.loads((Path(state['reset']['directory'])/'frontier.json').read_text())
-        root=Path(self.config['sessions'])
-        # Only the current native day is searched; old sessions are not replayed.
-        day=root.joinpath(*frontier['prepared_at'][:10].split('-'))
-        root=day if day.is_dir() else root
-        for path in root.glob('*.jsonl'):
-            if path.stat().st_mtime < Path(state['reset']['manifest']['path']).stat().st_mtime:continue
+        matching=[]
+        # The actual native client owns these rollouts; filename day is irrelevant.
+        for path in self.window.transcripts():
             candidate=identity(path)
-            if state['nonce'] in (candidate['first_user'] or '') and candidate['model'] is not None:return path
+            if (candidate['session_id']!=state['reset']['previous_session'] and candidate['created_at']
+                    and datetime.fromisoformat(candidate['created_at'].replace('Z','+00:00'))>=datetime.fromisoformat(frontier['prepared_at'])
+                    and {k:candidate[k] for k in ('cwd','source','originator')}==frontier['native_lane']):matching.append(path)
+        if len(matching)>1:raise ValueError('ambiguous fresh native CLI context')
+        return matching[0] if matching else None
+
+    def fresh(self,state):
+        path=self.cleared(state)
+        if path is not None and identity(path)['model'] is not None:return path
         return None
 
     def publish(self,state,result):
         proof=result['last_bootstrap']
         if proof.get('manifest')!=state['reset']['manifest'] or proof.get('nonce')!=state['nonce']:
             raise ValueError('bootstrap receipt does not bind this native reset')
+        fresh=identity(proof['transcript'])
+        expected=(Path(state['reset']['directory'])/'resume-prompt.txt').read_text().rstrip('\n')
+        if fresh['user_count']!=1 or (fresh['first_user'] or '').rstrip('\n')!=expected:
+            raise ValueError('fresh user input changed before native receipt publication')
         elapsed=self.clock()-state['started']
         if elapsed>120:raise ValueError('native reset deadline exceeded')
         directory=private_directory(self.config['receipt_directory'])
+        old=identity(state['old_transcript'])
+        if old['status']!='complete' or user_frontier(old)!=state['old_user_frontier']:
+            raise ValueError('terminal outgoing goal accounting requires the unchanged completed turn')
+        terminal=read_goal(self.config['goal_database'],state['reset']['previous_session'])
+        digest=hashlib.sha256(json.dumps(terminal,sort_keys=True).encode()).hexdigest()
+        terminal_path=directory/(state['nonce']+'.terminal-goal.'+digest+'.json')
+        if not terminal_path.exists():atomic_json(terminal_path,terminal)
+        GoalLineage(self.config['goal_ledger']).record(terminal_path,self.config['deadline'])
         snapshot=directory/(state['nonce']+'.goal-ledger.json')
         if not snapshot.exists():atomic_json(snapshot,json.loads(Path(self.config['goal_ledger']).read_text()))
         receipt={'version':1,'verified':True,'manifest':state['reset']['manifest'],
             'nonce':state['nonce'],'previous_session':proof['previous_session'],
             'session_id':result['session_id'],'epoch':result['epoch'],
             'transcript':proof['transcript'],'seconds':round(elapsed,3),
-            'goal_receipt':state['goal_receipt'],'goal_ledger':file_binding(snapshot),
+            'goal_receipt':state['goal_receipt'],'terminal_goal_receipt':file_binding(terminal_path),
+            'goal_ledger':file_binding(snapshot),
             'bootstrap':proof,'transport':'verified-window-native-clear-and-full-prompt'}
         path=directory/(state['nonce']+'.json')
         if path.exists():
@@ -118,6 +152,11 @@ class AutoReset:
         if phase=='waiting_title':
             self.unchanged_parent(state)
             if state['title'] not in self.window.title():return state
+            path=self.cleared(state)
+            if path is None:return state
+            actual=identity(path)
+            if actual['user_count'] or actual['status']=='active':raise ValueError('fresh user input before generated prompt delivery')
+            state['fresh_transcript']=str(path)
             state['phase']='prompt_intent';self.save(state)
             text=(Path(state['reset']['directory'])/'resume-prompt.txt').read_text().rstrip('\n')
             self.window.type(text);self.window.submit()
@@ -125,9 +164,10 @@ class AutoReset:
         if phase=='waiting_fresh':
             if journal.get('last_bootstrap',{}).get('manifest')==state['reset']['manifest']:
                 return self.publish(state,journal)
-            self.unchanged_parent(state)
             path=fresh_transcript or self.fresh(state)
+            self.unchanged_parent(state,recovery_transcript=path)
             if path is None:return state
+            if str(path)!=state['fresh_transcript']:raise ValueError('fresh native context changed after prompt delivery')
             result=self.loop.bootstrap(path)
             return self.publish(state,result)
         raise ValueError('unknown autoreset phase')
@@ -199,7 +239,8 @@ def main():
             if goal['threadId']!=journal['session_id']:raise ValueError('actual current goal receipt required')
             GoalLineage(controller.config['goal_ledger']).record(args.goal_receipt,controller.config['deadline'])
             result=dict(session_id=journal['session_id'],epoch=journal['epoch'],completed=sorted(journal['completed']),
-                owned_processes=owned,goal_receipt=str(args.goal_receipt.absolute()))
+                owned_processes=owned,goal_receipt=str(args.goal_receipt.absolute()),
+                user_frontier=user_frontier(identity(next(s['transcript'] for s in controller.loop._control()['sessions'] if s['role']=='buford'))))
             atomic_json(controller.config['release'],result)
         elif args.command=='status':result=controller.status()
         elif args.command=='wait-bootstrap':result=wait_bootstrap(controller,args.manifest)

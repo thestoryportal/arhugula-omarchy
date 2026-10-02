@@ -1,16 +1,24 @@
 import json
 from pathlib import Path
 import unittest
+import sqlite3
+from datetime import datetime,timezone
 import test_loop
 
 
 class WindowSeam:
-    def __init__(self):self.name='old';self.lines=[];self.pending=None
+    def __init__(self,root):self.root=root;self.name='old';self.lines=[];self.pending=None;self.rollouts=[]
     def check(self):return {'title':self.name}
     def title(self):return self.name
     def type(self,text):self.pending=text;self.lines.append(text)
     def submit(self):
-        if self.pending.startswith('/clear '):self.name=self.pending[7:]
+        if self.pending.startswith('/clear '):
+            self.name=self.pending[7:]
+            path=self.root/'new.jsonl'
+            path.write_text(json.dumps({'type':'session_meta','payload':{'id':'new',
+                'timestamp':datetime.now(timezone.utc).isoformat()}})+'\n')
+            self.rollouts=[path]
+    def transcripts(self):return self.rollouts
 
 
 class AutoResetTests(unittest.TestCase):
@@ -24,13 +32,18 @@ class AutoResetTests(unittest.TestCase):
             'tokensUsed':100,'timeUsedSeconds':10,'status':'paused'},'remainingTokens':None}))
         self.release=self.root/'release.json'
         self.release.write_text(json.dumps({'session_id':'old','epoch':0,'owned_processes':[],
-            'goal_receipt':str(goal),'completed':[]}))
+            'goal_receipt':str(goal),'completed':[],'user_frontier':{'count':0,'hash':None}}))
+        self.database=self.root/'goals.sqlite'
+        with sqlite3.connect(self.database) as connection:
+            connection.execute('CREATE TABLE thread_goals (thread_id TEXT PRIMARY KEY,goal_id TEXT,objective TEXT,status TEXT,token_budget INTEGER,tokens_used INTEGER,time_used_seconds INTEGER,created_at_ms INTEGER,updated_at_ms INTEGER)')
+            connection.execute('INSERT INTO thread_goals VALUES (?,?,?,?,?,?,?,?,?)',('old','goal','full scope','active',None,100,10,1000,1000))
         self.config={'authority':file_binding(authority),'continuation':file_binding(instructions),
             'release':str(self.release),'packages':str(self.root/'packages'),
             'goal_ledger':str(self.root/'lineage.json'),'deadline':'original',
+            'goal_database':str(self.database),
             'receipt_directory':str(self.root/'receipts'),'sessions':str(self.root),
             'source_acceptance':[file_binding(authority)]}
-        self.window=WindowSeam();self.clock=100
+        self.window=WindowSeam(self.root);self.clock=100
 
     def controller(self):
         from ops.orchestration.auto_reset import AutoReset
@@ -137,3 +150,79 @@ class AutoResetTests(unittest.TestCase):
             with self.assertRaises(OSError):controller.step(self.fresh())
         with self.assertRaisesRegex(ValueError,'native reset receipt'):
             self.loop.begin('u1')
+
+    def test_ar1_complete_prompt_required_not_just_nonce_prefix(self):
+        self.hold();controller=self.controller()
+        for _ in range(4):controller.step()
+        fresh=self.fresh();original=fresh.read_text().splitlines();row=json.loads(original[-1]);prompt=row['payload']['content'][0]['text']
+        marker=prompt[prompt.index('BUFORD_CONTEXT_HANDOFF '):].split('. ',1)[0]
+        for broken in (marker,prompt[:-20], 'prefix '+prompt,prompt+' suffix'):
+            row['payload']['content'][0]['text']=broken
+            fresh.write_text('\n'.join(original[:-1]+[json.dumps(row)])+'\n')
+            with self.assertRaises(ValueError):controller.step(fresh)
+            self.assertEqual(self.loop.status()['epoch'],0)
+
+    def test_ar2_new_user_before_prepare_cannot_become_authority(self):
+        self.hold();controller=self.controller()
+        with self.f.old_transcript.open('a') as stream:
+            stream.write(json.dumps({'type':'response_item','payload':{'role':'user','content':[{'text':'pause now'}]}})+'\n')
+        with self.assertRaisesRegex(ValueError,'user input changed'):controller.step()
+        self.assertEqual(self.window.lines,[])
+
+    def test_ar2_second_fresh_user_invalidates_bootstrap(self):
+        self.hold();controller=self.controller()
+        for _ in range(4):controller.step()
+        fresh=self.fresh()
+        with fresh.open('a') as stream:
+            stream.write(json.dumps({'type':'response_item','payload':{'role':'user','content':[{'text':'pause now'}]}})+'\n')
+        with self.assertRaises(ValueError):controller.step(fresh)
+        self.assertEqual(self.loop.status()['epoch'],0)
+
+    def test_ar3_routing_publication_crash_recovers_through_supervisor(self):
+        from unittest.mock import patch
+        self.hold();controller=self.controller()
+        for _ in range(4):controller.step()
+        fresh=self.fresh();save=self.loop._save
+        def crash_final(state):
+            if state['epoch']==1:raise OSError('crash after routing')
+            save(state)
+        with patch.object(self.loop,'_save',side_effect=crash_final):
+            with self.assertRaises(OSError):controller.step(fresh)
+        recovered=self.controller();recovered.step(fresh)
+        self.assertEqual(self.loop.status()['epoch'],1)
+        self.assertEqual(len(self.window.lines),2)
+
+    def test_ar5_active_goal_tail_is_read_from_terminal_native_database(self):
+        self.hold();controller=self.controller();controller.step()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute('UPDATE thread_goals SET tokens_used=120,time_used_seconds=12,updated_at_ms=2000')
+        for _ in range(3):controller.step()
+        controller.step(self.fresh())
+        ledger=json.loads(Path(self.config['goal_ledger']).read_text())
+        self.assertEqual((ledger['tokens_used'],ledger['seconds_used']),(120,12))
+
+    def test_ar4_native_owned_rollout_discovery_ignores_date_partition(self):
+        self.hold();controller=self.controller()
+        for _ in range(4):controller.step()
+        state=controller.status();frontier=json.loads((Path(state['reset']['directory'])/'frontier.json').read_text())
+        self.root.joinpath(*frontier['prepared_at'][:10].split('-')).mkdir(parents=True)
+        future=self.root/'2099/01/01';future.mkdir(parents=True)
+        path=self.fresh();moved=future/path.name;path.rename(moved);self.window.rollouts=[moved]
+        self.assertEqual(controller.fresh(state),moved)
+
+    def test_ar2_cleared_chat_input_holds_before_prompt_delivery(self):
+        self.hold();controller=self.controller();controller.step();controller.step()
+        with self.window.rollouts[0].open('a') as stream:
+            stream.write(json.dumps({'type':'response_item','payload':{'role':'user','content':[{'text':'pause now'}]}})+'\n')
+        with self.assertRaisesRegex(ValueError,'fresh user input'):controller.step()
+        self.assertEqual(len(self.window.lines),1)
+
+    def test_ar2_repeated_identical_user_event_after_release_is_stale(self):
+        row=json.dumps({'type':'response_item','payload':{'role':'user','content':[{'text':'same'}]}})+'\n'
+        with self.f.old_transcript.open('a') as stream:stream.write(row)
+        from ops.orchestration.loop import identity
+        release=json.loads(self.release.read_text());actual=identity(self.f.old_transcript)
+        release['user_frontier']={'count':actual.get('user_count',1),'hash':actual['last_user_hash']}
+        self.release.write_text(json.dumps(release));self.hold()
+        with self.f.old_transcript.open('a') as stream:stream.write(row)
+        with self.assertRaisesRegex(ValueError,'user input changed'):self.controller().step()

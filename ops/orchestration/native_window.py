@@ -95,6 +95,19 @@ class NativeWindow:
     def title(self):
         return self.check()['title']
 
+    def transcripts(self):
+        self.check()
+        paths=set()
+        for fd in Path(f'/proc/{self.cap.native_pid}/fd').iterdir():
+            try:path=fd.resolve(strict=True)
+            except FileNotFoundError:continue
+            if not path.name.startswith('rollout-') or path.suffix!='.jsonl':continue
+            with path.open() as stream:
+                try:row=json.loads(next(stream))
+                except (StopIteration,json.JSONDecodeError):continue
+            if row.get('type')=='session_meta' and row['payload'].get('source')=='cli':paths.add(path)
+        return sorted(paths)
+
     def type(self,text):
         program=input_program(self.cap.address,text)
         self.check()

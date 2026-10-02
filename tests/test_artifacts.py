@@ -28,7 +28,17 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(json.loads(Path(result['receipt']).read_text()), result)
 
     def test_timeout_has_terminal_receipt_and_preserves_raw_output(self):
-        result = self.capture("import time; print('started',flush=True); time.sleep(20)", 0.1)
+        from unittest.mock import patch
+        import time
+        communicate=subprocess.Popen.communicate
+        def after_output_ready(process,input=None,timeout=None):
+            deadline=time.monotonic()+5
+            while not any(p.read_bytes()==b'started\n' for p in self.root.glob('*/stdout.log')):
+                if time.monotonic()>=deadline:raise AssertionError('fixture did not publish startup output')
+                time.sleep(.01)
+            return communicate(process,input=input,timeout=timeout)
+        with patch.object(subprocess.Popen,'communicate',after_output_ready):
+            result = self.capture("import time; print('started',flush=True); time.sleep(20)", 0.1)
         self.assertEqual(result['terminal'], 'timeout')
         self.assertEqual(result['exit'], 124)
         self.assertEqual(Path(result['stdout']['path']).read_text(), 'started\n')

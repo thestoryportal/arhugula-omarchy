@@ -93,7 +93,9 @@ immutable receipt and release all owned writers. Record the release mechanically
 /home/robbo/Work/arhugula-build-eval/.venv/bin/python -m ops.orchestration.auto_reset release --config .local/buford-loop/autoreset-config.json --ownership <released-owner-receipt.json> --goal-receipt <actual-native-goal-receipt.json>
 ```
 
-The release binds this UUID/epoch and every recorded completion. A close arriving
+The release binds this UUID/epoch, every recorded completion, and the actual user
+event count/hash. Even an identical repeated human message invalidates an older
+release. A close arriving
 before its matching release makes the service wait for the file event; it does not
 exit or count an old release. Active owned PIDs refuse release and preparation.
 Parent/epic closures never advance the five-ticket counter. The agent writes these
@@ -103,7 +105,10 @@ The supervisor requires the actual idle Sol/high lane, unchanged latest human in
 and pause/routing, sealed authority/source/goal bindings, exact window stable ID,
 terminal/native PID start times and ancestry, and the US keyboard state. It directs
 keys to that window without touching the clipboard or choosing another worker. A
-nonce-named native title witnesses clear before the full generated prompt is sent.
+nonce-named native title and the bound client's new, empty CLI rollout witness
+clear before the full generated prompt is sent. Native-owned rollout discovery
+does not depend on filesystem date partitions. Exact sealed prompt delivery and
+one actual user message are required before bootstrap and receipt publication.
 Persisted input intents hold uncertain deliveries for evidence-based recovery; no
 blind replay erases an unrelated context. Native active-turn clear remains disabled.
 The legacy generic `runner.py` and legacy session watcher are not enabled.
@@ -126,7 +131,11 @@ itself does not unpause production or assert installed acceptance.
 Native goal counters belong to individual threads and cannot be imported by the
 native setter. `GoalLineage` retains actual immutable receipts, the identical full
 objective, original deadline and unbounded contract, and derives lifetime totals
-across threads. Same-thread updates use the latest monotonic totals, never count a
+across threads. Before publishing native acceptance, the supervisor reads the
+outgoing completed thread's canonical `goals_1.sqlite` row in read-only mode and
+retains its terminal snapshot, reconciling active-goal usage after the release
+receipt. A changed native schema or nonterminal outgoing turn holds acceptance.
+Same-thread updates use the latest monotonic totals, never count a
 receipt twice or erase old usage with a fresh zero. The fresh lane reconciles its
 actual native goal with that contract before work; it must not claim that native
 counters were copied. Preserve the original receipts and never extend the deadline.
