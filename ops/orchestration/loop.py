@@ -50,7 +50,7 @@ def excluded_scope(data, quarantined):
 
 def identity(transcript):
     result = dict(session_id=None, model=None, effort=None, status='unknown', input_tokens=None,
-                  created_at=None, cwd=None, source=None, originator=None, first_user=None)
+                  created_at=None, cwd=None, source=None, originator=None, first_user=None,last_user_hash=None)
     with Path(transcript).open() as stream:
         for row in map(json.loads, stream):
             payload = row.get('payload', {})
@@ -61,11 +61,12 @@ def identity(transcript):
                 result['session_id'] = identifier
                 result.update(created_at=payload.get('timestamp',row.get('timestamp')),
                               cwd=payload.get('cwd'),source=payload.get('source'),originator=payload.get('originator'))
-            elif row.get('type')=='response_item' and payload.get('role')=='user' and result['first_user'] is None:
+            elif row.get('type')=='response_item' and payload.get('role')=='user':
                 text='\n'.join(c.get('text','') for c in payload.get('content',[]))
                 # Native CLI records injected AGENTS/environment before the user input.
                 if not text.startswith(('# AGENTS.md instructions for ','<environment_context>')):
-                    result['first_user']=text
+                    if result['first_user'] is None:result['first_user']=text
+                    result['last_user_hash']=hashlib.sha256(text.encode()).hexdigest()
             elif row.get('type') == 'turn_context':
                 result.update(model=payload.get('model'), effort=payload.get('effort',payload.get('reasoning_effort')))
             elif row.get('type') == 'event_msg':
@@ -167,6 +168,8 @@ class Loop:
         with Lease(self.path.with_suffix('.lock')):
             state=self._read(); control=self._control()
             data, receipts=self.lit.read(ticket)
+            if state.get('awaiting_native_receipt'):
+                raise ValueError('verified native reset receipt required before fresh-epoch admission')
             closed={i['id'] for i in data['issues'] if i.get('status')=='closed'}
             unreconciled=(set(state['admissions']) & closed)-set(state['completed'])
             if unreconciled:
@@ -177,6 +180,8 @@ class Loop:
             if buford['session_id'] != state['session_id']:
                 raise ValueError('Buford identity changed; bootstrap required')
             if len(state['completed'])-state['epoch_start'] >= 5 or state['reset'] or not headroom:
+                if not headroom:
+                    state['reset_requested']=True;self._save(state)
                 raise ValueError('context-reset-required')
             denied=excluded_scope(data,set(state['quarantine']))
             if ticket in denied:
@@ -281,7 +286,7 @@ class Loop:
         ticket,selection=self.lit.next(data,excluded)
         return {'ticket':ticket,'excluded':sorted(excluded),'reads':receipts,'selection_receipt':selection}
 
-    def prepare_clear(self, directory, owned_processes):
+    def prepare_clear(self, directory, owned_processes, *, automatic=None):
         with Lease(self.path.with_suffix('.lock')):
             state=self._read()
             for handle in owned_processes:
@@ -300,7 +305,8 @@ class Loop:
                 production_handoff=state['handoff'], reads=reads, epoch=state['epoch'],
                 completed=list(state['completed']), quarantine=state['quarantine'], unit_quarantine=state['unit_quarantine'],
                 owned_processes=owned_processes, routing=file_binding(self.control),
-                nonce=nonce,prepared_at=prepared_at,native_lane={k:provenance[k] for k in ('cwd','source','originator')}))
+                nonce=nonce,prepared_at=prepared_at,automatic=automatic is not None,
+                native_lane={k:provenance[k] for k in ('cwd','source','originator')}))
             prompt=(f'You are Buford, the user-selected {state["model"]}/{state["effort"]} lead orchestrator. '
                     f'BUFORD_CONTEXT_HANDOFF {nonce} {file_binding(directory/"frontier.json")["sha256"]}. '
                     'First run lit quickstart, then read root AGENTS.md, context-policy.md and the Buford role. '
@@ -315,9 +321,41 @@ class Loop:
                     'Use fresh LIT reads at every actionable loop boundary and the durable review/epoch controller. '
                     'Do not restart completed gates or clear protected workers. Source GO and review clearance '
                     'do not establish installed acceptance. Preserve worktrees, drafts and classifier denials.\n')
+            extra=[]
+            if automatic is not None:
+                extra=[file_binding(automatic['continuation']),file_binding(automatic['goal_receipt'])]
+                # [DEVICE:negative-examples] The native supervisor owns the one bootstrap.
+                prompt=(f'You are Buford, {state["model"]}/{state["effort"]}, in the same visible native lane. '
+                    f'BUFORD_CONTEXT_HANDOFF {nonce} {file_binding(directory/"frontier.json")["sha256"]}. '
+                    'The user explicitly requires autonomous native clear and automatic complete prompt submission, '
+                    'without HIL or manual append. First run lit quickstart; read root AGENTS.md, '
+                    'docs/orchestration/context-policy.md and docs/orchestration/roles/buford.md. '
+                    f'Verify the sealed package {directory}/manifest.json. '
+                    f'The external supervisor alone calls Loop.bootstrap; do not bootstrap again. '
+                    f'Run {sys.executable} -m ops.orchestration.auto_reset wait-bootstrap '
+                    f'--config {automatic["config"]} --manifest {directory}/manifest.json '
+                    'to verify its receipt, actual fresh UUID/Sol/high, unchanged protected routing, '
+                    'deadline, nonce and preserved journal. This is a fresh context, not completed acceptance. '
+                    f'Read the complete bound continuation {automatic["continuation"]} SHA256 {extra[0]["sha256"]}, '
+                    f'and actual prior goal receipt {automatic["goal_receipt"]} SHA256 {extra[1]["sha256"]}. '
+                    f'Goal accounting ledger: {automatic["goal_ledger"]}; original deadline {automatic["deadline"]}. '
+                    'Native goals are thread-local: preserve the original full objective and actual per-thread receipts, '
+                    'derive lifetime totals in GoalLineage, and never claim native counters were imported. '
+                    'Finish optimization acceptance and record actual native reset evidence before production. '
+                    'Then continue the user-authorized original full goal autonomously; historical HIL ask gates '
+                    'are superseded by the standing user authorization in root AGENTS.md. A new direct pause wins. '
+                    'Use the original sealed production handoff and current LIT reads as evidence pointers; '
+                    'preserve all six categories/nine arcs, original deadline and numerical criteria. '
+                    'Do not restart finished Unit8 gate b1hxp92fk, clear protected workers, reset review budgets, '
+                    'or treat source GO as installed acceptance. Preserve worktrees/drafts/classifier denials. '
+                    'Write raw logs through the physical Mac artifact capture boundary. '
+                    'After every actual closed admitted leaf record Loop.complete. After the fifth close, '
+                    'write the current released-process and actual goal receipt through the configured release '
+                    'boundary, then finish the turn; the runtime service performs the next native clear and '
+                    'entire prompt submission automatically. Do not ask the user to clear or paste text.\n')
             path=directory/'resume-prompt.txt';path.write_text(prompt);os.chmod(path,0o600)
             with path.open('rb') as stream:os.fsync(stream.fileno())
-            atomic_json(directory/'manifest.json',dict(version=1,files=[file_binding(directory/'frontier.json'),file_binding(path)]))
+            atomic_json(directory/'manifest.json',dict(version=1,files=[file_binding(directory/'frontier.json'),file_binding(path),*extra]))
             state['reset']={'directory':str(directory),'manifest':file_binding(directory/'manifest.json'),
                             'previous_session':state['session_id']}
             state['admission']=None
@@ -333,6 +371,8 @@ class Loop:
         if file_binding(reset['manifest']['path'])!=reset['manifest']:
             raise ValueError('sealed clear package changed')
         frontier=json.loads((Path(reset['directory'])/'frontier.json').read_text())
+        for bound in json.loads(Path(reset['manifest']['path']).read_text())['files']:
+            if file_binding(bound['path'])!=bound:raise ValueError('sealed clear package evidence changed')
         for handle in frontier['owned_processes']:
             if Path(f'/proc/{int(handle["pid"])}').exists():raise ValueError('owned writer remains active')
         return {'clear_allowed':True,'reset':reset}
@@ -378,11 +418,24 @@ class Loop:
                 control['notification_thread']=actual['session_id']
             atomic_json(self.control,control,private=False)
             state.update(session_id=actual['session_id'],epoch=state['epoch']+1,
-                         epoch_start=len(state['completed']), reset=None, pending_bootstrap=None, admission=None)
+                         epoch_start=len(state['completed']), reset=None, pending_bootstrap=None, admission=None,
+                         reset_requested=False,awaiting_native_receipt=frontier.get('automatic',False))
             state['last_bootstrap']={'seconds':round(time.monotonic()-began,3),'reads':reads,
-                                     'previous_session':reset['previous_session']}
+                                     'previous_session':reset['previous_session'],
+                                     'manifest':reset['manifest'],'nonce':frontier['nonce'],
+                                     'transcript':str(Path(transcript).absolute())}
             self._save(state)
             return self.status()
+
+    def acknowledge_native_reset(self, receipt):
+        with Lease(self.path.with_suffix('.lock')):
+            state=self._read();proof=json.loads(Path(receipt).read_text())
+            if (proof.get('verified') is not True or proof['session_id']!=state['session_id']
+                    or proof['manifest']!=state['last_bootstrap']['manifest']
+                    or proof['nonce']!=state['last_bootstrap']['nonce'] or proof['seconds']>120):
+                raise ValueError('native reset acceptance receipt mismatch')
+            state['native_receipt']=file_binding(receipt);state['awaiting_native_receipt']=False
+            self._save(state)
 
 
 def main():

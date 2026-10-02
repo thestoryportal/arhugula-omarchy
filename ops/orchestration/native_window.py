@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
+import select
 
 from .artifacts import capture, DEFAULT_ROOT
 
@@ -102,6 +103,9 @@ class NativeWindow:
             raise OSError('native input dispatch was not acknowledged')
 
     def submit(self):
+        # Native TUI coalesces rapid key bursts. This bounded transport settling
+        # interval is not a workflow release condition or user consent.
+        select.select([],[],[],.8)
         self.check()
         answer=self.command(['hyprctl','eval',input_program(self.cap.address)])
         if answer.strip()!='ok':raise OSError('native submit was not acknowledged')

@@ -79,45 +79,57 @@ review solely because recording its verdict added gate rows.
 
 ## Five-ticket clear boundary
 
-The sixth ticket admission is held until a verified fresh epoch. Do not postpone
-the boundary because the next ticket looks small. Prepare from incremental receipts:
+The sixth ticket admission is held until a verified fresh epoch. The autonomous
+`ops.orchestration.auto_reset` runtime service watches journal and native events
+outside the model context. After five verified closed leaves, or an earlier measured
+headroom hold, it prepares the package, waits for the actual parent turn to finish,
+executes native `/clear` in the same bound Buford window and types/submits the whole
+generated continuation prompt. The user does not clear or append a prompt.
+
+Before finishing the boundary turn, save the actual `get_goal` tool result to a new
+immutable receipt and release all owned writers. Record the release mechanically:
 
 ```bash
-/home/robbo/Work/arhugula-build-eval/.venv/bin/python -m ops.orchestration.loop prepare-clear <new-private-directory> --ownership <released-owner-receipt.json>
+/home/robbo/Work/arhugula-build-eval/.venv/bin/python -m ops.orchestration.auto_reset release --config .local/buford-loop/autoreset-config.json --ownership <released-owner-receipt.json> --goal-receipt <actual-native-goal-receipt.json>
 ```
 
-The owner receipt supplies `owned_processes` (an explicit list of PID objects,
-empty only after release). Live owned PIDs refuse preparation. The package seals
-a bounded frontier and ready-to-paste prompt, retaining the full production
-handoff by SHA256 reference rather than rewriting its history. Preparing does not
-clear an active parent turn. After the parent finishes, an external caller runs:
+The release binds this UUID/epoch and every recorded completion. A close arriving
+before its matching release makes the service wait for the file event; it does not
+exit or count an old release. Active owned PIDs refuse release and preparation.
+Parent/epic closures never advance the five-ticket counter. The agent writes these
+receipts as part of normal closure; there is no human handoff step.
 
-```bash
-/home/robbo/Work/arhugula-build-eval/.venv/bin/python -m ops.orchestration.loop ready-clear --transcript <current-native-transcript>
-```
+The supervisor requires the actual idle Sol/high lane, unchanged latest human input
+and pause/routing, sealed authority/source/goal bindings, exact window stable ID,
+terminal/native PID start times and ancestry, and the US keyboard state. It directs
+keys to that window without touching the clipboard or choosing another worker. A
+nonce-named native title witnesses clear before the full generated prompt is sent.
+Persisted input intents hold uncertain deliveries for evidence-based recovery; no
+blind replay erases an unrelated context. Native active-turn clear remains disabled.
+The legacy generic `runner.py` and legacy session watcher are not enabled.
 
-Only an idle identity-matched lane with a sealed package is clearable. Use native
-`/clear` in that same visible window, retaining `gpt-6.1-sol/high`, then paste the
-sealed prompt. The controller does not simulate terminal input or use `codex exec`
-as a replacement session. Automated GUI clear is not enabled: the current TUI has
-no verified control socket, and active-turn clear is disabled. The scheduling stop
-is deterministic; the native clear requires this idle external step.
+The external supervisor alone invokes `Loop.bootstrap`. The first automatic user
+message instructs the fresh lane to verify `wait-bootstrap --config <config> --manifest
+<sealed-manifest>`; do not bootstrap a second time. Bootstrap verifies new UUID,
+Sol/high, creation time, CLI provenance and the nonce in the first actual user
+message, reads LIT, and updates only Buford routing. Counts, review budgets,
+quarantines and protected sessions survive. Atomic bootstrap recovery preserves one
+epoch even if routing or receipt publication was interrupted.
 
-In the fresh lane `bootstrap --transcript <actual-new-transcript>` verifies seals,
-the actual new UUID/model/effort, creation after the sealed package, native CLI
-provenance, the handoff nonce in the first human prompt, and fresh LIT reads before
-updating only Buford routing. Native injected AGENTS/environment instructions do
-not count as the human prompt. Other registered worker sessions are rejected.
-All completed-ticket and review receipts survive. Atomic intent permits
-recovery if routing updated but the journal did not. The original pause, deadline,
-scope and goal accounting survive; do not create a smaller or reset goal. Retrieve
-the actual native goal and reconcile its sealed predecessor receipt if a native
-thread change requires transfer. Bootstrap does not resume the production goal.
+The clear-to-bootstrap limit is 120 seconds; time spent waiting for an active
+parent does not count. Full applicable Laws remain full-read once per fresh medium.
+A live native trial must verify the actual receipt before production continues.
+Historical HIL ask gates are superseded by the user's standing permission and latest
+autonomous continuation instruction; a newer direct pause overrides them. Bootstrap
+itself does not unpause production or assert installed acceptance.
 
-The mechanical bootstrap deadline is 120 seconds; timeout leaves work held. Its
-receipt measures actual time. Mandatory full Laws and applicable product skills
-are loaded once per fresh medium and are not replaced by compact summaries. No
-claim of an observed two-minute end-to-end TUI restart is made before that restart.
+Native goal counters belong to individual threads and cannot be imported by the
+native setter. `GoalLineage` retains actual immutable receipts, the identical full
+objective, original deadline and unbounded contract, and derives lifetime totals
+across threads. Same-thread updates use the latest monotonic totals, never count a
+receipt twice or erase old usage with a fresh zero. The fresh lane reconciles its
+actual native goal with that contract before work; it must not claim that native
+counters were copied. Preserve the original receipts and never extend the deadline.
 
 ## Raw artifacts
 
