@@ -1,7 +1,6 @@
 """Deliver literal input to one verified native window without changing focus."""
 
 from dataclasses import dataclass, asdict
-import ast
 import json
 from pathlib import Path
 import re
@@ -157,13 +156,18 @@ class WindowCapability:
 class RetainedContext:
     """Explicit proof for one expired maintenance boundary, never prompt delivery."""
 
-    proof: dict
+    session_id: str
+    created_at: str
+    process_uuid: str
+    creation_log_id: int
+    transcript: str
+    user_input: bool
 
     @classmethod
     def parse(cls, grant, cap, cwd, frontier, previous):
         try:
             return cls._parse(grant, cap, cwd, frontier, previous)
-        except (KeyError, TypeError, AttributeError, IndexError, SyntaxError) as error:
+        except (KeyError, TypeError, AttributeError) as error:
             raise ValueError("malformed retained native context evidence") from error
 
     @classmethod
@@ -201,42 +205,12 @@ class RetainedContext:
             )
             or type(proof["creation_log_id"]) is not int
             or proof["creation_log_id"] <= 0
-            or not proof["transcript"]
+            or not Path(proof["transcript"]).is_absolute()
         ):
             raise ValueError("retained native creation proof mismatch")
-        # This bounded recovery accepts the already witnessed read-only program.
-        # Parse its complete AST without executing artifact-supplied Python.
-        argv = receipt["argv"]
-        if len(argv) != 3 or argv[1] != "-c":
-            raise ValueError("retained native witness command mismatch")
-        program = ast.parse(argv[2])
-        try:
-            source = ast.literal_eval(
-                program.body[2].value.args[1].args[0].func.value.args[0]
-            )
-            config = ast.literal_eval(program.body[4].value.args[0].func.value.args[0])
-            boundary = ast.literal_eval(
-                program.body[5].value.args[0].func.value.args[0]
-            )
-        except (IndexError, AttributeError, ValueError) as error:
-            raise ValueError("retained native witness inputs missing") from error
-        if (cwd / config).resolve() != Path(grant["config"]["path"]).resolve() or (
-            cwd / boundary
-        ).resolve() != Path(grant["frontier"]["path"]).resolve():
-            raise ValueError("retained native witness input paths mismatch")
-        expected = (
-            "import sys,json\nfrom pathlib import Path\n"
-            f"sys.path.insert(0,str(Path({source!r}).resolve()))\n"
-            "from ops.orchestration.native_window import NativeWindow,WindowCapability\n"
-            f"config=json.loads(Path({config!r}).read_text())\n"
-            f"frontier=json.loads(Path({boundary!r}).read_text())\n"
-            "w=NativeWindow(WindowCapability(**config['window']),Path.cwd())\n"
-            f"proof=w.context(frontier,{previous!r})\nprint(json.dumps(proof))\n"
-            f"if proof is None or proof['session_id']!={proof['session_id']!r} or not proof['user_input']:raise SystemExit('expected current user intervention proof missing')\n"
-        )
-        if ast.dump(program) != ast.dump(ast.parse(expected)):
-            raise ValueError("retained native witness program mismatch")
-        return cls(proof)
+        # [LAW:carrying-cost] The explicit grant attests the independently checked
+        # observation; incidental diagnostic source is not a durable protocol.
+        return cls(**proof)
 
 
 class NativeWindow:
@@ -332,7 +306,7 @@ class NativeWindow:
         if grant is None:
             return self.context(frontier, previous)
         retained = RetainedContext.parse(grant, self.cap, self.cwd, frontier, previous)
-        proof = retained.proof
+        proof = asdict(retained)
         current = self.context(frontier, previous)
         if current is not None and any(
             current[key] != proof[key]

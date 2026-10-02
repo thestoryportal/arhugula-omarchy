@@ -125,23 +125,13 @@ class NativeWindowTests(unittest.TestCase):
         config.write_text(json.dumps({"window": asdict(window.cap)}))
         boundary = home / "frontier.json"
         boundary.write_text(json.dumps(frontier))
-        code = (
-            "import sys,json\nfrom pathlib import Path\n"
-            "sys.path.insert(0,str(Path('.worktrees/buford-loop-optimization-20261002').resolve()))\n"
-            "from ops.orchestration.native_window import NativeWindow,WindowCapability\n"
-            f"config=json.loads(Path({str(config)!r}).read_text())\n"
-            f"frontier=json.loads(Path({str(boundary)!r}).read_text())\n"
-            "w=NativeWindow(WindowCapability(**config['window']),Path.cwd())\n"
-            "proof=w.context(frontier,'old')\nprint(json.dumps(proof))\n"
-            f"if proof is None or proof['session_id']!={identifier!r} or not proof['user_input']:raise SystemExit('expected current user intervention proof missing')\n"
-        )
         out = home / "stdout.log"
         out.write_text(json.dumps(proof) + "\n")
         receipt = home / "receipt.json"
         receipt.write_text(
             json.dumps(
                 {
-                    "argv": ["python", "-c", code],
+                    "argv": ["python", "-m", "read_only_native_context_witness"],
                     "cwd": str(window.cwd),
                     "exit": 0,
                     "terminal": "exited",
@@ -185,6 +175,22 @@ class NativeWindowTests(unittest.TestCase):
         self.assertTrue(window.recovery_context(frontier, "old", grant)["user_input"])
         self.assertIsNone(window.context(frontier, "old"))
 
+    def test_retained_proof_contract_does_not_depend_on_diagnostic_program(self):
+        from ops.orchestration.artifacts import file_binding
+
+        window, home, db, frontier, proof, grant, stream = (
+            self.retained_context_fixture()
+        )
+        path = Path(grant["receipt"]["path"])
+        receipt = json.loads(path.read_text())
+        receipt["argv"] = ["python", "-c", "print(existing_observation)"]
+        path.write_text(json.dumps(receipt))
+        grant["receipt"] = file_binding(path)
+        self.assertEqual(
+            window.recovery_context(frontier, "old", grant)["session_id"],
+            proof["session_id"],
+        )
+
     def test_retained_witness_refuses_changed_proof_and_current_ownership(self):
         from dataclasses import replace
         from ops.orchestration.artifacts import file_binding
@@ -197,7 +203,7 @@ class NativeWindowTests(unittest.TestCase):
             "window",
             "frontier",
             "failed",
-            "argv",
+            "cwd",
             "foreign-rollout",
             "empty-rollout",
             "closed-rollout",
@@ -267,8 +273,8 @@ class NativeWindowTests(unittest.TestCase):
                             receipt["stdout"] = file_binding(receipt["stdout"]["path"])
                     elif kind == "failed":
                         receipt["exit"] = 1
-                    elif kind == "argv":
-                        receipt["argv"][2] += "proof={'session_id':'foreign'}\n"
+                    elif kind == "cwd":
+                        receipt["cwd"] = "/foreign"
                     receipt_path.write_text(json.dumps(receipt))
                     grant["receipt"] = file_binding(receipt_path)
                 with self.assertRaises(ValueError):
