@@ -8,6 +8,7 @@ from .continuation import Lease, Stop, continue_work, select_ticket
 from .handoff import read_handoff
 from .local import CodexWorker, LocalAdapter, ProcessWorker
 from .routing import route
+from .artifacts import DEFAULT_ROOT
 
 
 def main():
@@ -21,7 +22,7 @@ def main():
     args = parser.parse_args()
     try:
         config = json.loads(args.config.read_text()) if args.config else {}
-        adapter = LocalAdapter(args.cwd, config.get("verify_argv", ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]), timeout=min(args.seconds, 300))
+        adapter = LocalAdapter(args.cwd, config.get("verify_argv", ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]), timeout=min(args.seconds, 300), artifact_root=config.get('artifact_root', DEFAULT_ROOT))
         if args.mode == "plan":
             issue, ancestors = select_ticket(adapter.export(), adapter.next())
             print(json.dumps(route(issue, ancestors) if issue else {"stop_reason": "queue-empty"}, indent=2))

@@ -33,7 +33,8 @@ class IsolatedLitTests(unittest.TestCase):
         for capability in ("contracts", "fixtures"):
             self.run_command(self.tree, "lit", "new", "--title", "Write harmless " + capability,
                              "--topic", "validation", "--labels", "autonomous-safe,capability:" + capability)
-        self.adapter = LocalAdapter(self.tree, ["git", "diff", "--check"])
+        self.artifacts = Path(self.directory.name) / 'artifacts'
+        self.adapter = LocalAdapter(self.tree, ["git", "diff", "--check"], artifact_root=self.artifacts)
         self.worker = ProcessWorker([sys.executable, str(ROOT / "tests/fixtures/offline_worker.py")], self.tree, 10)
         self.state = self.adapter.common_dir() / "orchestration"
 
@@ -52,10 +53,10 @@ class IsolatedLitTests(unittest.TestCase):
         self.assertIsNotNone(first["next_ticket"])
         prior = read_handoff(path)
         # A fresh Python process reads durable context, not conversation memory.
-        fresh = LocalAdapter(self.tree, ["git", "diff", "--check"])
+        fresh = LocalAdapter(self.tree, ["git", "diff", "--check"], artifact_root=self.artifacts)
         config = Path(self.directory.name) / "trusted-config.json"
         config.write_text(json.dumps({"goal": prior["goal"], "worker_argv": self.worker.argv,
-                                      "verify_argv": ["git", "diff", "--check"]}))
+                                      "verify_argv": ["git", "diff", "--check"], 'artifact_root': str(self.artifacts)}))
         output = self.run_command(ROOT, sys.executable, "-m", "ops.orchestration.runner", "run",
                                   "--cwd", str(self.tree), "--config", str(config), "--tickets", "1")
         second = json.loads(output)

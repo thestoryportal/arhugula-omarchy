@@ -24,9 +24,11 @@ def sync_directory(path):
         os.close(fd)
 
 
-def atomic_json(path, value):
+def atomic_json(path, value, *, private=True):
     path = Path(path).absolute()
-    directory = private_directory(path.parent)
+    directory = private_directory(path.parent) if private else path.parent
+    if any(p.is_symlink() for p in (directory, *directory.parents)):
+        raise ValueError('record path contains a symlink')
     if path.is_symlink():
         raise ValueError('record path contains a symlink')
     fd, temporary = tempfile.mkstemp(prefix='.record-', dir=directory)
