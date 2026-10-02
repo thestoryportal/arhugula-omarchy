@@ -71,3 +71,12 @@ class ReviewBudgetTests(unittest.TestCase):
         self.assertEqual(result['completed_passes'], 5)
         self.assertEqual(result['decision'], 'code_verified')
         self.assertFalse(result['admit_review'])
+
+    def test_pass2_p1_on_fix_delta_blocks_same_head_full_diff_admission(self):
+        rows=rows_for('1','old')+rows_for('2',severity='P1')
+        for row in rows:
+            if row.get('cycle_pass')=='2':row['diff_digest']='fix-delta-digest'
+        result=self.evaluate(rows)
+        self.assertEqual(result['decision'],'fix_required')
+        self.assertIn('2-head',result['blocking_findings'])
+        self.assertFalse(result['admit_review'])

@@ -78,10 +78,22 @@ class LocalAdapterTests(unittest.TestCase):
         self.assertIn("exit=128", evidence)
 
     def test_process_worker_receives_json_context_without_shell(self):
-        worker = ProcessWorker(["python3", "-c", "import json,sys; c=json.load(sys.stdin); print(json.dumps({'files':['new.txt'],'summary':c['goal'],'risks':[],'stop_reason':None}))"], self.tree, 5)
+        worker = ProcessWorker(["python3", "-c", "import json,sys; c=json.load(sys.stdin); print(json.dumps({'files':['new.txt'],'summary':c['goal'],'risks':[],'stop_reason':None}))"], self.tree, 5, artifact_root=Path(self.directory.name)/'artifacts')
         self.assertEqual(worker({"goal": "text; $NOT_SHELL"})["summary"], "text; $NOT_SHELL")
 
     def test_worker_timeout_stops(self):
-        worker = ProcessWorker(["python3", "-c", "import time; time.sleep(2)"], self.tree, 0.01)
+        worker = ProcessWorker(["python3", "-c", "import time; time.sleep(2)"], self.tree, 0.01, artifact_root=Path(self.directory.name)/'artifacts')
         with self.assertRaisesRegex(Stop, "worker-timeout"):
             worker({})
+
+    def test_worker_raw_stderr_is_retained_without_entering_receipt(self):
+        import json
+        store=Path(self.directory.name)/'worker-artifacts'
+        worker=ProcessWorker(['python3','-c',"import json,sys; print(json.dumps({'summary':'done'})); print('x'*2000000,file=sys.stderr)"],
+                             self.tree,5,artifact_root=store)
+        self.assertEqual(worker({}),{'summary':'done'})
+        receipts=list(store.glob('*/receipt.json'))
+        self.assertEqual(len(receipts),1)
+        result=json.loads(receipts[0].read_text())
+        self.assertEqual(result['stderr']['bytes'],2000001)
+        self.assertLess(len(result['summary']),5000)

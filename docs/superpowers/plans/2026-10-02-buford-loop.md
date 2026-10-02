@@ -35,11 +35,11 @@ Product review history remains canonical; output capture lives at subprocess edg
 **Interfaces:** `capture(argv, cwd, root, timeout, input=None)` returns a compact
 receipt with complete output-file bindings. `verify()` uses that receipt.
 
-- [ ] Write behavioral tests for large output, nonzero exit, timeout and missing share.
-- [ ] Run tests; expected missing implementation failure.
-- [ ] Implement streaming files, fsync/hash manifests, bounded summaries; integrate verify.
-- [ ] Run artifact and adapter tests; expected all passing.
-- [ ] Commit the bounded deliverable.
+- [x] Write behavioral tests for large output, nonzero exit, timeout and missing share.
+- [x] Run tests; expected missing implementation failure.
+- [x] Implement streaming files, fsync/hash manifests, bounded summaries; integrate verify.
+- [x] Run artifact and adapter tests; expected all passing.
+- [x] Commit the bounded deliverable.
 
 ### Task 2: Review circuit breaker
 
@@ -47,11 +47,11 @@ receipt with complete output-file bindings. `verify()` uses that receipt.
 **Interfaces:** `evaluate(gate, rows, arc, head, digest, observed)` derives completed
 pass bindings from canonical reducer and returns budget/clearance/disposition.
 
-- [ ] Write tests for exact fifth/sixth boundary, earlier P1 stop, unavailable and P2/prose.
-- [ ] Run tests; expected missing implementation failure.
-- [ ] Implement reducer adapter and stable binding union, retaining canonical gate authority.
-- [ ] Run review tests against actual product module; expected all passing.
-- [ ] Commit the bounded deliverable.
+- [x] Write tests for exact fifth/sixth boundary, earlier P1 stop, unavailable and P2/prose.
+- [x] Run tests; expected missing implementation failure.
+- [x] Implement reducer adapter and stable binding union, retaining canonical gate authority.
+- [x] Run review tests against actual product module; expected all passing.
+- [x] Commit the bounded deliverable.
 
 ### Task 3: LIT/epoch/restart boundary and operational adoption
 
@@ -60,13 +60,15 @@ pass bindings from canonical reducer and returns budget/clearance/disposition.
 **Interfaces:** `begin`, `complete`, `review`, `prepare-clear`, `bootstrap`, `status`
 consume native reads and journal receipts; artifact `run` records raw execution.
 
-- [ ] Write tests for actual CLI reads, race/failed reads, idempotent completion,
+- [x] Write tests for actual CLI reads, race/failed reads, idempotent completion,
   five-ticket hold, atomic recovery, wrong identity, paused/active clear and quarantine.
-- [ ] Run tests; expected missing implementation failure.
-- [ ] Implement lease-protected atomic journal, native LIT exclusion and sealed prompt.
-- [ ] Run full repository suite; expected all passing with normal host socket access.
-- [ ] Obtain one independent whole-branch review; fix meaningful findings with regressions.
-- [ ] Install only owned code/policy changes in root; seal/publish updated LIT handoff.
+- [x] Run tests; expected missing implementation failure.
+- [x] Implement lease-protected atomic journal, native LIT exclusion and sealed prompt.
+- [x] Run full repository suite; expected all passing with normal host socket access.
+- [x] Obtain one independent whole-branch review; fix meaningful findings with regressions.
+- [x] Install only owned code/policy changes in root; seal/publish updated LIT handoff.
 
 Advance approval is durable in root AGENTS; no additional design permission is
 requested. Execute inline to retain the existing visible workers and protected lanes.
+
+Implementation evidence and adoption receipts are retained under the root `.local/buford-loop/` and the sealed clear package. Native clear remains an idle external action; production closure is outside this maintenance change.

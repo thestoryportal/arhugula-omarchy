@@ -43,7 +43,19 @@ def summary(paths, limit=4096):
                 if re.search(rb'error|fail|traceback|passed|ran \d+|^OK$', chunk, re.I) and sum(map(len, matches)) < limit // 2:
                     matches.append(chunk[:512])
                 tail = (tail + chunk)[-limit // 2:]
-    return (b''.join(matches)[:limit // 2] + b'\n[bounded tail]\n' + tail).decode('utf-8', 'replace')[:limit]
+    header=b'\n[bounded tail]\n'
+    return (b''.join(matches)[:limit // 2-len(header)] + header + tail).decode('utf-8', 'replace')
+
+
+def group_active(pgid):
+    for proc in Path('/proc').glob('[0-9]*/stat'):
+        try:
+            fields=proc.read_text().rsplit(')',1)[1].split()
+        except FileNotFoundError:
+            continue  # The process exited during the census.
+        if int(fields[2])==pgid and fields[0]!='Z':
+            return True
+    return False
 
 
 def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
@@ -58,12 +70,14 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
     began = time.monotonic()
     launch_error = None
     terminal, code = 'exited', None
+    process_id=None
     # [LAW:effects-at-boundaries] No pipe buffers or raw logs enter model context.
     with paths[0].open('xb') as stdout, paths[1].open('xb') as stderr:
         os.chmod(paths[0], 0o600); os.chmod(paths[1], 0o600)
         try:
             process = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.PIPE,
                                        stdout=stdout, stderr=stderr, start_new_session=True)
+            process_id=process.pid
             try:
                 process.communicate(input=input.encode() if isinstance(input, str) else input, timeout=timeout)
                 code = process.returncode
@@ -78,6 +92,15 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
                 code = 124 if terminal == 'timeout' else 130
                 if terminal == 'interrupted':
                     launch_error = error
+            if group_active(process.pid):
+                # [LAW:no-ambient-temporal-coupling] A parent exit is not group release.
+                os.killpg(process.pid,signal.SIGKILL)
+                deadline=time.monotonic()+5
+                while group_active(process.pid):
+                    if time.monotonic()>=deadline:
+                        raise OSError('owned subprocess group did not terminate; logs remain unsealed')
+                    time.sleep(0.01)
+                if terminal=='exited':terminal,code='descendants_active',125
         except OSError as error:
             terminal, launch_error = 'launch_failed', error
             stderr.write(str(error).encode())
@@ -85,7 +108,8 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
             stream.flush(); os.fsync(stream.fileno())
     sync_directory(directory)
     receipt = dict(version=1, argv=argv, cwd=str(Path(cwd).absolute()), exit=code,
-                   terminal=terminal, elapsed_seconds=round(time.monotonic()-began, 3),
+                   terminal=terminal, owned_process_group=process_id,
+                   elapsed_seconds=round(time.monotonic()-began, 3),
                    stdout=file_binding(paths[0]), stderr=file_binding(paths[1]),
                    summary=summary(paths), receipt=str(directory / 'receipt.json'))
     atomic_json(directory / 'receipt.json', receipt)

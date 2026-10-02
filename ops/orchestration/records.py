@@ -31,7 +31,11 @@ def atomic_json(path, value, *, private=True):
         raise ValueError('record path contains a symlink')
     if path.is_symlink():
         raise ValueError('record path contains a symlink')
+    uncertain=path.with_name(path.name+'.publication-uncertain')
+    if uncertain.exists():
+        raise ValueError(f'uncertain publication requires explicit recovery: {uncertain}')
     fd, temporary = tempfile.mkstemp(prefix='.record-', dir=directory)
+    replaced=False
     try:
         with os.fdopen(fd, 'w') as stream:
             json.dump(value, stream, indent=2, sort_keys=True)
@@ -39,7 +43,18 @@ def atomic_json(path, value, *, private=True):
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        replaced=True
         sync_directory(directory)
+    except BaseException as error:
+        if replaced:
+            # [LAW:no-silent-failure] An unacknowledged replacement is never a receipt.
+            # Preserve the bytes for explicit recovery; the canonical path is absent.
+            try:
+                os.replace(path,uncertain)
+                sync_directory(directory)
+            except OSError as quarantine_error:
+                raise OSError(f'publication and quarantine failed: {error}; {quarantine_error}; {path}') from error
+        raise
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)

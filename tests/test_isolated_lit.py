@@ -35,7 +35,7 @@ class IsolatedLitTests(unittest.TestCase):
                              "--topic", "validation", "--labels", "autonomous-safe,capability:" + capability)
         self.artifacts = Path(self.directory.name) / 'artifacts'
         self.adapter = LocalAdapter(self.tree, ["git", "diff", "--check"], artifact_root=self.artifacts)
-        self.worker = ProcessWorker([sys.executable, str(ROOT / "tests/fixtures/offline_worker.py")], self.tree, 10)
+        self.worker = ProcessWorker([sys.executable, str(ROOT / "tests/fixtures/offline_worker.py")], self.tree, 10, artifact_root=self.artifacts)
         self.state = self.adapter.common_dir() / "orchestration"
 
     def run_command(self, cwd, *args):
@@ -86,7 +86,7 @@ class IsolatedLitTests(unittest.TestCase):
         self.assertEqual((self.root / "foreign.txt").read_text(), "foreign session")
 
     def test_routed_codex_invocations_complete_two_real_tickets_offline(self):
-        worker = CodexWorker(self.tree, 10, [sys.executable, str(ROOT / "tests/fixtures/offline_codex.py")])
+        worker = CodexWorker(self.tree, 10, [sys.executable, str(ROOT / "tests/fixtures/offline_codex.py")], artifact_root=self.artifacts)
         with Lease(self.state / "runner.lock"):
             result = continue_work(self.adapter, worker, self.state / "handoff.json", goal="Codex transport", limit=2)
         self.assertEqual(result["stop_reason"], "ticket-limit", result)

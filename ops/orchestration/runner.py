@@ -29,8 +29,9 @@ def main():
             return 0
         if not args.config or not isinstance(config.get("goal"), str) or not config["goal"].strip():
             raise ValueError("run requires a trusted worker config and goal")
-        worker = (CodexWorker(adapter.cwd, min(args.seconds, 900)) if config.get("worker") == "codex"
-                  else ProcessWorker(config["worker_argv"], adapter.cwd, min(args.seconds, 900)))
+        store=config.get('artifact_root',DEFAULT_ROOT)
+        worker = (CodexWorker(adapter.cwd, min(args.seconds, 900), artifact_root=store) if config.get("worker") == "codex"
+                  else ProcessWorker(config["worker_argv"], adapter.cwd, min(args.seconds, 900), artifact_root=store))
         state = adapter.common_dir() / "orchestration"
         with Lease(state / "runner.lock"):
             handoff = state / "handoff.json"

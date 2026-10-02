@@ -39,6 +39,16 @@ class LoopTests(unittest.TestCase):
         self.loop.initialize('old', 'gpt-6.1-sol', 'high', self.handoff, 'u7')
         self.evidence = self.root/'proof.json'; self.evidence.write_text('{"terminal":"success"}')
 
+    def fresh_transcript(self,name='new'):
+        from datetime import datetime,timezone
+        transcript=self.root/(name+'.jsonl')
+        prompt=(self.root/'package/resume-prompt.txt').read_text()
+        transcript.write_text(json.dumps({'type':'session_meta','payload':{'id':name,
+            'timestamp':datetime.now(timezone.utc).isoformat()}})+'\n'+
+            json.dumps({'type':'turn_context','payload':{'model':'gpt-6.1-sol','effort':'high'}})+'\n'+
+            json.dumps({'type':'response_item','payload':{'role':'user','content':[{'type':'input_text','text':prompt}]}})+'\n')
+        return transcript
+
     def close(self, ticket):
         next(x for x in self.lit.data['issues'] if x['id']==ticket)['status']='closed'
         return self.loop.complete(ticket, self.evidence)
@@ -99,9 +109,7 @@ class LoopTests(unittest.TestCase):
 
     def test_fresh_bootstrap_changes_only_buford_and_preserves_pause_and_counts(self):
         self.loop.begin('u1'); self.close('u1'); self.loop.prepare_clear(self.root/'package', [])
-        transcript=self.root/'new.jsonl'
-        transcript.write_text(json.dumps({'type':'session_meta','payload':{'id':'new'}})+'\n'+
-            json.dumps({'type':'turn_context','payload':{'model':'gpt-6.1-sol','effort':'high'}})+'\n')
+        transcript=self.fresh_transcript()
         before=json.loads(self.control.read_text())
         result=self.loop.bootstrap(transcript)
         after=json.loads(self.control.read_text())
@@ -134,9 +142,7 @@ class LoopTests(unittest.TestCase):
     def test_crash_after_routing_update_recovers_without_double_epoch(self):
         from unittest.mock import patch
         self.loop.prepare_clear(self.root/'package', [])
-        transcript=self.root/'new.jsonl'
-        transcript.write_text(json.dumps({'type':'session_meta','payload':{'id':'new'}})+'\n'+
-            json.dumps({'type':'turn_context','payload':{'model':'gpt-6.1-sol','effort':'high'}})+'\n')
+        transcript=self.fresh_transcript()
         original=self.loop._save
         def crash_final(state):
             if state['epoch']==1:raise OSError('crash after routing')
@@ -146,3 +152,67 @@ class LoopTests(unittest.TestCase):
                 self.loop.bootstrap(transcript)
         self.assertEqual(json.loads(self.control.read_text())['sessions'][0]['session_id'],'new')
         self.assertEqual(self.loop.bootstrap(transcript)['epoch'],1)
+
+    def test_native_close_crash_holds_next_admission_until_completion_reconciled(self):
+        self.loop.begin('u1')
+        next(x for x in self.lit.data['issues'] if x['id']=='u1')['status']='closed'
+        from ops.orchestration.loop import Loop
+        restarted=Loop(self.root/'state.json',self.control,self.lit)
+        with self.assertRaisesRegex(ValueError,'completion-reconciliation'):
+            restarted.begin('u2')
+        restarted.complete('u1',self.evidence)
+        self.assertEqual(restarted.begin('u2')['epoch_completed'],1)
+
+    def test_preexisting_unrelated_transcript_cannot_bootstrap(self):
+        self.loop.prepare_clear(self.root/'package',[])
+        transcript=self.root/'unrelated.jsonl'
+        transcript.write_text(json.dumps({'type':'session_meta','timestamp':'2020-01-01T00:00:00Z',
+            'payload':{'id':'unrelated','timestamp':'2020-01-01T00:00:00Z'}})+'\n'+
+            json.dumps({'type':'turn_context','payload':{'model':'gpt-6.1-sol','effort':'high'}})+'\n')
+        with self.assertRaisesRegex(ValueError,'fresh handoff'):
+            self.loop.bootstrap(transcript)
+        self.assertEqual(self.loop.status()['epoch'],0)
+
+    def test_native_injected_agents_prelude_does_not_mask_user_handoff(self):
+        self.loop.prepare_clear(self.root/'package',[])
+        transcript=self.fresh_transcript()
+        lines=transcript.read_text().splitlines()
+        lines.insert(1,json.dumps({'type':'response_item','payload':{'role':'user','content':[
+            {'type':'input_text','text':'# AGENTS.md instructions for /workspace\n<INSTRUCTIONS>rules</INSTRUCTIONS>'}]}}))
+        transcript.write_text('\n'.join(lines)+'\n')
+        self.assertEqual(self.loop.bootstrap(transcript)['session_id'],'new')
+
+    def test_new_transcript_without_handoff_token_is_held(self):
+        self.loop.prepare_clear(self.root/'package',[])
+        transcript=self.fresh_transcript()
+        data=transcript.read_text().splitlines();row=json.loads(data[-1]);row['payload']['content'][0]['text']='unrelated task'
+        data[-1]=json.dumps(row);transcript.write_text('\n'.join(data)+'\n')
+        with self.assertRaisesRegex(ValueError,'fresh handoff'):
+            self.loop.bootstrap(transcript)
+
+    def test_arc_ownership_survives_unit_advancing_to_another_arc(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from ops.orchestration.loop import Loop
+        product=self.root/'product';(product/'tools').mkdir(parents=True);(product/'.harness').mkdir()
+        for path in ['tools/review_loop_gate.py','.harness/merge-gate-log.jsonl']:(product/path).write_text('')
+        gate=SimpleNamespace(FULL_DIFF_REF='origin/main',
+            rw=SimpleNamespace(code_binding=lambda *x:{'head_sha':'head','base_sha':'base','diff_digest':'digest'}),
+            fr=SimpleNamespace(read_rows=lambda *x:[]),completing_run=lambda *x:None)
+        result={'decision':'review_required','completed_passes':4,'observed':[],
+            'admit_review':True,'next_pass':'3','blocking_findings':[],'followups':[]}
+        with patch('ops.orchestration.loop.load_gate',return_value=gate),patch('ops.orchestration.loop.evaluate',return_value=result.copy()),patch.object(self.lit,'command',return_value=('', 'receipt'),create=True):
+            self.loop.review('u1',product,'arc-A',unit='stable')
+            self.loop.review('u1',product,'arc-B',unit='stable')
+            with self.assertRaisesRegex(ValueError,'renamed'):
+                self.loop.review('u1',product,'arc-A',unit='renamed')
+
+    def test_quarantine_native_backlog_skips_fresh_foreign_claim(self):
+        from unittest.mock import patch
+        from ops.orchestration.loop import NativeLit
+        native=NativeLit(self.root,self.root/'artifacts')
+        data={'version':2,'issues':[{'id':x,'status':'open'} for x in ('bad','foreign','ready')],'relations':[]}
+        outputs=[('bad open task quarantined','next-receipt'),
+                 (' 1. bad open -\n unclaimed\n 2. foreign open -\n claimed elsewhere (fresh): /other\n 3. ready open -\n unclaimed\n','backlog-receipt')]
+        with patch.object(native,'command',side_effect=outputs):
+            self.assertEqual(native.next(data,{'bad'}),('ready','backlog-receipt'))

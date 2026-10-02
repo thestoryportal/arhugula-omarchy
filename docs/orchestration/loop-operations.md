@@ -34,7 +34,9 @@ After a closed leaf's required review, main landing and post-main CI are verifie
 record `complete <ticket> --evidence <closure-receipt>`. The command rereads LIT,
 requires the actual closed leaf and its prior admission, binds the receipt hash and
 counts that ticket once across restart. Parent/epic closure does not advance the
-counter. Implementation commits, source GO and quarantines are not completions.
+counter. Admissions survive restart; a closed admitted predecessor with no completion
+receipt holds the next admission for reconciliation. Implementation commits, source
+GO and quarantines are not completions.
 The current goal's source shipping units share a still-open LIT ticket; they do not
 pretend to be separately closed tickets. Measured headroom can trigger an earlier
 reset while that ticket is still in progress.
@@ -51,7 +53,8 @@ The canonical product reducer supplies complete pass bindings and the next
 mandatory pass. The five-pass upper bound is per stable LIT ticket (or explicit
 `--unit` under a multi-unit goal) across arcs, PRs, heads and context clears. Supply
 the same `--unit` to `begin` and `review`; unit identity is recorded in LIT and
-cannot be renamed for the same arc to reset the counter. Unit quarantine holds
+cannot be renamed for the same arc to reset the counter. Immutable ownership keeps
+all prior arcs bound when a unit advances. Unit quarantine holds
 that unit while independent units under the still-open goal remain available.
 Partial passes and REVIEWER_UNAVAILABLE do not
 count. No sixth launch is admitted. Preserve the canonical earlier two consecutive
@@ -101,8 +104,11 @@ no verified control socket, and active-turn clear is disabled. The scheduling st
 is deterministic; the native clear requires this idle external step.
 
 In the fresh lane `bootstrap --transcript <actual-new-transcript>` verifies seals,
-the actual new UUID/model/effort and fresh LIT reads before updating only Buford
-routing. All completed-ticket and review receipts survive. Atomic intent permits
+the actual new UUID/model/effort, creation after the sealed package, native CLI
+provenance, the handoff nonce in the first human prompt, and fresh LIT reads before
+updating only Buford routing. Native injected AGENTS/environment instructions do
+not count as the human prompt. Other registered worker sessions are rejected.
+All completed-ticket and review receipts survive. Atomic intent permits
 recovery if routing updated but the journal did not. The original pause, deadline,
 scope and goal accounting survive; do not create a smaller or reset goal. Retrieve
 the actual native goal and reconcile its sealed predecessor receipt if a native
@@ -126,9 +132,14 @@ consumed from their structured files and must not be inferred from a truncated l
 The default checks the real writable `mac` 9p mount; an unavailable/read-only share
 fails before command execution. An explicit alternative `--root` is for test stores
 or deliberately recorded recovery, never an automatic fallback. The existing local
-adapter's verification path uses the same capture boundary.
+adapter's verification and worker execution paths use the same capture boundary.
 
-Terminal receipts require successful fsync/hash readback. Interrupted, failed and
-timeout logs remain preserved. Keep caches/venvs on guest ext4. This log publication
+Terminal receipts require successful fsync/hash readback and release of the owned
+process group. A parent that leaves active descendants produces a failure receipt
+after that group is stopped. Independently daemonized processes need a separate
+lifecycle owner. A failed final directory sync removes the canonical receipt and
+preserves its bytes under a publication-uncertain marker, which holds further
+publication for explicit recovery. Interrupted, failed and timeout logs remain
+preserved. Keep caches/venvs on guest ext4. This log publication
 does not establish database WAL correctness, physical power-loss durability or S5
 reset/restore acceptance on the Mac host.

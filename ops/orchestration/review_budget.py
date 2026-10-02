@@ -33,8 +33,8 @@ def evaluate(gate, rows, arc, head, digest, observed=(), impacts=()):
         prose.add(impact['finding_id'])
     disposed = gate._last_dispositions(rows)
     undisposed = sorted(fid for fid in findings if disposed.get(fid) not in ('accepted', 'rejected', 'suppressed'))
-    current = [r for r in runs if (r.head_sha, r.diff_digest) == (head, digest)]
-    accepted = [f for r in current for f in r.findings if disposed.get(f['finding_id']) == 'accepted']
+    # [LAW:single-enforcer] Pass 2 uses a delta digest; canonical fixes bind the head.
+    current = [r for r in runs if r.head_sha == head]
     blocking = sorted({f['finding_id'] for r in current for f in r.findings
                        if disposed.get(f['finding_id']) == 'accepted'
                        and (f['severity'] == 'P1' or (f['severity'] == 'P2' and r.cycle_pass != '3'

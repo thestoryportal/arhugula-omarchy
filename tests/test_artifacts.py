@@ -64,3 +64,25 @@ class ArtifactTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, 'disk failed'):
                 capture(['true'], Path.cwd(), root=self.root)
         self.assertEqual(list(self.root.glob('*/receipt.json')), [])
+
+    def test_final_directory_fsync_failure_leaves_no_success_receipt(self):
+        from ops.orchestration.artifacts import capture
+        from unittest.mock import patch
+        import os
+        original=os.fsync; calls=0
+        def fail_final(fd):
+            nonlocal calls
+            calls+=1
+            if calls==5:raise OSError('final publication sync failed')
+            return original(fd)
+        with patch('os.fsync',side_effect=fail_final):
+            with self.assertRaisesRegex(OSError,'final publication sync failed'):
+                capture(['true'],Path.cwd(),root=self.root)
+        for path in self.root.glob('*/receipt.json'):
+            result=json.loads(path.read_text())
+            self.assertNotEqual((result['terminal'],result['exit']),('exited',0))
+
+    def test_parent_exit_cannot_publish_success_with_owned_descendants_running(self):
+        result=self.capture("import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); print('parent done')")
+        self.assertEqual(result['terminal'],'descendants_active')
+        self.assertEqual(result['exit'],125)

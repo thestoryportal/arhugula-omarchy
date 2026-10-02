@@ -13,6 +13,7 @@ import re
 import sys
 import time
 import uuid
+from datetime import datetime, timezone
 
 from .artifacts import capture, DEFAULT_ROOT, file_binding
 from .continuation import Lease, Stop, select_ticket
@@ -48,7 +49,8 @@ def excluded_scope(data, quarantined):
 
 
 def identity(transcript):
-    result = dict(session_id=None, model=None, effort=None, status='unknown', input_tokens=None)
+    result = dict(session_id=None, model=None, effort=None, status='unknown', input_tokens=None,
+                  created_at=None, cwd=None, source=None, originator=None, first_user=None)
     with Path(transcript).open() as stream:
         for row in map(json.loads, stream):
             payload = row.get('payload', {})
@@ -57,6 +59,13 @@ def identity(transcript):
                 if result['session_id'] not in (None, identifier):
                     raise ValueError('transcript identity conflict')
                 result['session_id'] = identifier
+                result.update(created_at=payload.get('timestamp',row.get('timestamp')),
+                              cwd=payload.get('cwd'),source=payload.get('source'),originator=payload.get('originator'))
+            elif row.get('type')=='response_item' and payload.get('role')=='user' and result['first_user'] is None:
+                text='\n'.join(c.get('text','') for c in payload.get('content',[]))
+                # Native CLI records injected AGENTS/environment before the user input.
+                if not text.startswith(('# AGENTS.md instructions for ','<environment_context>')):
+                    result['first_user']=text
             elif row.get('type') == 'turn_context':
                 result.update(model=payload.get('model'), effort=payload.get('effort',payload.get('reasoning_effort')))
             elif row.get('type') == 'event_msg':
@@ -104,7 +113,8 @@ class NativeLit:
             fields = block.splitlines()[0].split()
             if len(fields) < 3 or fields[0] in excluded or fields[2] != '-':
                 continue
-            if 'claimed by' in block and 'stale' not in block:
+            claim_lines=[line.strip() for line in block.splitlines()[1:] if line.strip().startswith('claimed ')]
+            if any('claimed here' not in line and 'stale' not in line for line in claim_lines):
                 continue
             issue, _ = select_ticket(data, fields[0]+' native-backlog')
             if issue and issue['id'] not in excluded:
@@ -118,7 +128,7 @@ class Loop:
 
     def _read(self):
         state = json.loads(self.path.read_text())
-        if state['version'] != 1 or not isinstance(state['completed'], dict) or not isinstance(state['reviews'], dict):
+        if state['version'] != 2 or not isinstance(state['completed'], dict) or not isinstance(state['reviews'], dict):
             raise ValueError('invalid loop journal')
         return state
 
@@ -136,14 +146,15 @@ class Loop:
     def initialize(self, session, model, effort, handoff, goal):
         private_directory(self.path.parent)
         with Lease(self.path.with_suffix('.lock')):
-            if self.path.exists():
+            if self.path.exists() or self.path.with_name(self.path.name+'.publication-uncertain').exists():
                 raise ValueError('journal already initialized; never reset progress')
             control=self._control()
             buford=next(s for s in control['sessions'] if s['role']=='buford')
             if buford['session_id'] != session:
                 raise ValueError('Buford routing identity mismatch')
-            self._save(dict(version=1, session_id=session, model=model, effort=effort,
+            self._save(dict(version=2, session_id=session, model=model, effort=effort,
                 epoch=0, epoch_start=0, completed={}, reviews={}, quarantine=[], unit_quarantine=[],
+                admissions={}, arc_units={},
                 admission=None, iteration=0, goal_ticket=goal, handoff=file_binding(handoff),
                 reset=None, pending_bootstrap=None))
 
@@ -156,6 +167,10 @@ class Loop:
         with Lease(self.path.with_suffix('.lock')):
             state=self._read(); control=self._control()
             data, receipts=self.lit.read(ticket)
+            closed={i['id'] for i in data['issues'] if i.get('status')=='closed'}
+            unreconciled=(set(state['admissions']) & closed)-set(state['completed'])
+            if unreconciled:
+                raise ValueError('completion-reconciliation-required: '+','.join(sorted(unreconciled)))
             if control['repair_paused'] and not maintenance:
                 raise ValueError('production-paused')
             buford=next(s for s in control['sessions'] if s['role']=='buford')
@@ -177,6 +192,7 @@ class Loop:
                 fingerprint=fingerprint(data,ticket,state['goal_ticket']),
                 control=file_binding(self.control)['sha256'], maintenance=maintenance,
                 reads=receipts, iteration=state['iteration'], unit=unit)
+            state['admissions'][ticket]=state['admission']
             self._save(state)
             return {'admission':state['admission']['id'], 'ticket':ticket,
                     'iteration':state['iteration'], 'reads':receipts,
@@ -202,14 +218,15 @@ class Loop:
             if any(r['type']=='parent-child' and r['dst_id']==ticket for r in data.get('relations', [])):
                 raise ValueError('completed parent/epic is not a completed leaf')
             if ticket not in state['completed']:
-                grant=state['admission']
+                grant=state['admissions'].get(ticket)
                 if grant is None or grant['ticket'] != ticket:
                     raise ValueError('completion requires this ticket admission')
                 if ticket in excluded_scope(data,set(state['quarantine'])):
                     raise ValueError('quarantined work cannot complete')
                 state['completed'][ticket]={'evidence':file_binding(evidence), 'reads':receipts,
                                            'epoch':state['epoch']}
-                state['admission']=None
+                if state['admission'] and state['admission']['ticket']==ticket:
+                    state['admission']=None
                 self._save(state)
             return {'completed':ticket,'epoch_completed':len(state['completed'])-state['epoch_start']}
 
@@ -223,8 +240,9 @@ class Loop:
                 raise ValueError('canonical review history missing')
             rows=gate.fr.read_rows(log)
             key=ticket if unit is None else ticket+'::'+unit
-            if any(value['arc']==arc and existing!=key for existing,value in state['reviews'].items()):
+            if state['arc_units'].get(arc,key)!=key:
                 raise ValueError('stable review unit cannot be renamed to reset its budget')
+            state['arc_units'][arc]=key
             old=state['reviews'].get(key,{})
             reviewed=dict(binding)
             terminal=gate.completing_run(rows,arc)
@@ -275,15 +293,19 @@ class Loop:
             directory=private_directory(directory)
             if (directory/'manifest.json').exists():
                 raise ValueError('clear package already sealed')
+            nonce=str(uuid.uuid4())
+            prepared_at=datetime.now(timezone.utc).isoformat()
+            provenance=identity(next(s['transcript'] for s in self._control()['sessions'] if s['role']=='buford'))
             atomic_json(directory/'frontier.json',dict(goal=state['goal_ticket'],
                 production_handoff=state['handoff'], reads=reads, epoch=state['epoch'],
                 completed=list(state['completed']), quarantine=state['quarantine'], unit_quarantine=state['unit_quarantine'],
-                owned_processes=owned_processes, routing=file_binding(self.control)))
-            script=Path(__file__).resolve()
+                owned_processes=owned_processes, routing=file_binding(self.control),
+                nonce=nonce,prepared_at=prepared_at,native_lane={k:provenance[k] for k in ('cwd','source','originator')}))
             prompt=(f'You are Buford, the user-selected {state["model"]}/{state["effort"]} lead orchestrator. '
-                    'Read root AGENTS.md, run lit quickstart, then context-policy.md and the Buford role. '
+                    f'BUFORD_CONTEXT_HANDOFF {nonce} {file_binding(directory/"frontier.json")["sha256"]}. '
+                    'First run lit quickstart, then read root AGENTS.md, context-policy.md and the Buford role. '
                     f'Verify {directory}/manifest.json and its frontier bindings. '
-                    f'Bootstrap with python -m ops.orchestration.loop --state {self.path} '
+                    f'Bootstrap with {sys.executable} -m ops.orchestration.loop --state {self.path} '
                     f'--control {self.control} bootstrap --transcript <your actual fresh transcript path>. '
                     'Verify your actual UUID/model/effort; update only Buford routing through bootstrap. '
                     f'Read the bound production handoff {state["handoff"]["path"]} SHA256 '
@@ -329,6 +351,16 @@ class Loop:
                 raise ValueError('fresh model/effort mismatch')
             if not actual['session_id'] or actual['session_id']==reset['previous_session']:
                 raise ValueError('native context must have a fresh identity')
+            frontier=json.loads((Path(reset['directory'])/'frontier.json').read_text())
+            token=f'BUFORD_CONTEXT_HANDOFF {frontier["nonce"]} {file_binding(Path(reset["directory"])/"frontier.json")["sha256"]}'
+            created=actual['created_at']
+            if (not created or datetime.fromisoformat(created.replace('Z','+00:00')) < datetime.fromisoformat(frontier['prepared_at'])
+                    or token not in (actual['first_user'] or '')
+                    or {k:actual[k] for k in ('cwd','source','originator')}!=frontier['native_lane']
+                    or actual['session_id'] in {s['session_id'] for s in self._control()['sessions'] if s['role']!='buford'}):
+                raise ValueError('actual fresh handoff-bound native lane evidence required')
+            if state['pending_bootstrap'] not in (None,actual['session_id']):
+                raise ValueError('bootstrap recovery identity differs from durable intent')
             old_routing=next(s for s in self._control()['sessions'] if s['role']=='buford')
             old_transcript=old_routing['transcript']
             if state['pending_bootstrap'] is None:

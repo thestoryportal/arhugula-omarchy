@@ -134,29 +134,31 @@ class LocalAdapter:
 
 class ProcessWorker:
     """Trusted local argv in; one JSON receipt out. No executable comes from LIT."""
-    def __init__(self, argv, cwd, timeout):
+    def __init__(self, argv, cwd, timeout, *, artifact_root=DEFAULT_ROOT):
         if not isinstance(argv, list) or not argv or any(not isinstance(x, str) or not x for x in argv):
             raise ValueError("worker argv required")
         self.argv, self.cwd, self.timeout = argv, cwd, timeout
+        self.artifact_root = artifact_root
 
     def __call__(self, context):
-        try:
-            result = command(self.argv, self.cwd, timeout=self.timeout, input=json.dumps(context))
-        except subprocess.TimeoutExpired:
+        result = capture(self.argv, self.cwd, root=self.artifact_root, timeout=self.timeout, input=json.dumps(context))
+        if result['terminal']=='timeout':
             raise Stop("worker-timeout") from None
-        if result.returncode:
+        if result['exit'] or result['terminal']!='exited':
             raise Stop("worker-failed")
         try:
-            return json.loads(result.stdout)
+            if result['stdout']['bytes']>1024*1024:raise ValueError('worker receipt exceeds bound')
+            return json.loads(Path(result['stdout']['path']).read_text())
         except ValueError:
             raise Stop("invalid-worker-receipt") from None
 
 
 class CodexWorker:
     """Synchronous Codex adapter using current routing, stdin, and a JSON receipt."""
-    def __init__(self, cwd, timeout, executable=None):
+    def __init__(self, cwd, timeout, executable=None, *, artifact_root=DEFAULT_ROOT):
         self.cwd, self.timeout = Path(cwd), timeout
         self.executable = executable or ["codex"]
+        self.artifact_root = artifact_root
 
     def __call__(self, context):
         validate(context)
@@ -169,11 +171,10 @@ class CodexWorker:
                     f'model_reasoning_effort="{context["effort"]}"', "--sandbox", "workspace-write",
                     "--cd", str(self.cwd), "--output-schema", str(schema),
                     "--output-last-message", str(output), "-"]
-            try:
-                result = command(argv, self.cwd, timeout=self.timeout, input=json.dumps(context))
-            except subprocess.TimeoutExpired:
+            result = capture(argv, self.cwd, root=self.artifact_root, timeout=self.timeout, input=json.dumps(context))
+            if result['terminal']=='timeout':
                 raise Stop("worker-timeout") from None
-            if result.returncode:
+            if result['exit'] or result['terminal']!='exited':
                 raise Stop("worker-failed")
             try:
                 return json.loads(output.read_text())
