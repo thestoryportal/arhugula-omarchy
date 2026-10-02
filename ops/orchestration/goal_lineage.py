@@ -9,8 +9,42 @@ from .continuation import Lease
 from .records import atomic_json
 
 
+def goal_observation(raw):
+    observation=raw.get('tool_result',raw)
+    goal=observation['goal']
+    session=goal['threadId'] if goal is not None else raw.get('session_id',raw.get('native_store',{}).get('thread_id'))
+    if not isinstance(session,str) or not session:raise ValueError('session-bound actual goal observation required')
+    if goal is None and (set(('goal','remainingTokens','completionBudgetReport'))-observation.keys()
+                        or observation['remainingTokens'] is not None or observation['completionBudgetReport'] is not None):
+        raise ValueError('actual absent goal observation required')
+    return session,observation
+
+
 class GoalLineage:
     def __init__(self,path):self.path=Path(path)
+
+    def _existing(self,deadline):
+        if not self.path.exists():raise ValueError('original goal ledger required for absent native goal')
+        state=json.loads(self.path.read_text())
+        if state['deadline']!=deadline or state['token_budget'] is not None:raise ValueError('goal contract changed')
+        for evidence in state['receipts']:
+            if file_binding(evidence['path'])!=evidence:raise ValueError('goal receipt changed')
+        return state
+
+    def record_absence(self,receipt,deadline):
+        session,observation=goal_observation(json.loads(Path(receipt).read_text()))
+        if observation['goal'] is not None:raise ValueError('actual absent goal observation required')
+        bound=file_binding(receipt)
+        with Lease(self.path.with_suffix('.lock')):
+            state=self._existing(deadline)
+            # [LAW:one-source-of-truth] Keep the original contract and actual usage;
+            # absent thread-local goals contribute evidence, never invented counters.
+            item={'session_id':session,'receipt':bound}
+            absent=state.setdefault('absent_goals',[])
+            if item not in absent:absent.append(item)
+            if bound not in state['receipts']:state['receipts'].append(bound)
+            atomic_json(self.path,state)
+            return state
 
     def record(self,receipt,deadline):
         raw=json.loads(Path(receipt).read_text());goal=raw['goal']
@@ -21,11 +55,9 @@ class GoalLineage:
         if any(type(v) is not int or v<0 for v in usage.values()):raise ValueError('invalid actual goal usage')
         bound=file_binding(receipt)
         with Lease(self.path.with_suffix('.lock')):
-            state=json.loads(self.path.read_text()) if self.path.exists() else {
+            state=self._existing(deadline) if self.path.exists() else {
                 'version':1,**contract,'threads':{},'receipts':[]}
             if any(state[k]!=v for k,v in contract.items()):raise ValueError('goal contract changed')
-            for evidence in state['receipts']:
-                if file_binding(evidence['path'])!=evidence:raise ValueError('goal receipt changed')
             old=state['threads'].get(goal['threadId'],dict(tokensUsed=0,timeUsedSeconds=0))
             if any(usage[k]<old[k] for k in usage):raise ValueError('actual goal usage regressed')
             state['threads'][goal['threadId']]=usage

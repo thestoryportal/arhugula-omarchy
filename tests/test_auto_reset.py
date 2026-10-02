@@ -7,18 +7,25 @@ import test_loop
 
 
 class WindowSeam:
-    def __init__(self,root):self.root=root;self.name='old';self.lines=[];self.pending=None;self.rollouts=[]
+    def __init__(self,root):self.root=root;self.name='old';self.lines=[];self.pending=None;self.rollouts=[];self.next_id='new'
     def check(self):return {'title':self.name}
     def title(self):return self.name
     def type(self,text):self.pending=text;self.lines.append(text)
     def submit(self):
         if self.pending.startswith('/clear '):
             self.name=self.pending[7:]
-            path=self.root/'new.jsonl'
-            path.write_text(json.dumps({'type':'session_meta','payload':{'id':'new',
+            path=self.root/(self.next_id+'.jsonl')
+            path.write_text(json.dumps({'type':'session_meta','payload':{'id':self.next_id,
                 'timestamp':datetime.now(timezone.utc).isoformat()}})+'\n')
             self.rollouts=[path]
     def transcripts(self):return self.rollouts
+    def context(self,frontier,previous):
+        from ops.orchestration.loop import identity
+        if self.rollouts:
+            actual=identity(self.rollouts[0])
+            return {'session_id':actual['session_id'],'user_input':bool(actual['user_count']),
+                    'transcript':str(self.rollouts[0])}
+        return {'session_id':self.next_id,'user_input':False,'transcript':None}
 
 
 class AutoResetTests(unittest.TestCase):
@@ -52,6 +59,178 @@ class AutoResetTests(unittest.TestCase):
     def hold(self):
         self.loop.prepare_clear(self.root/'old-package',[])
 
+    def recovery_fixture(self,*,routing_refresh=False):
+        from ops.orchestration.artifacts import file_binding
+        from ops.orchestration.auto_reset import user_frontier
+        from ops.orchestration.loop import identity
+        control=json.loads(self.f.control.read_text());control['repair_paused']=True
+        if routing_refresh:control['sessions'].append({'role':'implementer','session_id':'impl-old','transcript':'old-impl'})
+        self.f.control.write_text(json.dumps(control))
+        self.config['window']={'native_pid':123};self.hold()
+        controller=self.controller();controller.step();controller.step();self.clock+=121
+        fresh=self.fresh();rows=fresh.read_text().splitlines()
+        user=json.loads(rows[-1]);user['payload']['content'][0]['text']='human report of failed blank session'
+        fresh.write_text('\n'.join(rows[:-1]+[json.dumps(user)])+'\n');self.window.rollouts=[fresh]
+        grant={'maintenance_only':True,'window':self.config['window'],'deadline':self.config['deadline'],
+               'session_id':'new','transcript':str(fresh),'user_frontier':user_frontier(identity(fresh))}
+        for key,path in (('supervisor',controller.path),('journal',self.loop.path),('routing',self.loop.control)):
+            snapshot=self.root/('failed-'+key+'.json');snapshot.write_bytes(path.read_bytes())
+            grant[key]=file_binding(snapshot)
+        from ops.orchestration.native_goal import read_goal
+        for key,data in (('human_authority',{'session_id':'new','user_frontier':grant['user_frontier'],
+                                           'actual_user_message':identity(fresh)['first_user']}),
+                         ('terminal_goal',read_goal(self.database,'old')),
+                         ('current_goal',{'session_id':'new','tool_result':{'goal':None,'remainingTokens':None,'completionBudgetReport':None}})):
+            snapshot=self.root/(key+'.json');snapshot.write_text(json.dumps(data));grant[key]=file_binding(snapshot)
+        if routing_refresh:
+            current=json.loads(self.f.control.read_text())
+            next(s for s in current['sessions'] if s['role']=='implementer').update(session_id='impl-new',transcript='new-impl')
+            self.f.control.write_text(json.dumps(current))
+            snapshot=Path(grant['routing']['path']);snapshot.write_bytes(self.f.control.read_bytes());grant['routing']=file_binding(snapshot)
+            delivery=self.root/'delivery.json';delivery.write_text(json.dumps({'session_id':'impl-new','model':'gpt-6.1-sol','effort':'high'}))
+            refresh=self.root/'implementer-refresh.json';refresh.write_text(json.dumps({
+                'kind':'authorized-idle-implementer-native-refresh','production_paused':True,
+                'previous_session':'impl-old','session_id':'impl-new','control_after':file_binding(self.f.control),
+                'delivery':file_binding(delivery)}));grant['implementer_refresh']=file_binding(refresh)
+        authority=self.root/'recovery-authority.json';authority.write_text(json.dumps(grant))
+        return controller,authority,fresh
+
+    def test_recovery_preserves_failed_evidence_counters_pause_and_deadline(self):
+        controller,authority,fresh=self.recovery_fixture()
+        before=self.loop.status();failed=controller.path.read_bytes();routing=json.loads(self.f.control.read_text())
+        grant=json.loads(authority.read_text())
+        result=controller.recover_maintenance(authority)
+        after=self.loop.status();current=json.loads(self.f.control.read_text())
+        for key in ('epoch','epoch_start','completed','reviews','quarantine','unit_quarantine','iteration','admissions','handoff'):
+            self.assertEqual(after[key],before[key])
+        self.assertEqual(current['sessions'][1:],routing['sessions'][1:])
+        self.assertEqual(current['sessions'][0]['session_id'],'new')
+        self.assertEqual(Path(grant['supervisor']['path']).read_bytes(),failed)
+        self.assertEqual(result['reset'],before['reset'])
+        self.assertFalse(result['automatic_acceptance'])
+        self.assertNotIn('native_receipt',after)
+        self.assertTrue(after['production_paused']);self.assertTrue(after['reset_requested'])
+        with self.assertRaisesRegex(ValueError,'genuine native reset'):self.loop.begin('u1')
+        self.assertEqual(controller.recover_maintenance(authority),result)
+        self.loop.begin('u1',maintenance=True)
+        state=self.loop.status();controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status(),state)
+        with self.assertRaisesRegex(ValueError,'context-reset-required'):self.loop.begin('u2',maintenance=True,headroom=False)
+        self.assertEqual(len(self.window.lines),1)
+
+    def test_recovery_crashes_after_routing_and_after_journal_are_retry_safe(self):
+        from unittest.mock import patch
+        for boundary in ('routing','supervisor'):
+            with self.subTest(boundary=boundary):
+                # Each crash is exercised from the same durable failed intent.
+                if boundary=='routing':
+                    controller,authority,fresh=self.recovery_fixture();save=self.loop._save
+                    def crash(state):
+                        if state['session_id']=='new':raise OSError('routing crash')
+                        save(state)
+                    with patch.object(self.loop,'_save',side_effect=crash):
+                        with self.assertRaises(OSError):controller.recover_maintenance(authority)
+                    with patch.object(controller,'save',side_effect=OSError('supervisor crash')):
+                        with self.assertRaises(OSError):controller.recover_maintenance(authority)
+                else:
+                    controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status()['epoch'],0)
+        self.assertEqual(controller.status()['phase'],'maintenance_recovered')
+        self.assertEqual(len(self.window.lines),1)
+
+    def test_recovery_refuses_unbound_frontier_deadline_pause_and_window(self):
+        controller,authority,fresh=self.recovery_fixture();grant=json.loads(authority.read_text())
+        import copy
+        for key,value in (('user_frontier',{'count':999,'hash':'wrong'}),('deadline','extended'),
+                          ('window',{'native_pid':999}),('maintenance_only',False),('session_id','foreign')):
+            with self.subTest(key=key):
+                broken=copy.deepcopy(grant);broken[key]=value;authority.write_text(json.dumps(broken))
+                with self.assertRaises(ValueError):controller.recover_maintenance(authority)
+                self.assertEqual(self.loop.status()['session_id'],'old')
+        authority.write_text(json.dumps(grant))
+        control=json.loads(self.f.control.read_text());control['repair_paused']=False
+        self.f.control.write_text(json.dumps(control))
+        with self.assertRaises(ValueError):controller.recover_maintenance(authority)
+
+    def test_maintenance_recovery_cli_requires_and_uses_explicit_authority(self):
+        from contextlib import redirect_stdout,redirect_stderr
+        from io import StringIO
+        from unittest.mock import patch
+        from ops.orchestration.auto_reset import main
+        controller,authority,fresh=self.recovery_fixture()
+        args=['auto_reset','recover-maintenance','--config','fixture']
+        with patch('sys.argv',args),redirect_stderr(StringIO()):
+            with self.assertRaises(SystemExit):main()
+        output=StringIO()
+        with patch('sys.argv',args+['--recovery-authority',str(authority)]),\
+             patch('ops.orchestration.auto_reset.configured',return_value=controller),redirect_stdout(output):
+            self.assertEqual(main(),0)
+        self.assertEqual(json.loads(output.getvalue())['phase'],'maintenance_recovered')
+        self.assertEqual(self.loop.status()['epoch'],0)
+
+    def test_manual_recovery_requires_later_full_native_reset_for_credit(self):
+        controller,authority,fresh=self.recovery_fixture();controller.recover_maintenance(authority)
+        with self.assertRaisesRegex(ValueError,'maintenance recovery only'):controller.step()
+        self.assertTrue(self.loop.status()['maintenance_only'])
+        # Release the recovered human turn, then exercise a later complete reset.
+        with fresh.open('a') as stream:
+            stream.write(json.dumps({'type':'event_msg','payload':{'type':'task_complete'}})+'\n')
+        goal=Path(json.loads(authority.read_text())['current_goal']['path'])
+        from ops.orchestration.auto_reset import user_frontier
+        from ops.orchestration.loop import identity
+        self.release.write_text(json.dumps({'session_id':'new','epoch':0,'owned_processes':[],
+            'goal_receipt':str(goal),'completed':[],'user_frontier':user_frontier(identity(fresh))}))
+        controller.save({'phase':'monitoring','recovery_authority':controller.status()['recovery_authority']})
+        self.window.next_id='third'
+        controller.step();controller.step()
+        self.window.rollouts[0].write_text(json.dumps({'type':'session_meta','payload':{'id':'third',
+            'timestamp':datetime.now(timezone.utc).isoformat()}})+'\n')
+        controller.step();controller.step()
+        # The helper's package pointer must follow the new sealed prompt.
+        package=Path(self.loop.status()['reset']['directory'])
+        (self.root/'package/resume-prompt.txt').write_text((package/'resume-prompt.txt').read_text())
+        later=self.f.fresh_transcript('third');self.window.rollouts=[later]
+        controller.step(later)
+        self.assertEqual(controller.status()['phase'],'verified')
+        self.assertEqual(self.loop.status()['epoch'],1)
+        self.assertFalse(self.loop.status()['maintenance_only'])
+        self.assertTrue(self.loop.status()['production_paused'])
+        ledger=json.loads(Path(self.config['goal_ledger']).read_text())
+        self.assertEqual((ledger['tokens_used'],ledger['seconds_used']),(100,10))
+        self.assertNotIn('new',ledger['threads'])
+
+    def test_recovered_maintenance_cannot_evade_inherited_fifth_completion(self):
+        for n in range(1,6):self.loop.begin(f'u{n}');self.f.close(f'u{n}')
+        release=json.loads(self.release.read_text());release['completed']=sorted(self.loop.status()['completed'])
+        self.release.write_text(json.dumps(release))
+        controller,authority,fresh=self.recovery_fixture();controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status()['epoch_completed'],5)
+        with self.assertRaisesRegex(ValueError,'context-reset-required'):self.loop.begin('u6',maintenance=True)
+
+    def test_recovery_refuses_stale_absence_when_a_native_goal_now_exists(self):
+        controller,authority,fresh=self.recovery_fixture()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute('INSERT INTO thread_goals VALUES (?,?,?,?,?,?,?,?,?)',('new','goal2','full scope','paused',None,50,5,2000,2000))
+        with self.assertRaisesRegex(ValueError,'native goal appeared'):controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status()['session_id'],'old')
+
+    def test_recovery_rejects_other_protected_routing_changes_even_when_snapshotted(self):
+        controller,authority,fresh=self.recovery_fixture()
+        from ops.orchestration.artifacts import file_binding
+        grant=json.loads(authority.read_text());routing=Path(grant['routing']['path'])
+        data=json.loads(routing.read_text());data['sessions'][1]['session_id']='foreign'
+        routing.write_text(json.dumps(data));self.f.control.write_text(routing.read_text())
+        grant['routing']=file_binding(routing);authority.write_text(json.dumps(grant))
+        with self.assertRaisesRegex(ValueError,'implementer-only'):controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status()['session_id'],'old')
+
+    def test_recovery_accepts_only_the_bound_implementer_refresh_delta(self):
+        controller,authority,fresh=self.recovery_fixture(routing_refresh=True)
+        controller.recover_maintenance(authority)
+        current=json.loads(self.f.control.read_text())
+        self.assertEqual(next(s for s in current['sessions'] if s['role']=='implementer')['session_id'],'impl-new')
+        self.assertEqual(next(s for s in current['sessions'] if s['role']=='runtime')['session_id'],'protected')
+
     def fresh(self):
         state=self.loop.status();package=Path(state['reset']['directory'])
         self.f.root.joinpath('package').mkdir(exist_ok=True)
@@ -80,6 +259,53 @@ class AutoResetTests(unittest.TestCase):
         controller=self.controller();controller.step()
         self.assertEqual(self.window.lines,[])
         self.assertEqual(controller.status()['phase'],'waiting_idle')
+
+    def test_clear_with_no_rollout_submits_once_then_verifies_actual_context(self):
+        self.hold();controller=self.controller();controller.step();controller.step()
+        self.window.rollouts[0].unlink();self.window.rollouts=[]
+        controller.step()
+        self.assertEqual(len(self.window.lines),2)
+        controller.step(self.fresh())
+        self.assertEqual(controller.status()['phase'],'verified')
+        self.assertEqual(self.loop.status()['epoch'],1)
+
+    def test_empty_owned_rollout_does_not_delay_first_prompt(self):
+        self.hold();controller=self.controller();controller.step();controller.step()
+        self.window.rollouts[0].write_text('')
+        self.window.context=lambda *_:{'session_id':'new','user_input':False,
+                                      'transcript':str(self.window.rollouts[0])}
+        controller.step()
+        self.assertEqual(len(self.window.lines),2)
+        controller.step(self.fresh())
+        self.assertEqual(controller.status()['phase'],'verified')
+
+    def test_nonce_title_must_match_exactly(self):
+        self.hold();controller=self.controller();controller.step();controller.step()
+        self.window.name+=' extra'
+        controller.step()
+        self.assertEqual(len(self.window.lines),1)
+
+    def test_exact_nonce_title_permits_only_native_activity_prefix(self):
+        self.hold();controller=self.controller();controller.step();controller.step()
+        state=controller.status();self.config['cwd']=str(self.root)
+        self.window.name='⠇ '+state['title']+' | '+self.root.name
+        self.assertTrue(controller.title_matches(state))
+        self.window.name='foreign '+state['title']+' | '+self.root.name
+        self.assertFalse(controller.title_matches(state))
+
+    def test_deferred_preexisting_input_refuses_prompt(self):
+        self.hold();controller=self.controller();controller.step();controller.step()
+        self.window.rollouts=[]
+        self.window.context=lambda *_:{'session_id':'new','user_input':True,'transcript':None}
+        with self.assertRaisesRegex(ValueError,'fresh user input'):controller.step()
+        self.assertEqual(len(self.window.lines),1)
+
+    def test_deferred_uuid_is_bound_before_prompt(self):
+        self.hold();controller=self.controller();controller.step();controller.step()
+        self.window.rollouts=[];controller.step()
+        fresh=self.fresh();fresh.write_text(fresh.read_text().replace('"new"','"foreign"'))
+        with self.assertRaisesRegex(ValueError,'context changed'):controller.step(fresh)
+        self.assertEqual(self.loop.status()['epoch'],0)
 
     def test_late_user_message_invalidates_prepared_reset(self):
         self.hold();controller=self.controller();controller.step()

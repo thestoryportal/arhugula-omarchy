@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 import re
 import select
+import sqlite3
+import uuid
+from datetime import datetime,timezone
 
 from .artifacts import capture, DEFAULT_ROOT
 
@@ -26,7 +29,7 @@ def key_events(text):
 
 def input_program(address,text=None):
     if not re.fullmatch(r'0x[0-9a-f]+',address):raise ValueError('invalid window address')
-    events=[('', 'Return')] if text is None else key_events(text)
+    events=[('', 'Tab')] if text is None else key_events(text)
     keys='{'+','.join('{'+json.dumps(mod)+','+json.dumps(key)+'}' for mod,key in events)+'}'
     # [LAW:effects-at-boundaries] Text becomes key data, never executable Lua.
     return (f'for _,k in ipairs({keys}) do hl.dispatch(hl.dsp.send_shortcut('
@@ -48,6 +51,17 @@ def processes():
             result[int(path.parent.name)]=(fields[19],int(fields[1]))
         except FileNotFoundError:continue
     return result
+
+
+def launch_cwd(argv,process_cwd):
+    directories=[]
+    for index,arg in enumerate(argv):
+        if arg in ('-C','--cd'):
+            if index+1==len(argv):raise ValueError('native launch directory is missing')
+            directories.append(argv[index+1])
+        elif arg.startswith('--cd='):directories.append(arg[5:])
+    if len(directories)>1:raise ValueError('ambiguous native launch directory')
+    return (Path(process_cwd)/(directories[0] if directories else '.')).resolve()
 
 
 @dataclass(frozen=True)
@@ -77,8 +91,10 @@ class WindowCapability:
 
 
 class NativeWindow:
-    def __init__(self,capability,cwd,artifact_root=DEFAULT_ROOT):
+    def __init__(self,capability,cwd,artifact_root=DEFAULT_ROOT,*,codex_home=None):
         self.cap=capability;self.cwd=Path(cwd);self.root=artifact_root
+        self.home=Path(codex_home).absolute() if codex_home is not None else Path.home()/'.codex'
+        self.proc=Path('/proc')/str(capability.native_pid)
 
     def command(self,argv):
         receipt=capture(argv,self.cwd,root=self.root,timeout=15)
@@ -96,17 +112,78 @@ class NativeWindow:
         return self.check()['title']
 
     def transcripts(self):
-        self.check()
-        paths=set()
-        for fd in Path(f'/proc/{self.cap.native_pid}/fd').iterdir():
+        paths=[]
+        for path in self.rollouts():
+            with path.open() as stream:
+                try:row=json.loads(next(stream))
+                except StopIteration:continue
+            if row.get('type')=='session_meta' and row['payload'].get('source')=='cli':paths.append(path)
+        return paths
+
+    def rollouts(self):
+        self.check();paths=set()
+        for fd in (self.proc/'fd').iterdir():
             try:path=fd.resolve(strict=True)
             except FileNotFoundError:continue
             if not path.name.startswith('rollout-') or path.suffix!='.jsonl':continue
-            with path.open() as stream:
-                try:row=json.loads(next(stream))
-                except (StopIteration,json.JSONDecodeError):continue
-            if row.get('type')=='session_meta' and row['payload'].get('source')=='cli':paths.add(path)
+            paths.add(path)
         return sorted(paths)
+
+    def context(self,frontier,previous):
+        """Prove native TUI thread creation even before lazy rollout persistence."""
+        self.check()
+        argv=(self.proc/'cmdline').read_bytes().decode().rstrip('\0').split('\0')
+        if (frontier['native_lane']!={'cwd':str(self.cwd),'source':'cli','originator':'codex-tui'}
+                or launch_cwd(argv,(self.proc/'cwd').resolve(strict=True))!=self.cwd.resolve()):
+            raise ValueError('native CLI lane provenance changed')
+        owned=set()
+        for fd in (self.proc/'fd').iterdir():
+            try:path=fd.resolve(strict=True)
+            except FileNotFoundError:continue
+            if path.parent!=self.home/'thread-writer-locks' or path.suffix!='.lock':continue
+            info=(self.proc/'fdinfo'/fd.name).read_text()
+            if not re.search(r'lock:\s+\d+: FLOCK\s+ADVISORY\s+WRITE '+str(self.cap.native_pid)+r' ',info):
+                raise ValueError('native thread writer ownership is unproven')
+            owned.add(str(uuid.UUID(path.stem)))
+        prepared=datetime.fromisoformat(frontier['prepared_at']).timestamp()
+        # [LAW:parse-dont-validate] A held native writer lock plus the native TUI
+        # thread/start event proves creation; title alone never authorizes input.
+        with sqlite3.connect((self.home/'logs_2.sqlite').as_uri()+'?mode=ro',uri=True) as db:
+            rows=db.execute("SELECT id,ts,ts_nanos,thread_id,process_uuid,feedback_log_body FROM logs "
+                "WHERE target='codex_core::shell_snapshot' AND ts>=? AND process_uuid LIKE ?",
+                (int(prepared),f'pid:{self.cap.native_pid}:%')).fetchall()
+            candidates=[]
+            for log_id,ts,nanos,session,process,body in rows:
+                if session not in owned or session==previous:continue
+                if not all(token in body for token in ('rpc.method="thread/start"',
+                        'rpc.transport="in-process"','app_server.client_name="codex-tui"',
+                        'app_server.thread_start.create_thread',f'shell_snapshot{{thread_id={session}}}',
+                        'Shell snapshot successfully created:')):continue
+                identifier=uuid.UUID(session)
+                created=(identifier.int>>80)/1000
+                if identifier.version!=7 or created<prepared or ts+nanos/1e9<created:
+                    raise ValueError('old or malformed native context creation evidence')
+                candidates.append(dict(session_id=session,created_at=datetime.fromtimestamp(created,timezone.utc).isoformat(),
+                    process_uuid=process,creation_log_id=log_id,transcript=None,user_input=False))
+            if len(candidates)>1:raise ValueError('ambiguous fresh native CLI context')
+            if not candidates:return None
+            proof=candidates[0]
+            proof['user_input']=bool(db.execute("SELECT 1 FROM logs WHERE process_uuid=? AND thread_id=? "
+                "AND id>? AND (feedback_log_body LIKE '%op: TurnInput %' OR feedback_log_body LIKE '%codex.op=\"turn_input\"%') LIMIT 1",
+                (proof['process_uuid'],proof['session_id'],proof['creation_log_id'])).fetchone())
+        # A real owned empty file is optional evidence, never a prerequisite.
+        paths=[p for p in self.rollouts() if p.name.endswith('-'+proof['session_id']+'.jsonl')]
+        if len(paths)>1:raise ValueError('ambiguous fresh native rollout')
+        if paths:
+            with paths[0].open() as stream:
+                try:row=json.loads(next(stream))
+                except StopIteration:row=None
+            if row is not None and (row.get('type')!='session_meta' or row['payload'].get('id')!=proof['session_id']
+                    or {k:row['payload'].get(k) for k in ('cwd','source','originator')}!=frontier['native_lane']):
+                raise ValueError('malformed or foreign native rollout')
+            proof['transcript']=str(paths[0])
+        self.check()
+        return proof
 
     def type(self,text):
         program=input_program(self.cap.address,text)

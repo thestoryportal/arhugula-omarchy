@@ -42,3 +42,26 @@ class GoalLineageTests(unittest.TestCase):
             ledger.record(self.receipt('new',0,0),'extended')
         with self.assertRaisesRegex(ValueError,'contract'):
             ledger.record(self.receipt('other',0,0,'smaller scope'),'original')
+
+    def test_actual_absent_goal_retains_objective_and_totals_without_zero_thread(self):
+        from ops.orchestration.goal_lineage import GoalLineage
+        ledger=GoalLineage(self.root/'ledger.json')
+        before=ledger.record(self.receipt('old',870069,2834),'original')
+        path=self.root/'absent.json';path.write_text(json.dumps({'session_id':'new',
+            'tool_result':{'goal':None,'remainingTokens':None,'completionBudgetReport':None}}))
+        result=ledger.record_absence(path,'original')
+        for key in ('objective','deadline','objective_sha256','threads','tokens_used','seconds_used'):
+            self.assertEqual(result[key],before[key])
+        self.assertNotIn('new',result['threads'])
+        self.assertEqual(result['absent_goals'][0]['session_id'],'new')
+        self.assertEqual(ledger.record_absence(path,'original'),result)
+        with self.assertRaisesRegex(ValueError,'contract'):ledger.record_absence(path,'extended')
+
+    def test_absence_cannot_initialize_or_disguise_a_present_goal(self):
+        from ops.orchestration.goal_lineage import GoalLineage
+        ledger=GoalLineage(self.root/'ledger.json')
+        path=self.root/'absent.json';path.write_text(json.dumps({'session_id':'new',
+            'tool_result':{'goal':None,'remainingTokens':None,'completionBudgetReport':None}}))
+        with self.assertRaisesRegex(ValueError,'original goal ledger'):ledger.record_absence(path,'original')
+        ledger.record(self.receipt('old',10,1),'original')
+        with self.assertRaises(ValueError):ledger.record_absence(self.receipt('new',0,0),'original')

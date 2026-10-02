@@ -171,6 +171,8 @@ class Loop:
             data, receipts=self.lit.read(ticket)
             if state.get('awaiting_native_receipt'):
                 raise ValueError('verified native reset receipt required before fresh-epoch admission')
+            if state.get('maintenance_only') and not maintenance:
+                raise ValueError('maintenance recovery requires a genuine native reset before production')
             closed={i['id'] for i in data['issues'] if i.get('status')=='closed'}
             unreconciled=(set(state['admissions']) & closed)-set(state['completed'])
             if unreconciled:
@@ -180,7 +182,9 @@ class Loop:
             buford=next(s for s in control['sessions'] if s['role']=='buford')
             if buford['session_id'] != state['session_id']:
                 raise ValueError('Buford identity changed; bootstrap required')
-            if len(state['completed'])-state['epoch_start'] >= 5 or state['reset'] or not headroom:
+            recovered_maintenance=maintenance and state.get('maintenance_only',False)
+            if (len(state['completed'])-state['epoch_start'] >= 5 or state['reset']
+                    or state.get('reset_requested') and not recovered_maintenance or not headroom):
                 if not headroom:
                     state['reset_requested']=True;self._save(state)
                 raise ValueError('context-reset-required')
@@ -440,7 +444,54 @@ class Loop:
                     or proof['nonce']!=state['last_bootstrap']['nonce'] or proof['seconds']>120):
                 raise ValueError('native reset acceptance receipt mismatch')
             state['native_receipt']=file_binding(receipt);state['awaiting_native_receipt']=False
+            state['maintenance_only']=False
             self._save(state)
+
+    def recover_maintenance(self,authority):
+        """Transfer Buford routing without freshness credit or production admission."""
+        binding=file_binding(authority);grant=json.loads(Path(authority).read_text())
+        with Lease(self.path.with_suffix('.lock')):
+            state=self._read();control=self._control()
+            proof=state.get('maintenance_recovery')
+            if proof is not None:
+                if proof['authority']!=binding:raise ValueError('maintenance recovery authority changed')
+                if state['session_id']!=grant['session_id']:raise ValueError('maintenance recovery identity changed')
+            pending=state.get('pending_maintenance')
+            if pending is not None and pending!=binding:raise ValueError('maintenance recovery intent changed')
+            if proof is None and pending is None and any(file_binding(self.path)[k]!=grant['journal'][k] for k in ('sha256','bytes')):
+                raise ValueError('failed journal changed before recovery')
+            failed=json.loads(Path(grant['journal']['path']).read_text())
+            recovered={**failed,'session_id':grant['session_id'],'reset':None,'reset_requested':True,
+                       'admission':None,'maintenance_only':True,'pending_maintenance':None,
+                       'maintenance_recovery':{'authority':binding,'failed_reset':failed['reset']}}
+            if pending is not None and state!={**failed,'pending_maintenance':binding}:
+                raise ValueError('failed journal changed after recovery intent')
+            frozen_control=json.loads(Path(grant['routing']['path']).read_text())
+            expected=json.loads(json.dumps(frozen_control))
+            buford=next(s for s in expected['sessions'] if s['role']=='buford')
+            if buford['session_id']!=failed['session_id']:raise ValueError('failed Buford routing mismatch')
+            previous=buford['session_id']
+            buford.update(session_id=grant['session_id'],transcript=grant['transcript'])
+            if expected.get('notification_thread')==previous:expected['notification_thread']=grant['session_id']
+            if not control['repair_paused'] or control not in (frozen_control,expected):
+                raise ValueError('maintenance recovery requires unchanged paused protected routing')
+            actual=identity(grant['transcript'])
+            if (grant['maintenance_only'] is not True or actual['session_id']!=grant['session_id']
+                    or (actual['model'],actual['effort'])!=('gpt-6.1-sol','high')
+                    or grant['session_id'] in {s['session_id'] for s in control['sessions'] if s['role']!='buford'}
+                    or {'count':actual['user_count'],'hash':actual['last_user_hash']}!=grant['user_frontier']):
+                raise ValueError('actual human frontier/Sol/high recovery identity mismatch')
+            if proof is not None:
+                if control!=expected:raise ValueError('recovered Buford routing changed')
+                return self.status()
+            self.lit.read(state['goal_ticket'])
+            if pending is None:
+                state['pending_maintenance']=binding;self._save(state)
+            # [LAW:no-ambient-temporal-coupling] Recovery intent survives a crash
+            # between routing and journal publication; counters never change.
+            atomic_json(self.control,expected,private=False)
+            self._save(recovered)
+            return self.status()
 
 
 def main():

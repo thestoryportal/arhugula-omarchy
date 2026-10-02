@@ -4,9 +4,11 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import select
 import socket
+import sqlite3
 import sys
 import time
 import uuid
@@ -14,7 +16,7 @@ from datetime import datetime
 
 from .artifacts import DEFAULT_ROOT,file_binding
 from .continuation import Lease
-from .goal_lineage import GoalLineage
+from .goal_lineage import GoalLineage,goal_observation
 from .loop import Loop,NativeLit,identity
 from .native_window import NativeWindow,WindowCapability
 from .native_goal import read_goal
@@ -37,6 +39,16 @@ class AutoReset:
         for bound in [self.config['authority'],self.config['continuation'],*self.config['source_acceptance']]:
             if file_binding(bound['path'])!=bound:raise ValueError('autoreset authority/source binding changed')
 
+    def retain_goal(self,receipt,session):
+        actual,observation=goal_observation(json.loads(Path(receipt).read_text()))
+        if actual!=session:raise ValueError('actual current goal observation required')
+        ledger=GoalLineage(self.config['goal_ledger'])
+        if observation['goal'] is None:
+            if read_goal(self.config['goal_database'],session)['goal'] is not None:
+                raise ValueError('native goal appeared after absence observation')
+            return ledger.record_absence(receipt,self.config['deadline'])
+        return ledger.record(receipt,self.config['deadline'])
+
     def prepare(self):
         state=self.loop.status();routing=next(s for s in self.loop._control()['sessions'] if s['role']=='buford')
         release=json.loads(Path(self.config['release']).read_text())
@@ -45,9 +57,7 @@ class AutoReset:
             waiting={'phase':'waiting_release'};self.save(waiting);return waiting
         actual=identity(routing['transcript'])
         if release['user_frontier']!=user_frontier(actual):raise ValueError('user input changed since release')
-        goal=json.loads(Path(release['goal_receipt']).read_text())['goal']
-        if goal['threadId']!=state['session_id']:raise ValueError('actual current goal receipt required')
-        GoalLineage(self.config['goal_ledger']).record(release['goal_receipt'],self.config['deadline'])
+        self.retain_goal(release['goal_receipt'],state['session_id'])
         directory=Path(self.config['packages'])/str(uuid.uuid4())
         reset=self.loop.prepare_clear(directory,release['owned_processes'],automatic={
             'config':self.config.get('config_path','fixture-config.json'),
@@ -111,7 +121,7 @@ class AutoReset:
         digest=hashlib.sha256(json.dumps(terminal,sort_keys=True).encode()).hexdigest()
         terminal_path=directory/(state['nonce']+'.terminal-goal.'+digest+'.json')
         if not terminal_path.exists():atomic_json(terminal_path,terminal)
-        GoalLineage(self.config['goal_ledger']).record(terminal_path,self.config['deadline'])
+        self.retain_goal(terminal_path,state['reset']['previous_session'])
         snapshot=directory/(state['nonce']+'.goal-ledger.json')
         if not snapshot.exists():atomic_json(snapshot,json.loads(Path(self.config['goal_ledger']).read_text()))
         receipt={'version':1,'verified':True,'manifest':state['reset']['manifest'],
@@ -134,6 +144,8 @@ class AutoReset:
     def step(self,fresh_transcript=None):
         self.bindings();state=self.status();journal=self.loop.status()
         phase=state['phase']
+        if phase=='maintenance_recovered':
+            raise ValueError('maintenance recovery only; release a later genuine native reset')
         if phase in ('monitoring','verified','waiting_release'):
             if journal['epoch_completed']<5 and journal['reset'] is None and not journal.get('reset_requested'):return state
             return self.prepare()
@@ -151,12 +163,15 @@ class AutoReset:
             state['phase']='waiting_title';self.save(state);return state
         if phase=='waiting_title':
             self.unchanged_parent(state)
-            if state['title'] not in self.window.title():return state
-            path=self.cleared(state)
-            if path is None:return state
-            actual=identity(path)
-            if actual['user_count'] or actual['status']=='active':raise ValueError('fresh user input before generated prompt delivery')
-            state['fresh_transcript']=str(path)
+            if not self.title_matches(state):return state
+            frontier=json.loads((Path(state['reset']['directory'])/'frontier.json').read_text())
+            proof=self.window.context(frontier,state['reset']['previous_session'])
+            if proof is None:return state
+            path=proof['transcript']
+            actual=identity(path) if path is not None else None
+            if (proof['user_input'] or actual is not None and (actual['user_count'] or actual['status']=='active')):
+                raise ValueError('fresh user input before generated prompt delivery')
+            state['fresh_context']=proof
             state['phase']='prompt_intent';self.save(state)
             text=(Path(state['reset']['directory'])/'resume-prompt.txt').read_text().rstrip('\n')
             self.window.type(text);self.window.submit()
@@ -167,10 +182,87 @@ class AutoReset:
             path=fresh_transcript or self.fresh(state)
             self.unchanged_parent(state,recovery_transcript=path)
             if path is None:return state
-            if str(path)!=state['fresh_transcript']:raise ValueError('fresh native context changed after prompt delivery')
+            if identity(path)['session_id']!=state['fresh_context']['session_id']:
+                raise ValueError('fresh native context changed after prompt delivery')
             result=self.loop.bootstrap(path)
             return self.publish(state,result)
         raise ValueError('unknown autoreset phase')
+
+    def title_matches(self,state):
+        # Codex prefixes the exact named title with one native activity glyph.
+        title=re.sub(r'^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ','',self.window.title())
+        return title in (state['title'],state['title']+' | '+Path(self.config.get('cwd','.')).name)
+
+    def recover_maintenance(self,authority):
+        self.bindings();bound=file_binding(authority);grant=json.loads(Path(authority).read_text())
+        for key in ('supervisor','journal','routing','human_authority','current_goal','terminal_goal'):
+            if file_binding(grant[key]['path'])!=grant[key]:raise ValueError('failed recovery evidence changed')
+        state=self.status();failed=json.loads(Path(grant['supervisor']['path']).read_text())
+        if state.get('phase')=='maintenance_recovered':
+            if state['recovery_authority']!=bound:raise ValueError('maintenance recovery authority changed')
+            self.loop.recover_maintenance(authority)
+            return state
+        if state!=failed:raise ValueError('failed supervisor changed before recovery')
+        if (failed['phase']!='waiting_title' or failed['started'] is None or self.clock()-failed['started']<=120
+                or grant['window']!=self.config['window'] or grant['deadline']!=self.config['deadline']
+                or grant['maintenance_only'] is not True or not self.loop._control()['repair_paused']):
+            raise ValueError('expired same-window maintenance recovery authority required')
+        if file_binding(failed['reset']['manifest']['path'])!=failed['reset']['manifest']:
+            raise ValueError('failed reset package changed')
+        failed_journal=json.loads(Path(grant['journal']['path']).read_text())
+        if failed_journal['reset']!=failed['reset']:raise ValueError('failed reset/journal mismatch')
+        routing=json.loads(Path(grant['routing']['path']).read_text())
+        if routing!=failed['control_snapshot']:
+            refresh=grant.get('implementer_refresh')
+            if refresh is None or file_binding(refresh['path'])!=refresh:
+                raise ValueError('bound implementer-only routing refresh required')
+            refresh=json.loads(Path(refresh['path']).read_text())
+            expected=json.loads(json.dumps(failed['control_snapshot']))
+            implementer=next(s for s in expected['sessions'] if s['role']=='implementer')
+            current=next(s for s in routing['sessions'] if s['role']=='implementer')
+            if (refresh['kind']!='authorized-idle-implementer-native-refresh' or refresh['production_paused'] is not True
+                    or refresh['previous_session']!=implementer['session_id'] or refresh['session_id']!=current['session_id']
+                    or any(refresh['control_after'][k]!=grant['routing'][k] for k in ('sha256','bytes'))
+                    or file_binding(refresh['delivery']['path'])!=refresh['delivery']):
+                raise ValueError('implementer routing refresh evidence mismatch')
+            delivery=json.loads(Path(refresh['delivery']['path']).read_text())
+            if (delivery['session_id'],delivery['model'],delivery['effort'])!=(current['session_id'],'gpt-6.1-sol','high'):
+                raise ValueError('actual refreshed implementer identity mismatch')
+            implementer.update(session_id=current['session_id'],transcript=current['transcript'])
+            if routing!=expected:raise ValueError('protected routing changed outside implementer refresh')
+        if user_frontier(identity(failed['old_transcript']))!=failed['old_user_frontier']:
+            raise ValueError('old user input changed before maintenance recovery')
+        journal=self.loop.status()
+        if journal.get('maintenance_recovery') is None:
+            self.loop.ready_clear(failed['old_transcript'])
+        else:
+            if journal['maintenance_recovery']['authority']!=bound:
+                raise ValueError('maintenance recovery authority changed')
+            for evidence in json.loads(Path(failed['reset']['manifest']['path']).read_text())['files']:
+                if file_binding(evidence['path'])!=evidence:raise ValueError('failed reset package evidence changed')
+        frontier=json.loads((Path(failed['reset']['directory'])/'frontier.json').read_text())
+        if not self.title_matches(failed):raise ValueError('same-window recovery nonce title mismatch')
+        proof=self.window.context(frontier,failed['reset']['previous_session'])
+        actual=identity(grant['transcript'])
+        human=json.loads(Path(grant['human_authority']['path']).read_text())
+        if (proof is None or proof['session_id']!=grant['session_id'] or actual['session_id']!=proof['session_id']
+                or proof['transcript']!=str(Path(grant['transcript']).absolute())
+                or actual['user_count']<1 or user_frontier(actual)!=grant['user_frontier']
+                or (actual['model'],actual['effort'])!=('gpt-6.1-sol','high')
+                or {k:actual[k] for k in ('cwd','source','originator')}!=frontier['native_lane']
+                or human['session_id']!=actual['session_id'] or human['user_frontier']!=grant['user_frontier']
+                or human['actual_user_message']!=actual['first_user']
+                or not actual['created_at'] or datetime.fromisoformat(actual['created_at'].replace('Z','+00:00'))<datetime.fromisoformat(frontier['prepared_at'])):
+            raise ValueError('actual same-window human frontier recovery evidence required')
+        terminal=json.loads(Path(grant['terminal_goal']['path']).read_text())
+        if terminal['goal']!=read_goal(self.config['goal_database'],failed['reset']['previous_session'])['goal']:
+            raise ValueError('actual outgoing terminal goal changed')
+        self.retain_goal(grant['terminal_goal']['path'],failed['reset']['previous_session'])
+        self.retain_goal(grant['current_goal']['path'],actual['session_id'])
+        self.loop.recover_maintenance(authority)
+        state.update(phase='maintenance_recovered',recovery_authority=bound,
+                     recovery_context=proof,automatic_acceptance=False)
+        self.save(state);return state
 
 
 class Wakeups:
@@ -226,24 +318,31 @@ def wait_bootstrap(controller,manifest):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=['run','status','wait-bootstrap','release'])
+    parser.add_argument('command',choices=['run','status','wait-bootstrap','release','recover-maintenance'])
     parser.add_argument('--config',type=Path,required=True);parser.add_argument('--manifest',type=Path)
     parser.add_argument('--ownership',type=Path);parser.add_argument('--goal-receipt',type=Path)
-    args=parser.parse_args();controller=configured(args.config)
+    parser.add_argument('--recovery-authority',type=Path)
+    args=parser.parse_args()
+    if args.command=='recover-maintenance' and args.recovery_authority is None:
+        parser.error('recover-maintenance requires --recovery-authority')
+    controller=configured(args.config)
     try:
         if args.command=='release':
             journal=controller.loop.status()
             owned=json.loads(args.ownership.read_text())['owned_processes']
             if any(Path(f'/proc/{int(h["pid"])}').exists() for h in owned):raise ValueError('owned writer still active')
-            goal=json.loads(args.goal_receipt.read_text())['goal']
-            if goal['threadId']!=journal['session_id']:raise ValueError('actual current goal receipt required')
-            GoalLineage(controller.config['goal_ledger']).record(args.goal_receipt,controller.config['deadline'])
+            controller.retain_goal(args.goal_receipt,journal['session_id'])
             result=dict(session_id=journal['session_id'],epoch=journal['epoch'],completed=sorted(journal['completed']),
                 owned_processes=owned,goal_receipt=str(args.goal_receipt.absolute()),
                 user_frontier=user_frontier(identity(next(s['transcript'] for s in controller.loop._control()['sessions'] if s['role']=='buford'))))
             atomic_json(controller.config['release'],result)
+            if controller.status()['phase']=='maintenance_recovered':
+                controller.save({'phase':'monitoring','recovery_authority':controller.status()['recovery_authority']})
         elif args.command=='status':result=controller.status()
         elif args.command=='wait-bootstrap':result=wait_bootstrap(controller,args.manifest)
+        elif args.command=='recover-maintenance':
+            with Lease(controller.path.with_suffix('.runtime.lock')):
+                result=controller.recover_maintenance(args.recovery_authority)
         else:
             with Lease(controller.path.with_suffix('.runtime.lock')):
                 while True:
@@ -261,7 +360,7 @@ def main():
                     finally:wake.close()
             return 0
         print(json.dumps(result));return 0
-    except (OSError,ValueError,KeyError) as error:
+    except (OSError,ValueError,KeyError,sqlite3.Error) as error:
         print(json.dumps({'held':str(error),'supervisor':str(controller.path)}),file=sys.stderr,flush=True)
         return 2
 
