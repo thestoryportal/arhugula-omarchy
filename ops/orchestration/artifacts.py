@@ -1,4 +1,5 @@
 """Stream raw subprocess output to private disk files; emit bounded receipts."""
+
 import argparse
 import hashlib
 import json
@@ -13,73 +14,99 @@ import time
 
 from .records import atomic_json, private_directory, sync_directory
 
-DEFAULT_ROOT = Path('/mnt/mac/arhugula-artifacts')
+DEFAULT_ROOT = Path("/mnt/mac/arhugula-artifacts")
 
 
 def require_mac_share(mountinfo):
     for line in mountinfo.splitlines():
-        left, right = line.split(' - ', 1)
+        left, right = line.split(" - ", 1)
         fields, filesystem = left.split(), right.split()
-        if fields[4] == '/mnt/mac' and 'rw' in fields[5].split(',') and filesystem[:2] == ['9p', 'mac']:
+        if (
+            fields[4] == "/mnt/mac"
+            and "rw" in fields[5].split(",")
+            and filesystem[:2] == ["9p", "mac"]
+        ):
             return
-    raise ValueError('writable Mac share is unavailable; no guest-disk fallback')
+    raise ValueError("writable Mac share is unavailable; no guest-disk fallback")
 
 
 def file_binding(path):
     digest = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''):
+    with Path(path).open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
-    return {'path': str(Path(path).absolute()), 'bytes': Path(path).stat().st_size,
-            'sha256': digest.hexdigest()}
+    return {
+        "path": str(Path(path).absolute()),
+        "bytes": Path(path).stat().st_size,
+        "sha256": digest.hexdigest(),
+    }
 
 
 def summary(paths, limit=4096):
     # [LAW:carrying-cost] Cap even a single compiler line; retain full bytes on disk.
-    matches, tail = [], b''
+    matches, tail = [], b""
     for path in paths:
-        with Path(path).open('rb') as stream:
-            for chunk in iter(lambda: stream.readline(1024), b''):
-                if re.search(rb'error|fail|traceback|passed|ran \d+|^OK$', chunk, re.I) and sum(map(len, matches)) < limit // 2:
+        with Path(path).open("rb") as stream:
+            for chunk in iter(lambda: stream.readline(1024), b""):
+                if (
+                    re.search(rb"error|fail|traceback|passed|ran \d+|^OK$", chunk, re.I)
+                    and sum(map(len, matches)) < limit // 2
+                ):
                     matches.append(chunk[:512])
-                tail = (tail + chunk)[-limit // 2:]
-    header=b'\n[bounded tail]\n'
-    return (b''.join(matches)[:limit // 2-len(header)] + header + tail).decode('utf-8', 'replace')
+                tail = (tail + chunk)[-limit // 2 :]
+    header = b"\n[bounded tail]\n"
+    return (b"".join(matches)[: limit // 2 - len(header)] + header + tail).decode(
+        "utf-8", "replace"
+    )
 
 
 def group_active(pgid):
-    for proc in Path('/proc').glob('[0-9]*/stat'):
+    for proc in Path("/proc").glob("[0-9]*/stat"):
         try:
-            fields=proc.read_text().rsplit(')',1)[1].split()
+            fields = proc.read_text().rsplit(")", 1)[1].split()
         except FileNotFoundError:
             continue  # The process exited during the census.
-        if int(fields[2])==pgid and fields[0]!='Z':
+        if int(fields[2]) == pgid and fields[0] != "Z":
             return True
     return False
 
 
 def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
-    if not argv or any(not isinstance(x, str) or not x or '\x00' in x for x in argv) or timeout <= 0:
-        raise ValueError('literal argv and positive timeout required')
+    if (
+        not argv
+        or any(not isinstance(x, str) or not x or "\x00" in x for x in argv)
+        or timeout <= 0
+    ):
+        raise ValueError("literal argv and positive timeout required")
     root = Path(root).absolute()
     if root == DEFAULT_ROOT or DEFAULT_ROOT in root.parents:
-        require_mac_share(Path('/proc/self/mountinfo').read_text())
+        require_mac_share(Path("/proc/self/mountinfo").read_text())
     root = private_directory(root)
-    directory = Path(tempfile.mkdtemp(prefix='run-', dir=root))
-    paths = [directory / 'stdout.log', directory / 'stderr.log']
+    directory = Path(tempfile.mkdtemp(prefix="run-", dir=root))
+    paths = [directory / "stdout.log", directory / "stderr.log"]
     began = time.monotonic()
     launch_error = None
-    terminal, code = 'exited', None
-    process_id=None
+    terminal, code = "exited", None
+    process_id = None
     # [LAW:effects-at-boundaries] No pipe buffers or raw logs enter model context.
-    with paths[0].open('xb') as stdout, paths[1].open('xb') as stderr:
-        os.chmod(paths[0], 0o600); os.chmod(paths[1], 0o600)
+    with paths[0].open("xb") as stdout, paths[1].open("xb") as stderr:
+        os.chmod(paths[0], 0o600)
+        os.chmod(paths[1], 0o600)
         try:
-            process = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.PIPE,
-                                       stdout=stdout, stderr=stderr, start_new_session=True)
-            process_id=process.pid
+            process = subprocess.Popen(
+                argv,
+                cwd=cwd,
+                stdin=subprocess.PIPE,
+                stdout=stdout,
+                stderr=stderr,
+                start_new_session=True,
+            )
+            process_id = process.pid
             try:
-                process.communicate(input=input.encode() if isinstance(input, str) else input, timeout=timeout)
+                process.communicate(
+                    input=input.encode() if isinstance(input, str) else input,
+                    timeout=timeout,
+                )
                 code = process.returncode
             except BaseException as error:
                 # This capture owns this process group, never an inherited worker.
@@ -88,31 +115,47 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
                 except ProcessLookupError:
                     pass
                 process.wait()
-                terminal = 'timeout' if isinstance(error, subprocess.TimeoutExpired) else 'interrupted'
-                code = 124 if terminal == 'timeout' else 130
-                if terminal == 'interrupted':
+                terminal = (
+                    "timeout"
+                    if isinstance(error, subprocess.TimeoutExpired)
+                    else "interrupted"
+                )
+                code = 124 if terminal == "timeout" else 130
+                if terminal == "interrupted":
                     launch_error = error
             if group_active(process.pid):
                 # [LAW:no-ambient-temporal-coupling] A parent exit is not group release.
-                os.killpg(process.pid,signal.SIGKILL)
-                deadline=time.monotonic()+5
+                os.killpg(process.pid, signal.SIGKILL)
+                deadline = time.monotonic() + 5
                 while group_active(process.pid):
-                    if time.monotonic()>=deadline:
-                        raise OSError('owned subprocess group did not terminate; logs remain unsealed')
+                    if time.monotonic() >= deadline:
+                        raise OSError(
+                            "owned subprocess group did not terminate; logs remain unsealed"
+                        )
                     time.sleep(0.01)
-                if terminal=='exited':terminal,code='descendants_active',125
+                if terminal == "exited":
+                    terminal, code = "descendants_active", 125
         except OSError as error:
-            terminal, launch_error = 'launch_failed', error
+            terminal, launch_error = "launch_failed", error
             stderr.write(str(error).encode())
         for stream in (stdout, stderr):
-            stream.flush(); os.fsync(stream.fileno())
+            stream.flush()
+            os.fsync(stream.fileno())
     sync_directory(directory)
-    receipt = dict(version=1, argv=argv, cwd=str(Path(cwd).absolute()), exit=code,
-                   terminal=terminal, owned_process_group=process_id,
-                   elapsed_seconds=round(time.monotonic()-began, 3),
-                   stdout=file_binding(paths[0]), stderr=file_binding(paths[1]),
-                   summary=summary(paths), receipt=str(directory / 'receipt.json'))
-    atomic_json(directory / 'receipt.json', receipt)
+    receipt = dict(
+        version=1,
+        argv=argv,
+        cwd=str(Path(cwd).absolute()),
+        exit=code,
+        terminal=terminal,
+        owned_process_group=process_id,
+        elapsed_seconds=round(time.monotonic() - began, 3),
+        stdout=file_binding(paths[0]),
+        stderr=file_binding(paths[1]),
+        summary=summary(paths),
+        receipt=str(directory / "receipt.json"),
+    )
+    atomic_json(directory / "receipt.json", receipt)
     if launch_error is not None:
         raise launch_error
     return receipt
@@ -120,21 +163,27 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--root', type=Path, default=DEFAULT_ROOT,
-                        help='explicit alternative store; default requires mounted Mac share')
-    parser.add_argument('--cwd', type=Path, default=Path.cwd())
-    parser.add_argument('--timeout', type=float, default=300)
-    parser.add_argument('argv', nargs=argparse.REMAINDER)
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=DEFAULT_ROOT,
+        help="explicit alternative store; default requires mounted Mac share",
+    )
+    parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    parser.add_argument("--timeout", type=float, default=300)
+    parser.add_argument("argv", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
-        argv = args.argv[1:] if args.argv[:1] == ['--'] else args.argv
+        argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
         result = capture(argv, args.cwd, root=args.root, timeout=args.timeout)
         print(json.dumps(result))
-        return result['exit'] if 0 <= result['exit'] <= 255 else 1
+        return result["exit"] if 0 <= result["exit"] <= 255 else 1
     except (OSError, ValueError) as error:
-        print(json.dumps({'error': str(error), 'durable_success': False}), file=sys.stderr)
+        print(
+            json.dumps({"error": str(error), "durable_success": False}), file=sys.stderr
+        )
         return 2
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
