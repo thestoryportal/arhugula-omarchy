@@ -757,6 +757,114 @@ class AutoResetTests(unittest.TestCase):
                 self.assertEqual(self.loop.status(), state)
                 self.assertEqual(self.loop._control(), before)
 
+    def accepted_then_title_recovery_fixture(self):
+        from ops.orchestration.artifacts import file_binding
+        from ops.orchestration.auto_reset import user_frontier
+        from ops.orchestration.loop import identity
+        from ops.orchestration.native_goal import read_goal
+
+        controller, prior_authority, accepted, _ = self.prompt_recovery_fixture()
+        self.clock -= 121
+        controller.step(accepted)
+        state = self.loop.status()
+        self.assertEqual(state["epoch"], 1)
+        with accepted.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {"type": "task_complete"}}) + "\n")
+        goal = self.root / "accepted-goal.json"
+        goal.write_text(json.dumps(read_goal(self.database, "third")))
+        self.release.write_text(json.dumps({
+            "session_id": "third", "epoch": 1, "owned_processes": [],
+            "goal_receipt": str(goal), "completed": [],
+            "user_frontier": user_frontier(identity(accepted)),
+        }))
+        state["reset_requested"] = True
+        self.loop._save(state)
+        control = self.loop._control()
+        control["repair_paused"] = False
+        self.f.control.write_text(json.dumps(control))
+        self.window.next_id = "fourth"
+        controller.step()
+        controller.step()
+        failed = controller.status()
+        fresh = self.f.fresh_transcript("fourth")
+        rows = [json.loads(line) for line in fresh.read_text().splitlines()]
+        rows[0]["payload"]["timestamp"] = self.window.created
+        rows[-1]["payload"]["content"][0]["text"] = "new human report of blank reset"
+        fresh.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        self.window.rollouts = [fresh]
+        self.clock += 121
+        control["repair_paused"] = True  # Hold production while repairing delivery.
+        self.f.control.write_text(json.dumps(control))
+        grant = {
+            "maintenance_only": True, "window": self.config["window"],
+            "deadline": self.config["deadline"], "session_id": "fourth",
+            "transcript": str(fresh), "user_frontier": user_frontier(identity(fresh)),
+            "predecessor": self.loop.status()["maintenance_recovery"],
+        }
+        values = {
+            "supervisor": failed, "journal": self.loop._read(),
+            "routing": self.loop._control(),
+            "human_authority": {"session_id": "fourth", "user_frontier": grant["user_frontier"],
+                                "actual_user_message": identity(fresh)["first_user"]},
+            "terminal_goal": read_goal(self.database, "third"),
+            "current_goal": read_goal(self.database, "fourth"),
+        }
+        for key, value in values.items():
+            path = self.root / ("after-acceptance-" + key + ".json")
+            sources = {"supervisor": controller.path, "journal": self.loop.path,
+                       "routing": self.loop.control}
+            path.write_bytes(sources[key].read_bytes() if key in sources else json.dumps(value).encode())
+            grant[key] = file_binding(path)
+        authority = self.root / "after-acceptance-authority.json"
+        authority.write_text(json.dumps(grant))
+        return controller, authority
+
+    def test_new_human_title_recovery_after_verified_reset_preserves_history(self):
+        controller, authority = self.accepted_then_title_recovery_fixture()
+        before = self.loop.status()
+        controller.recover_maintenance(authority)
+        after = self.loop.status()
+        self.assertEqual(after["session_id"], "fourth")
+        self.assertEqual(after["epoch"], 1)
+        self.assertEqual(after["maintenance_recovery_history"][-1], before["maintenance_recovery"])
+        self.assertTrue(after["maintenance_only"])
+        self.assertFalse(controller.status()["automatic_acceptance"])
+        self.assertEqual(after["native_receipt"], before["native_receipt"])
+
+    def test_post_acceptance_title_recovery_requires_bound_native_acceptance(self):
+        from ops.orchestration.artifacts import file_binding
+
+        for mutation in ("receipt", "epoch", "identity", "bootstrap", "late", "maintenance", "pending"):
+            with self.subTest(mutation=mutation):
+                self.setUp()
+                controller, authority = self.accepted_then_title_recovery_fixture()
+                state = self.loop._read()
+                if mutation == "receipt":
+                    state["native_receipt"]["sha256"] = "changed"
+                elif mutation == "epoch":
+                    state["epoch"] += 1
+                elif mutation == "identity":
+                    state["session_id"] = "foreign"
+                elif mutation == "bootstrap":
+                    state["last_bootstrap"]["nonce"] = "foreign"
+                elif mutation == "late":
+                    state["native_acceptance"]["accepted_at"] = state["native_acceptance"]["deadline"] + 1
+                elif mutation == "maintenance":
+                    state["maintenance_only"] = True
+                else:
+                    state["awaiting_native_receipt"] = True
+                self.loop._save(state)
+                grant = json.loads(authority.read_text())
+                snapshot = Path(grant["journal"]["path"])
+                snapshot.write_bytes(self.loop.path.read_bytes())
+                grant["journal"] = file_binding(snapshot)
+                authority.write_text(json.dumps(grant))
+                control = self.loop._control()
+                with self.assertRaises(ValueError):
+                    controller.recover_maintenance(authority)
+                self.assertEqual(self.loop._read(), state)
+                self.assertEqual(self.loop._control(), control)
+
     def test_successor_recovery_cannot_relabel_exact_prompt_as_title_recovery(self):
         controller, authority, fresh, predecessor = self.prompt_recovery_fixture()
         grant = json.loads(authority.read_text())

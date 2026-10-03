@@ -796,6 +796,9 @@ class AutoReset:
         routing = json.loads(Path(grant["routing"]["path"]).read_text())
         original = json.loads(json.dumps(failed["control_snapshot"]))
         expected = json.loads(json.dumps(original))
+        # [LAW:single-enforcer] Recovery requires a frozen maintenance hold;
+        # protected session identities still match the pre-failure routing.
+        expected["repair_paused"] = True
         # A failed provisional bootstrap may already have moved Buford routing.
         # Its unchanged original journal still owns all counters and reset evidence.
         pending = failed_journal.get("pending_bootstrap")
@@ -808,6 +811,7 @@ class AutoReset:
             if expected.get("notification_thread") == previous:
                 expected["notification_thread"] = pending
         protected = json.loads(json.dumps(routing))
+        protected["repair_paused"] = original["repair_paused"]
         if pending is not None:
             row = next(s for s in protected["sessions"] if s["role"] == "buford")
             old = next(s for s in original["sessions"] if s["role"] == "buford")
