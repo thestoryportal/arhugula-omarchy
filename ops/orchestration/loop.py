@@ -166,8 +166,7 @@ class RecoveryTransfer:
         # authority; a phase whitelist cannot express this relationship.
         if predecessor is not None:
             if (
-                grant.get("kind") != "expired-waiting-fresh-sealed-prompt"
-                or grant.get("predecessor") != predecessor
+                grant.get("predecessor") != predecessor
                 or predecessor["failed_reset"] == failed["reset"]
             ):
                 raise ValueError("attempt-specific predecessor recovery proof required")
@@ -177,14 +176,34 @@ class RecoveryTransfer:
             if prior.failed.get("maintenance_recovery") is not None:
                 history.append(prior.failed["maintenance_recovery"])
             if (
-                prior.grant["session_id"] != failed["session_id"]
-                or grant["human_authority"] != prior.grant["human_authority"]
-                or prior.failed["reset"] != predecessor["failed_reset"]
+                prior.failed["reset"] != predecessor["failed_reset"]
                 or failed.get("maintenance_recovery_history", []) != history
             ):
-                raise ValueError(
-                    "predecessor maintenance identity/authority/history mismatch"
-                )
+                raise ValueError("predecessor maintenance history mismatch")
+            if prior.grant["session_id"] == failed["session_id"]:
+                if (
+                    grant.get("kind") != "expired-waiting-fresh-sealed-prompt"
+                    or grant["human_authority"] != prior.grant["human_authority"]
+                ):
+                    raise ValueError("predecessor maintenance identity/authority mismatch")
+            else:
+                # [LAW:one-source-of-truth] A later accepted native reset makes
+                # the earlier recovery historical; retain its entire proof chain.
+                bound = failed["native_receipt"]
+                if file_binding(bound["path"]) != bound:
+                    raise ValueError("intervening native reset receipt changed")
+                receipt = json.loads(Path(bound["path"]).read_text())
+                acceptance = failed["native_acceptance"]
+                if (
+                    failed["maintenance_only"] is not False
+                    or failed["awaiting_native_receipt"] is not False
+                    or receipt["session_id"] != failed["session_id"]
+                    or receipt["epoch"] != failed["epoch"]
+                    or receipt["bootstrap"] != failed["last_bootstrap"]
+                    or acceptance["deadline"] is None
+                    or acceptance["accepted_at"] > acceptance["deadline"]
+                ):
+                    raise ValueError("intervening verified native reset required")
         elif grant.get("predecessor") is not None:
             raise ValueError("unexpected predecessor maintenance proof")
         return cls(binding, grant, failed)

@@ -20,6 +20,26 @@ class ArtifactTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
 
+    def test_process_group_exiting_before_cleanup_preserves_success(self):
+        from unittest.mock import patch
+
+        # The census sees a descendant; it exits before the kill boundary.
+        with patch("ops.orchestration.artifacts.group_active", side_effect=[True, False]), patch(
+            "ops.orchestration.artifacts.os.killpg", side_effect=ProcessLookupError(3, "No such process")
+        ):
+            result = self.capture("print('complete')")
+        self.assertEqual((result["exit"], result["terminal"]), (0, "exited"))
+        self.assertEqual(Path(result["stdout"]["path"]).read_text(), "complete\n")
+        self.assertEqual(json.loads(Path(result["receipt"]).read_text()), result)
+
+    def test_cleanup_permission_error_remains_loud(self):
+        from unittest.mock import patch
+
+        with patch("ops.orchestration.artifacts.group_active", return_value=True), patch(
+            "ops.orchestration.artifacts.os.killpg", side_effect=PermissionError(1, "Operation not permitted")
+        ), self.assertRaises(PermissionError):
+            self.capture("print('complete')")
+
     def test_large_output_is_complete_on_disk_and_summary_is_bounded(self):
         result = self.capture(
             "import sys; print('x'*2000000); print('ERROR useful failure',file=sys.stderr); sys.exit(7)"

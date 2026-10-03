@@ -125,7 +125,15 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
                     launch_error = error
             if group_active(process.pid):
                 # [LAW:no-ambient-temporal-coupling] A parent exit is not group release.
-                os.killpg(process.pid, signal.SIGKILL)
+                # [LAW:no-ambient-temporal-coupling] A census cannot retain a
+                # process group; ESRCH at the signal boundary means it released.
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                else:
+                    if terminal == "exited":
+                        terminal, code = "descendants_active", 125
                 deadline = time.monotonic() + 5
                 while group_active(process.pid):
                     if time.monotonic() >= deadline:
@@ -133,8 +141,6 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
                             "owned subprocess group did not terminate; logs remain unsealed"
                         )
                     time.sleep(0.01)
-                if terminal == "exited":
-                    terminal, code = "descendants_active", 125
         except OSError as error:
             terminal, launch_error = "launch_failed", error
             stderr.write(str(error).encode())
