@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 from .artifacts import capture, DEFAULT_ROOT, file_binding
+from .processes import process_stats
 
 
 class QueueRefused(ValueError):
@@ -57,14 +58,7 @@ def require_us_keyboard(rows):
 
 
 def processes():
-    result = {}
-    for path in Path("/proc").glob("[0-9]*/stat"):
-        try:
-            fields = path.read_text().rsplit(")", 1)[1].split()
-            result[int(path.parent.name)] = (fields[19], int(fields[1]))
-        except FileNotFoundError:
-            continue
-    return result
+    return {proc.pid: (proc.start, proc.parent) for proc in process_stats()}
 
 
 def launch_cwd(argv, process_cwd):
