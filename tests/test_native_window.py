@@ -348,6 +348,52 @@ class NativeWindowTests(unittest.TestCase):
         db.commit()
         self.assertTrue(window.context(frontier, "old")["user_input"])
 
+    def test_queue_ack_binds_exact_target_and_message_at_transport_boundary(self):
+        from ops.orchestration.native_window import NativeWindow, WindowCapability
+        from unittest.mock import patch
+
+        window = NativeWindow(
+            WindowCapability("0xabc", "stable", 10, "100", 11, "101"), "."
+        )
+        session = "01a0ff29-b10a-7383-832f-9a2c9ff04f16"
+        message = "01a0ff31-a699-7381-9382-2da72856f997"
+        context = {"session_id": session, "user_input": False, "transcript": None}
+        window.context = lambda *args: context
+        commands = []
+
+        def command(argv):
+            commands.append(argv)
+            return f"Queued message {message} for thread {session}.\n"
+
+        window.command = command
+        with patch.object(window, "check"):
+            result = window.queue(context, {}, "old", "complete exact prompt")
+        self.assertEqual(result, {"message_id": message, "session_id": session})
+        self.assertEqual(
+            commands,
+            [
+                [
+                    "codex",
+                    "queue",
+                    "--thread",
+                    session,
+                    "--message",
+                    "complete exact prompt",
+                ]
+            ],
+        )
+        for answer in (
+            "ok",
+            f"Queued message {message} for thread {message}.",
+            f"Queued message bad for thread {session}.",
+        ):
+            window.command = lambda argv: answer
+            with self.assertRaises(ValueError):
+                window.queue(context, {}, "old", "complete exact prompt")
+        window.context = lambda *args: {**context, "user_input": True}
+        with self.assertRaises(ValueError):
+            window.queue(context, {}, "old", "complete exact prompt")
+
     def test_hyprland_eval_ack_is_ok_not_lua_print_output(self):
         from ops.orchestration.native_window import NativeWindow, WindowCapability
 
@@ -356,10 +402,9 @@ class NativeWindowTests(unittest.TestCase):
         )
         window.check = lambda: None
         window.command = lambda argv: "ok\n"
-        window.type("literal")
-        window.submit()
+        window.clear("Buford-auto-0481a128-8c70-4cf1-9117-c42ba459e012")
 
-    def test_native_tab_submits_literal_composer_without_return_newlines(self):
+    def test_clear_submits_only_the_bound_native_nonce_command(self):
         from ops.orchestration.native_window import NativeWindow, WindowCapability
 
         window = NativeWindow(
@@ -373,38 +418,36 @@ class NativeWindowTests(unittest.TestCase):
             return "ok\n"
 
         window.command = command
-        window.type("complete exact prompt")
-        window.submit()
+        window.clear("Buford-auto-0481a128-8c70-4cf1-9117-c42ba459e012")
         self.assertIn('"Tab"', commands[-1][-1])
         self.assertNotIn('"Return"', commands[-1][-1])
 
-    def test_literal_prompt_keys_are_window_bound_without_clipboard_or_focus(self):
-        from ops.orchestration.native_window import key_events, input_program
+    def test_clear_keys_are_window_bound_without_clipboard_or_focus(self):
+        from ops.orchestration.native_window import clear_program
 
-        self.assertEqual(
-            key_events("A1_/: "),
-            [
-                ("SHIFT", "a"),
-                ("", "1"),
-                ("SHIFT", "minus"),
-                ("", "slash"),
-                ("SHIFT", "semicolon"),
-                ("", "space"),
-            ],
+        program = clear_program(
+            "0xabc", "Buford-auto-0481a128-8c70-4cf1-9117-c42ba459e012"
         )
-        program = input_program("0xabc", "A1_/: ")
         self.assertIn("address:0xabc", program)
         self.assertNotIn("focus(", program)
         self.assertNotIn("clipboard", program)
 
-    def test_unsupported_text_is_refused_before_any_dispatch(self):
-        from ops.orchestration.native_window import input_program
+    def test_arbitrary_text_or_wrong_clear_nonce_is_refused_before_dispatch(self):
+        from ops.orchestration.native_window import clear_program
 
-        for text in ("line\nbreak", "snowman \u2603", "\x00"):
+        for title in (
+            "line\nbreak",
+            "complete prompt",
+            "Buford-auto-bad",
+            "Buford-auto-01a0ff29-b10a-7383-832f-9a2c9ff04f16",
+        ):
             with self.assertRaises(ValueError):
-                input_program("0xabc", text)
+                clear_program("0xabc", title)
         with self.assertRaises(ValueError):
-            input_program("0xabc');os.execute('bad')", "safe")
+            clear_program(
+                "0xabc');os.execute('bad')",
+                "Buford-auto-0481a128-8c70-4cf1-9117-c42ba459e012",
+            )
 
     def test_window_and_pid_reuse_refuse_target_capability(self):
         from ops.orchestration.native_window import WindowCapability

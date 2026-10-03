@@ -11,6 +11,8 @@ class WindowSeam:
         self.root = root
         self.name = "old"
         self.lines = []
+        self.queued = []
+        self.created = None
         self.pending = None
         self.rollouts = []
         self.next_id = "new"
@@ -21,13 +23,12 @@ class WindowSeam:
     def title(self):
         return self.name
 
-    def type(self, text):
-        self.pending = text
-        self.lines.append(text)
-
-    def submit(self):
+    def clear(self, title):
+        self.pending = "/clear " + title
+        self.lines.append(self.pending)
         if self.pending.startswith("/clear "):
             self.name = self.pending[7:]
+            self.created = datetime.now(timezone.utc).isoformat()
             path = self.root / (self.next_id + ".jsonl")
             path.write_text(
                 json.dumps(
@@ -55,8 +56,27 @@ class WindowSeam:
                 "session_id": actual["session_id"],
                 "user_input": bool(actual["user_count"]),
                 "transcript": str(self.rollouts[0]),
+                "created_at": self.created,
+                "process_uuid": "pid:123:fixture",
+                "creation_log_id": 1,
             }
-        return {"session_id": self.next_id, "user_input": False, "transcript": None}
+        return {
+            "session_id": self.next_id,
+            "user_input": False,
+            "transcript": None,
+            "created_at": self.created,
+            "process_uuid": "pid:123:fixture",
+            "creation_log_id": 1,
+        }
+
+    def queue(self, context, frontier, previous, text):
+        self.queued.append((context["session_id"], text))
+        return {"message_id": "message-id", "session_id": context["session_id"]}
+
+    def delivered_context(self, frontier, previous, initial):
+        from ops.orchestration.native_window import NativeWindow
+
+        return NativeWindow.delivered_context(self, frontier, previous, initial)
 
     def recovery_context(self, frontier, previous, grant):
         return self.context(frontier, previous)
@@ -247,6 +267,517 @@ class AutoResetTests(unittest.TestCase):
         authority = self.root / "recovery-authority.json"
         authority.write_text(json.dumps(grant))
         return controller, authority, fresh
+
+    def test_complete_prompt_uses_one_queue_to_created_uuid(self):
+        self.hold()
+        controller = self.controller()
+        for _ in range(4):
+            controller.step()
+        prompt = (
+            Path(controller.status()["reset"]["directory"]) / "resume-prompt.txt"
+        ).read_text()
+        self.assertEqual(self.window.queued, [("new", prompt)])
+        self.assertEqual(len(self.window.lines), 1)
+        controller.step(self.fresh())
+        self.assertEqual(controller.status()["phase"], "verified")
+        self.assertEqual(len(self.window.queued), 1)
+
+    def prompt_recovery_fixture(self, *, legacy=False, routing_refresh=False):
+        from ops.orchestration.artifacts import file_binding
+        from ops.orchestration.auto_reset import user_frontier
+        from ops.orchestration.loop import identity
+
+        controller, predecessor, outgoing = self.recovery_fixture(
+            routing_refresh=routing_refresh
+        )
+        controller.recover_maintenance(predecessor)
+        prior_proof = self.loop.status()["maintenance_recovery"]
+        with outgoing.open("a") as stream:
+            stream.write(
+                json.dumps({"type": "event_msg", "payload": {"type": "task_complete"}})
+                + "\n"
+            )
+        prior = json.loads(predecessor.read_text())
+        self.release.write_text(
+            json.dumps(
+                {
+                    "session_id": "new",
+                    "epoch": 0,
+                    "owned_processes": [],
+                    "goal_receipt": prior["current_goal"]["path"],
+                    "completed": [],
+                    "user_frontier": user_frontier(identity(outgoing)),
+                }
+            )
+        )
+        controller.save({"phase": "monitoring"})
+        self.window.next_id = "third"
+        for _ in range(3):
+            controller.step()
+        failed = controller.status()
+        if legacy:
+            failed.pop("queue_ack")
+            failed.pop("prompt")
+            controller.save(failed)
+        package = Path(failed["reset"]["directory"])
+        (self.root / "package/resume-prompt.txt").write_text(
+            (package / "resume-prompt.txt").read_text()
+        )
+        fresh = self.f.fresh_transcript("third")
+        rows = fresh.read_text().splitlines()
+        meta = json.loads(rows[0])
+        meta["payload"]["timestamp"] = self.window.created
+        rows[0] = json.dumps(meta)
+        if legacy:
+            user = json.loads(rows[-1])
+            user["payload"]["content"][0]["text"] = user["payload"]["content"][0][
+                "text"
+            ].removesuffix("\n")
+            rows[-1] = json.dumps(user)
+        fresh.write_text("\n".join(rows) + "\n")
+        self.window.rollouts = [fresh]
+        self.clock += 121
+        grant = {
+            "kind": "expired-waiting-fresh-sealed-prompt",
+            "maintenance_only": True,
+            "window": self.config["window"],
+            "deadline": self.config["deadline"],
+            "session_id": "third",
+            "transcript": str(fresh),
+            "user_frontier": user_frontier(identity(fresh)),
+            "human_authority": prior["human_authority"],
+            "predecessor": prior_proof,
+            "attempt": {
+                "manifest": failed["reset"]["manifest"],
+                "frontier": file_binding(package / "frontier.json"),
+                "nonce": failed["nonce"],
+                "started": failed["started"],
+                "fresh_context": failed["fresh_context"],
+            },
+            "prompt": {
+                "file": file_binding(package / "resume-prompt.txt"),
+                "bytes": len(identity(fresh)["first_user"].encode()),
+                "sha256": identity(fresh)["last_user_hash"],
+                "count": 1,
+            },
+        }
+        from ops.orchestration.native_goal import read_goal
+
+        data = {
+            "supervisor": failed,
+            "journal": self.loop._read(),
+            "routing": self.loop._control(),
+            "config": self.config,
+            "goal_ledger": json.loads(Path(self.config["goal_ledger"]).read_text()),
+            "terminal_goal": read_goal(self.database, "new"),
+            "current_goal": read_goal(self.database, "third"),
+        }
+        for key, value in data.items():
+            path = self.root / ("second-" + key + ".json")
+            path.write_bytes(
+                self.loop.path.read_bytes()
+            ) if key == "journal" else path.write_text(json.dumps(value))
+            grant[key] = file_binding(path)
+        authority = self.root / "second-recovery-authority.json"
+        authority.write_text(json.dumps(grant))
+        return controller, authority, fresh, predecessor
+
+    def test_queued_prompt_cannot_bootstrap_after_nonce_title_changes(self):
+        self.hold()
+        controller = self.controller()
+        for _ in range(3):
+            controller.step()
+        fresh = self.fresh()
+        self.window.name += " extra"
+        with self.assertRaisesRegex(ValueError, "nonce title"):
+            controller.step(fresh)
+        self.assertEqual(self.loop.status()["epoch"], 0)
+        self.assertEqual(len(self.window.queued), 1)
+
+    def test_receipt_crash_does_not_thaw_protected_routing(self):
+        from unittest.mock import patch
+
+        self.hold()
+        controller = self.controller()
+        for _ in range(3):
+            controller.step()
+        fresh = self.fresh()
+        with patch.object(
+            controller, "publish", side_effect=OSError("before publication")
+        ):
+            with self.assertRaises(OSError):
+                controller.step(fresh)
+        control = self.loop._control()
+        control["sessions"][1]["session_id"] = "changed-protected"
+        self.f.control.write_text(json.dumps(control))
+        with self.assertRaisesRegex(ValueError, "routing/pause"):
+            controller.step(fresh)
+        self.assertNotIn("native_receipt", self.loop.status())
+        self.assertTrue(self.loop.status()["awaiting_native_receipt"])
+
+    def test_receipt_write_crossing_deadline_keeps_acceptance_held(self):
+        from unittest.mock import patch
+        from ops.orchestration.records import atomic_json
+
+        self.hold()
+        controller = self.controller()
+        for _ in range(3):
+            controller.step()
+        fresh = self.fresh()
+
+        def late_receipt(path, data, **kwargs):
+            atomic_json(path, data, **kwargs)
+            if data.get("verified") is True:
+                self.clock += 121
+
+        with patch(
+            "ops.orchestration.auto_reset.atomic_json", side_effect=late_receipt
+        ):
+            with self.assertRaisesRegex(ValueError, "deadline"):
+                controller.step(fresh)
+        self.assertNotIn("native_receipt", self.loop.status())
+        self.assertTrue(self.loop.status()["awaiting_native_receipt"])
+        self.assertEqual(controller.status()["phase"], "waiting_fresh")
+
+    def test_prompt_recovery_accepts_only_the_bound_second_implementer_refresh(self):
+        from ops.orchestration.artifacts import file_binding
+
+        controller, authority, fresh, predecessor = self.prompt_recovery_fixture(
+            routing_refresh=True
+        )
+        control = self.loop._control()
+        impl = next(s for s in control["sessions"] if s["role"] == "implementer")
+        impl.update(session_id="impl-final", transcript="final-impl")
+        self.f.control.write_text(json.dumps(control))
+        grant = json.loads(authority.read_text())
+        snapshot = Path(grant["routing"]["path"])
+        snapshot.write_bytes(self.f.control.read_bytes())
+        grant["routing"] = file_binding(snapshot)
+        delivery = self.root / "final-impl-delivery.json"
+        delivery.write_text(
+            json.dumps(
+                {"session_id": "impl-final", "model": "gpt-6.1-sol", "effort": "high"}
+            )
+        )
+        refresh = self.root / "final-impl-refresh.json"
+        refresh.write_text(
+            json.dumps(
+                {
+                    "kind": "authorized-idle-implementer-native-refresh",
+                    "production_paused": True,
+                    "previous_session": "impl-new",
+                    "session_id": "impl-final",
+                    "control_after": file_binding(self.f.control),
+                    "delivery": file_binding(delivery),
+                }
+            )
+        )
+        grant["implementer_refresh"] = file_binding(refresh)
+        authority.write_text(json.dumps(grant))
+        controller.recover_maintenance(authority)
+        actual = self.loop._control()
+        self.assertEqual(actual["sessions"][1:], control["sessions"][1:])
+        self.assertEqual(actual["sessions"][0]["session_id"], "third")
+        self.assertTrue(actual["repair_paused"])
+
+    def test_native_creation_change_holds_before_bootstrap_and_before_receipt(self):
+        from unittest.mock import patch
+
+        for boundary in ("bootstrap", "publication"):
+            with self.subTest(boundary=boundary):
+                self.setUp()
+                self.hold()
+                controller = self.controller()
+                for _ in range(3):
+                    controller.step()
+                fresh = self.fresh()
+                if boundary == "publication":
+                    with patch.object(
+                        controller,
+                        "publish",
+                        side_effect=OSError("crash before receipt"),
+                    ):
+                        with self.assertRaises(OSError):
+                            controller.step(fresh)
+                original = self.window.context
+                self.window.context = lambda *args: {
+                    **original(*args),
+                    "creation_log_id": 999,
+                }
+                with self.assertRaisesRegex(ValueError, "native context changed"):
+                    controller.step(fresh)
+                self.assertNotIn("native_receipt", self.loop.status())
+                self.assertEqual(
+                    self.loop.status()["epoch"], 0 if boundary == "bootstrap" else 1
+                )
+
+    def test_legacy_expired_prompt_recovers_without_retrospective_acceptance(self):
+        controller, authority, fresh, predecessor = self.prompt_recovery_fixture(
+            legacy=True
+        )
+        before = self.loop.status()
+        controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status()["epoch"], before["epoch"])
+        self.assertTrue(self.loop.status()["maintenance_only"])
+        self.assertTrue(self.loop.status()["reset_requested"])
+        self.assertFalse(controller.status()["automatic_acceptance"])
+        self.assertNotIn("native_receipt", self.loop.status())
+        ledger = json.loads(Path(self.config["goal_ledger"]).read_text())
+        self.assertNotIn("new", ledger["threads"])
+        self.assertNotIn("third", ledger["threads"])
+        self.assertEqual((ledger["tokens_used"], ledger["seconds_used"]), (100, 10))
+
+    def test_successive_failed_attempt_has_distinct_recovery_without_credit(self):
+        controller, authority, fresh, predecessor = self.prompt_recovery_fixture()
+        before = self.loop.status()
+        result = controller.recover_maintenance(authority)
+        after = self.loop.status()
+        self.assertEqual(result["phase"], "maintenance_recovered")
+        self.assertFalse(result["automatic_acceptance"])
+        self.assertEqual(after["session_id"], "third")
+        self.assertEqual(
+            after["maintenance_recovery_history"][-1], before["maintenance_recovery"]
+        )
+        for key in (
+            "epoch",
+            "epoch_start",
+            "completed",
+            "reviews",
+            "quarantine",
+            "unit_quarantine",
+            "admissions",
+            "iteration",
+            "handoff",
+        ):
+            self.assertEqual(after[key], before[key])
+        self.assertTrue(after["maintenance_only"])
+        self.assertTrue(after["reset_requested"])
+        self.assertNotIn("native_receipt", after)
+        self.assertEqual(controller.recover_maintenance(authority), result)
+
+    def test_prompt_queue_crashes_never_replay_uncertain_effect(self):
+        from unittest.mock import patch
+
+        for boundary in ("intent", "enqueue", "ack"):
+            with self.subTest(boundary=boundary):
+                self.setUp()
+                self.hold()
+                controller = self.controller()
+                controller.step()
+                controller.step()
+                save, queue = controller.save, self.window.queue
+
+                def crash_save(state):
+                    save(state) if state["phase"] == "prompt_intent" else None
+                    if state["phase"] == (
+                        "prompt_intent" if boundary == "intent" else "waiting_fresh"
+                    ):
+                        raise OSError("crashed publication")
+                    save(state)
+
+                def crash_queue(*args):
+                    queue(*args)
+                    raise OSError("uncertain enqueue")
+
+                with (
+                    patch.object(controller, "save", side_effect=crash_save),
+                    patch.object(
+                        self.window,
+                        "queue",
+                        side_effect=crash_queue if boundary == "enqueue" else queue,
+                    ),
+                ):
+                    with self.assertRaises(OSError):
+                        controller.step()
+                self.assertEqual(controller.status()["phase"], "prompt_intent")
+                count = len(self.window.queued)
+                with self.assertRaisesRegex(ValueError, "uncertain"):
+                    self.controller().step()
+                self.assertEqual(len(self.window.queued), count)
+                self.assertEqual(count, 0 if boundary == "intent" else 1)
+                self.assertEqual(self.loop.status()["epoch"], 0)
+
+    def test_deadline_expiring_in_queue_or_lit_read_does_not_bootstrap(self):
+        for boundary in ("queue", "bootstrap-read"):
+            with self.subTest(boundary=boundary):
+                self.setUp()
+                self.hold()
+                controller = self.controller()
+                controller.step()
+                controller.step()
+                if boundary == "queue":
+                    queue = self.window.queue
+
+                    def delayed_queue(*args):
+                        result = queue(*args)
+                        self.clock += 121
+                        return result
+
+                    self.window.queue = delayed_queue
+                    controller.step()
+                else:
+                    controller.step()
+                    read = self.f.lit.read
+
+                    def delayed_read(*args):
+                        result = read(*args)
+                        self.clock += 121
+                        return result
+
+                    self.f.lit.read = delayed_read
+                with self.assertRaisesRegex(ValueError, "deadline"):
+                    controller.step(self.fresh())
+                self.assertEqual(self.loop.status()["epoch"], 0)
+                self.assertEqual(
+                    self.loop._control()["sessions"][0]["session_id"], "old"
+                )
+
+    def test_successor_recovery_crashes_at_each_publication_boundary(self):
+        from unittest.mock import patch
+
+        for boundary in ("intent", "routing", "journal", "supervisor"):
+            with self.subTest(boundary=boundary):
+                self.setUp()
+                controller, authority, fresh, predecessor = (
+                    self.prompt_recovery_fixture()
+                )
+                save, write = self.loop._save, controller.save
+                previous = self.loop.status()
+
+                def crash(state):
+                    if boundary == "intent" and state.get("pending_maintenance"):
+                        save(state)
+                        raise OSError("intent crash")
+                    if boundary == "routing" and state["session_id"] == "third":
+                        raise OSError("routing crash")
+                    if boundary == "journal" and state["session_id"] == "third":
+                        save(state)
+                        raise OSError("journal crash")
+                    save(state)
+
+                def crash_supervisor(state):
+                    write(state)
+                    raise OSError("supervisor crash")
+
+                with (
+                    patch.object(self.loop, "_save", side_effect=crash),
+                    patch.object(
+                        controller,
+                        "save",
+                        side_effect=crash_supervisor
+                        if boundary == "supervisor"
+                        else write,
+                    ),
+                ):
+                    with self.assertRaises(OSError):
+                        controller.recover_maintenance(authority)
+                recovered = self.controller().recover_maintenance(authority)
+                self.assertFalse(recovered["automatic_acceptance"])
+                state = self.loop.status()
+                self.assertEqual(state["epoch"], previous["epoch"])
+                self.assertEqual(
+                    state["maintenance_recovery_history"],
+                    [previous["maintenance_recovery"]],
+                )
+                self.assertEqual(state["session_id"], "third")
+                self.assertEqual(len(self.window.queued), 1)
+
+    def test_successor_recovery_refuses_changed_bound_evidence_and_contract(self):
+        import copy
+
+        for mutation in (
+            "predecessor",
+            "config",
+            "journal",
+            "nonce",
+            "started",
+            "creation",
+            "prompt",
+            "UUID",
+            "frontier",
+            "title",
+            "native",
+            "goal",
+            "old-grant",
+        ):
+            with self.subTest(mutation=mutation):
+                self.setUp()
+                controller, authority, fresh, predecessor = (
+                    self.prompt_recovery_fixture()
+                )
+                grant = json.loads(authority.read_text())
+                state = self.loop.status()
+                before = self.loop._control()
+                if mutation == "predecessor":
+                    grant["predecessor"]["failed_reset"]["previous_session"] = "changed"
+                elif mutation in ("config", "journal"):
+                    path = Path(grant[mutation]["path"])
+                    path.write_text(path.read_text() + " ")
+                elif mutation in ("nonce", "started"):
+                    grant["attempt"][mutation] = "changed"
+                elif mutation == "creation":
+                    grant["attempt"]["fresh_context"]["creation_log_id"] += 1
+                elif mutation == "prompt":
+                    grant["prompt"]["sha256"] = "changed"
+                elif mutation == "UUID":
+                    grant["session_id"] = "foreign"
+                elif mutation == "frontier":
+                    grant["user_frontier"]["count"] += 1
+                elif mutation == "title":
+                    self.window.name += " extra"
+                elif mutation == "native":
+                    actual_context = copy.deepcopy(self.window.context({}, "new"))
+                    actual_context["process_uuid"] = "pid:999:foreign"
+                    self.window.recovery_context = lambda *_: actual_context
+                elif mutation == "goal":
+                    path = Path(self.config["goal_ledger"])
+                    data = json.loads(path.read_text())
+                    data["tokens_used"] += 1
+                    path.write_text(json.dumps(data))
+                else:
+                    predecessor.write_text(predecessor.read_text() + " ")
+                authority.write_text(json.dumps(grant))
+                with self.assertRaises(ValueError):
+                    controller.recover_maintenance(authority)
+                self.assertEqual(self.loop.status(), state)
+                self.assertEqual(self.loop._control(), before)
+
+    def test_successor_recovery_cannot_relabel_exact_prompt_as_title_recovery(self):
+        controller, authority, fresh, predecessor = self.prompt_recovery_fixture()
+        grant = json.loads(authority.read_text())
+        grant.pop("kind")
+        authority.write_text(json.dumps(grant))
+        with self.assertRaises(ValueError):
+            controller.recover_maintenance(authority)
+        self.assertEqual(self.loop.status()["session_id"], "new")
+
+    def test_successor_recovery_requires_sole_exact_first_prompt(self):
+        for mutation in ("changed", "extra", "newline"):
+            with self.subTest(mutation=mutation):
+                self.setUp()
+                controller, authority, fresh, predecessor = (
+                    self.prompt_recovery_fixture()
+                )
+                rows = fresh.read_text().splitlines()
+                row = json.loads(rows[-1])
+                if mutation == "extra":
+                    rows.append(json.dumps(row))
+                else:
+                    row["payload"]["content"][0]["text"] += (
+                        "changed" if mutation == "changed" else "\n"
+                    )
+                    rows[-1] = json.dumps(row)
+                fresh.write_text("\n".join(rows) + "\n")
+                # Even binding the current frontier must not bless wrong/extra text.
+                from ops.orchestration.loop import identity
+                from ops.orchestration.auto_reset import user_frontier
+
+                grant = json.loads(authority.read_text())
+                grant["user_frontier"] = user_frontier(identity(fresh))
+                authority.write_text(json.dumps(grant))
+                with self.assertRaises(ValueError):
+                    controller.recover_maintenance(authority)
+                self.assertEqual(self.loop.status()["session_id"], "new")
 
     def test_pruned_context_recovery_passes_only_explicit_grant_to_native_boundary(
         self,
@@ -482,7 +1013,7 @@ class AutoResetTests(unittest.TestCase):
                 "INSERT INTO thread_goals VALUES (?,?,?,?,?,?,?,?,?)",
                 ("new", "goal2", "full scope", "paused", None, 50, 5, 2000, 2000),
             )
-        with self.assertRaisesRegex(ValueError, "native goal appeared"):
+        with self.assertRaisesRegex(ValueError, "native recovery goal changed"):
             controller.recover_maintenance(authority)
         self.assertEqual(self.loop.status()["session_id"], "old")
 
@@ -528,7 +1059,14 @@ class AutoResetTests(unittest.TestCase):
         self.f.root.joinpath("package/resume-prompt.txt").write_text(
             (package / "resume-prompt.txt").read_text()
         )
-        return self.f.fresh_transcript()
+        path = self.f.fresh_transcript()
+        rows = path.read_text().splitlines()
+        meta = json.loads(rows[0])
+        meta["payload"]["timestamp"] = self.window.created
+        rows[0] = json.dumps(meta)
+        path.write_text("\n".join(rows) + "\n")
+        self.window.rollouts = [path]
+        return path
 
     def test_fifth_close_automatically_prepares_clears_and_submits_full_prompt(self):
         for n in range(1, 6):
@@ -540,10 +1078,11 @@ class AutoResetTests(unittest.TestCase):
         controller = self.controller()
         for _ in range(4):
             controller.step()
-        self.assertEqual(len(self.window.lines), 2)
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertEqual(len(self.window.queued), 1)
         self.assertTrue(self.window.lines[0].startswith("/clear Buford-auto-"))
-        self.assertIn("BUFORD_CONTEXT_HANDOFF", self.window.lines[1])
-        self.assertIn("without HIL", self.window.lines[1])
+        self.assertIn("BUFORD_CONTEXT_HANDOFF", self.window.queued[0][1])
+        self.assertIn("without HIL", self.window.queued[0][1])
         controller.step(self.fresh())
         self.assertEqual(self.loop.status()["epoch"], 1)
         self.assertEqual(len(self.loop.status()["completed"]), 5)
@@ -569,7 +1108,8 @@ class AutoResetTests(unittest.TestCase):
         self.window.rollouts[0].unlink()
         self.window.rollouts = []
         controller.step()
-        self.assertEqual(len(self.window.lines), 2)
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertEqual(len(self.window.queued), 1)
         controller.step(self.fresh())
         self.assertEqual(controller.status()["phase"], "verified")
         self.assertEqual(self.loop.status()["epoch"], 1)
@@ -580,13 +1120,19 @@ class AutoResetTests(unittest.TestCase):
         controller.step()
         controller.step()
         self.window.rollouts[0].write_text("")
+        context = self.window.context
         self.window.context = lambda *_: {
             "session_id": "new",
             "user_input": False,
             "transcript": str(self.window.rollouts[0]),
+            "created_at": self.window.created,
+            "process_uuid": "pid:123:fixture",
+            "creation_log_id": 1,
         }
         controller.step()
-        self.assertEqual(len(self.window.lines), 2)
+        self.window.context = context
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertEqual(len(self.window.queued), 1)
         controller.step(self.fresh())
         self.assertEqual(controller.status()["phase"], "verified")
 
@@ -696,7 +1242,7 @@ class AutoResetTests(unittest.TestCase):
         def crash(text):
             raise OSError("transport uncertain")
 
-        self.window.type = crash
+        self.window.clear = crash
         with self.assertRaisesRegex(OSError, "uncertain"):
             controller.step()
         recovered = self.controller()
@@ -741,7 +1287,8 @@ class AutoResetTests(unittest.TestCase):
         recovered = self.controller()
         recovered.step(fresh)
         self.assertEqual(self.loop.status()["epoch"], 1)
-        self.assertEqual(len(self.window.lines), 2)
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertEqual(len(self.window.queued), 1)
         self.assertEqual(recovered.status()["phase"], "verified")
 
     def test_stale_release_waits_for_current_fifth_boundary_instead_of_exiting(self):
@@ -853,7 +1400,8 @@ class AutoResetTests(unittest.TestCase):
         recovered = self.controller()
         recovered.step(fresh)
         self.assertEqual(self.loop.status()["epoch"], 1)
-        self.assertEqual(len(self.window.lines), 2)
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertEqual(len(self.window.queued), 1)
 
     def test_ar5_active_goal_tail_is_read_from_terminal_native_database(self):
         self.hold()

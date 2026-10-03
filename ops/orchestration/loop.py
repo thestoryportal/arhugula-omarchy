@@ -5,6 +5,7 @@ orchestrator, unpauses a goal, steals a claim or merges product work.
 """
 
 import argparse
+from dataclasses import dataclass
 import hashlib
 import importlib
 import json
@@ -123,6 +124,70 @@ def identity(transcript):
                         .get("input_tokens")
                     )
     return result
+
+
+@dataclass(frozen=True)
+class RecoveryTransfer:
+    """Bound failed attempt and immutable predecessor chain, without epoch credit."""
+
+    binding: dict
+    grant: dict
+    failed: dict
+
+    @classmethod
+    def parse(cls, authority, *, expected=None):
+        try:
+            return cls._parse(authority, expected)
+        except (KeyError, TypeError, AttributeError) as error:
+            raise ValueError("malformed maintenance recovery capability") from error
+
+    @classmethod
+    def _parse(cls, authority, expected):
+        binding = file_binding(authority)
+        if expected is not None and binding != expected:
+            raise ValueError("predecessor maintenance authority changed")
+        grant = json.loads(Path(authority).read_text())
+        evidence_keys = [
+            "supervisor",
+            "journal",
+            "routing",
+            "human_authority",
+            "current_goal",
+            "terminal_goal",
+        ]
+        if grant.get("kind") == "expired-waiting-fresh-sealed-prompt":
+            evidence_keys.extend(("config", "goal_ledger"))
+        for key in evidence_keys:
+            if file_binding(grant[key]["path"]) != grant[key]:
+                raise ValueError("failed recovery evidence changed")
+        failed = json.loads(Path(grant["journal"]["path"]).read_text())
+        predecessor = failed.get("maintenance_recovery")
+        # [LAW:types-are-the-program] A successor must carry the particular prior
+        # authority; a phase whitelist cannot express this relationship.
+        if predecessor is not None:
+            if (
+                grant.get("kind") != "expired-waiting-fresh-sealed-prompt"
+                or grant.get("predecessor") != predecessor
+                or predecessor["failed_reset"] == failed["reset"]
+            ):
+                raise ValueError("attempt-specific predecessor recovery proof required")
+            old = predecessor["authority"]
+            prior = cls.parse(old["path"], expected=old)
+            history = [*prior.failed.get("maintenance_recovery_history", [])]
+            if prior.failed.get("maintenance_recovery") is not None:
+                history.append(prior.failed["maintenance_recovery"])
+            if (
+                prior.grant["session_id"] != failed["session_id"]
+                or grant["human_authority"] != prior.grant["human_authority"]
+                or prior.failed["reset"] != predecessor["failed_reset"]
+                or failed.get("maintenance_recovery_history", []) != history
+            ):
+                raise ValueError(
+                    "predecessor maintenance identity/authority/history mismatch"
+                )
+        elif grant.get("predecessor") is not None:
+            raise ValueError("unexpected predecessor maintenance proof")
+        return cls(binding, grant, failed)
 
 
 class NativeLit:
@@ -609,6 +674,24 @@ class Loop:
             self._save(state)
             return state["reset"]
 
+    def clear_package(self, reset):
+        if (
+            reset is None
+            or file_binding(reset["manifest"]["path"]) != reset["manifest"]
+        ):
+            raise ValueError("sealed clear package changed")
+        manifest = json.loads(Path(reset["manifest"]["path"]).read_text())
+        for bound in manifest["files"]:
+            if file_binding(bound["path"]) != bound:
+                raise ValueError("sealed clear package evidence changed")
+        directory = Path(reset["directory"])
+        if any(
+            file_binding(directory / name) not in manifest["files"]
+            for name in ("frontier.json", "resume-prompt.txt")
+        ):
+            raise ValueError("sealed package lacks frontier or full prompt")
+        return json.loads((directory / "frontier.json").read_text())
+
     def ready_clear(self, transcript):
         state = self.status()
         actual = identity(transcript)
@@ -622,31 +705,18 @@ class Loop:
                 "native clear requires an idle matching lane and sealed package"
             )
         reset = state["reset"]
-        if file_binding(reset["manifest"]["path"]) != reset["manifest"]:
-            raise ValueError("sealed clear package changed")
-        frontier = json.loads((Path(reset["directory"]) / "frontier.json").read_text())
-        for bound in json.loads(Path(reset["manifest"]["path"]).read_text())["files"]:
-            if file_binding(bound["path"]) != bound:
-                raise ValueError("sealed clear package evidence changed")
+        frontier = self.clear_package(reset)
         for handle in frontier["owned_processes"]:
             if Path(f"/proc/{int(handle['pid'])}").exists():
                 raise ValueError("owned writer remains active")
         return {"clear_allowed": True, "reset": reset}
 
-    def bootstrap(self, transcript):
+    def bootstrap(self, transcript, *, deadline=None, clock=time.monotonic):
         began = time.monotonic()
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             reset = state["reset"]
-            if (
-                reset is None
-                or file_binding(reset["manifest"]["path"]) != reset["manifest"]
-            ):
-                raise ValueError("verified clear package required")
-            manifest = json.loads(Path(reset["manifest"]["path"]).read_text())
-            for bound in manifest["files"]:
-                if file_binding(bound["path"]) != bound:
-                    raise ValueError("clear package evidence changed")
+            frontier = self.clear_package(reset)
             actual = identity(transcript)
             if (actual["model"], actual["effort"]) != (state["model"], state["effort"]):
                 raise ValueError("fresh model/effort mismatch")
@@ -655,22 +725,15 @@ class Loop:
                 or actual["session_id"] == reset["previous_session"]
             ):
                 raise ValueError("native context must have a fresh identity")
-            frontier = json.loads(
-                (Path(reset["directory"]) / "frontier.json").read_text()
-            )
             token = f"BUFORD_CONTEXT_HANDOFF {frontier['nonce']} {file_binding(Path(reset['directory']) / 'frontier.json')['sha256']}"
-            expected = (
-                (Path(reset["directory"]) / "resume-prompt.txt")
-                .read_text()
-                .rstrip("\n")
-            )
+            expected = (Path(reset["directory"]) / "resume-prompt.txt").read_text()
             created = actual["created_at"]
             if (
                 not created
                 or datetime.fromisoformat(created.replace("Z", "+00:00"))
                 < datetime.fromisoformat(frontier["prepared_at"])
                 or token not in (actual["first_user"] or "")
-                or (actual["first_user"] or "").rstrip("\n") != expected
+                or actual["first_user"] != expected
                 or actual["user_count"] != 1
                 or {k: actual[k] for k in ("cwd", "source", "originator")}
                 != frontier["native_lane"]
@@ -695,7 +758,11 @@ class Loop:
             if state["pending_bootstrap"] is None:
                 self.ready_clear(old_transcript)
             _, reads = self.lit.read(state["goal_ticket"])
-            if time.monotonic() - began > 120:
+            if (
+                time.monotonic() - began > 120
+                or deadline is not None
+                and clock() > deadline
+            ):
                 raise ValueError("bootstrap deadline exceeded; remains held")
             control = self._control()
             buford = next(s for s in control["sessions"] if s["role"] == "buford")
@@ -733,7 +800,7 @@ class Loop:
             self._save(state)
             return self.status()
 
-    def acknowledge_native_reset(self, receipt):
+    def acknowledge_native_reset(self, receipt, *, deadline=None, clock=time.monotonic):
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             proof = json.loads(Path(receipt).read_text())
@@ -745,6 +812,8 @@ class Loop:
                 or proof["seconds"] > 120
             ):
                 raise ValueError("native reset acceptance receipt mismatch")
+            if deadline is not None and clock() > deadline:
+                raise ValueError("native reset deadline exceeded before acceptance")
             state["native_receipt"] = file_binding(receipt)
             state["awaiting_native_receipt"] = False
             state["maintenance_only"] = False
@@ -752,30 +821,29 @@ class Loop:
 
     def recover_maintenance(self, authority):
         """Transfer Buford routing without freshness credit or production admission."""
-        binding = file_binding(authority)
-        grant = json.loads(Path(authority).read_text())
+        binding, grant, failed = authority.binding, authority.grant, authority.failed
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             control = self._control()
             proof = state.get("maintenance_recovery")
-            if proof is not None:
-                if proof["authority"] != binding:
-                    raise ValueError("maintenance recovery authority changed")
-                if state["session_id"] != grant["session_id"]:
-                    raise ValueError("maintenance recovery identity changed")
+            applied = proof is not None and proof["authority"] == binding
             pending = state.get("pending_maintenance")
             if pending is not None and pending != binding:
                 raise ValueError("maintenance recovery intent changed")
-            if (
-                proof is None
-                and pending is None
-                and any(
+            if applied:
+                if state["session_id"] != grant["session_id"]:
+                    raise ValueError("maintenance recovery identity changed")
+            elif pending is None:
+                if state != failed or any(
                     file_binding(self.path)[k] != grant["journal"][k]
                     for k in ("sha256", "bytes")
-                )
-            ):
-                raise ValueError("failed journal changed before recovery")
-            failed = json.loads(Path(grant["journal"]["path"]).read_text())
+                ):
+                    raise ValueError("failed journal changed before recovery")
+            elif state != {**failed, "pending_maintenance": binding}:
+                raise ValueError("failed journal changed after recovery intent")
+            history = [*failed.get("maintenance_recovery_history", [])]
+            if failed.get("maintenance_recovery") is not None:
+                history.append(failed["maintenance_recovery"])
             recovered = {
                 **failed,
                 "session_id": grant["session_id"],
@@ -784,16 +852,12 @@ class Loop:
                 "admission": None,
                 "maintenance_only": True,
                 "pending_maintenance": None,
+                "maintenance_recovery_history": history,
                 "maintenance_recovery": {
                     "authority": binding,
                     "failed_reset": failed["reset"],
                 },
             }
-            if pending is not None and state != {
-                **failed,
-                "pending_maintenance": binding,
-            }:
-                raise ValueError("failed journal changed after recovery intent")
             frozen_control = json.loads(Path(grant["routing"]["path"]).read_text())
             expected = json.loads(json.dumps(frozen_control))
             buford = next(s for s in expected["sessions"] if s["role"] == "buford")
@@ -829,7 +893,7 @@ class Loop:
                 raise ValueError(
                     "actual human frontier/Sol/high recovery identity mismatch"
                 )
-            if proof is not None:
+            if applied:
                 if control != expected:
                     raise ValueError("recovered Buford routing changed")
                 return self.status()

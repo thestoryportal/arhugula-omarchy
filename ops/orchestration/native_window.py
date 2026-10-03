@@ -1,4 +1,4 @@
-"""Deliver literal input to one verified native window without changing focus."""
+"""Bind native clear and exact-thread queue delivery to one existing TUI lane."""
 
 from dataclasses import dataclass, asdict
 import json
@@ -12,74 +12,31 @@ from datetime import datetime, timezone
 from .artifacts import capture, DEFAULT_ROOT, file_binding
 
 
-def key_events(text):
-    plain = dict(
-        zip(
-            " `-=[]\\;',./",
-            [
-                "space",
-                "grave",
-                "minus",
-                "equal",
-                "bracketleft",
-                "bracketright",
-                "backslash",
-                "semicolon",
-                "apostrophe",
-                "comma",
-                "period",
-                "slash",
-            ],
-        )
-    )
-    shifted = dict(
-        zip(
-            '~!@#$%^&*()_+{}|:"<>?',
-            [
-                "grave",
-                *list("1234567890"),
-                "minus",
-                "equal",
-                "bracketleft",
-                "bracketright",
-                "backslash",
-                "semicolon",
-                "apostrophe",
-                "comma",
-                "period",
-                "slash",
-            ],
-        )
-    )
-    result = []
-    for char in text:
-        if char.isascii() and char.isalnum():
-            result.append(("SHIFT" if char.isupper() else "", char.lower()))
-        elif char in plain:
-            result.append(("", plain[char]))
-        elif char in shifted:
-            result.append(("SHIFT", shifted[char]))
-        else:
-            raise ValueError("native input requires one literal printable ASCII line")
-    return result
-
-
-def input_program(address, text=None):
+def clear_program(address, title):
     if not re.fullmatch(r"0x[0-9a-f]+", address):
         raise ValueError("invalid window address")
-    events = [("", "Tab")] if text is None else key_events(text)
-    keys = (
+    if (
+        not re.fullmatch(r"Buford-auto-[0-9a-f-]{36}", title)
+        or uuid.UUID(title[12:]).version != 4
+    ):
+        raise ValueError("native clear requires the generated nonce title")
+    text = "/clear " + title
+    keys = [{" ": "space", "/": "slash", "-": "minus"}.get(c, c.lower()) for c in text]
+    modifiers = ["SHIFT" if c.isupper() else "" for c in text]
+    # [LAW:polishing-by-subtraction] The keyboard seam handles only native clear;
+    # continuation text belongs to the exact-thread queue, never a key encoder.
+    events = (
         "{"
         + ",".join(
-            "{" + json.dumps(mod) + "," + json.dumps(key) + "}" for mod, key in events
+            "{" + json.dumps(m) + "," + json.dumps(k) + "}"
+            for m, k in zip(modifiers, keys)
         )
         + "}"
     )
-    # [LAW:effects-at-boundaries] Text becomes key data, never executable Lua.
     return (
-        f"for _,k in ipairs({keys}) do hl.dispatch(hl.dsp.send_shortcut("
+        f"for _,k in ipairs({events}) do hl.dispatch(hl.dsp.send_shortcut("
         f'{{mods=k[1],key=k[2],window="address:{address}"}})) end '
-        f'print("BUFORD_NATIVE_INPUT {len(events)}")'
+        f'print("BUFORD_NATIVE_CLEAR {len(keys)}")'
     )
 
 
@@ -451,18 +408,55 @@ class NativeWindow:
         self.check()
         return proof
 
-    def type(self, text):
-        program = input_program(self.cap.address, text)
-        self.check()
-        answer = self.command(["hyprctl", "eval", program])
-        if answer.strip() != "ok":
-            raise OSError("native input dispatch was not acknowledged")
+    def delivered_context(self, frontier, previous, initial):
+        # [LAW:single-enforcer] Bootstrap and receipt publication resample the
+        # same bound native creation; a queue acknowledgement is not this proof.
+        current = self.context(frontier, previous)
+        if (
+            current is None
+            or not current["user_input"]
+            or any(
+                current[k] != initial[k]
+                for k in ("session_id", "created_at", "process_uuid", "creation_log_id")
+            )
+        ):
+            raise ValueError("fresh native context changed after prompt delivery")
+        return current
 
-    def submit(self):
-        # Native TUI coalesces rapid key bursts. This bounded transport settling
-        # interval is not a workflow release condition or user consent.
+    def queue(self, context, frontier, previous, text):
+        # [LAW:single-enforcer] Reuse native ownership/provenance at the effect
+        # boundary; an enqueue acknowledgement never proves actual user delivery.
+        current = self.context(frontier, previous)
+        if current != context or current["user_input"]:
+            raise ValueError("native queue target context changed or already has input")
+        session = str(uuid.UUID(context["session_id"]))
+        answer = self.command(
+            ["codex", "queue", "--thread", session, "--message", text]
+        )
+        match = re.fullmatch(
+            r"Queued message ([0-9a-f-]{36}) for thread ([0-9a-f-]{36})\.\n?", answer
+        )
+        if match is None or match[2] != session:
+            raise ValueError(
+                "native queue acknowledgement target mismatch; do not replay"
+            )
+        message = uuid.UUID(match[1])
+        if message.version != 7:
+            raise ValueError("invalid native queue message identity; do not replay")
+        return {"message_id": str(message), "session_id": session}
+
+    def clear(self, title):
+        program = clear_program(self.cap.address, title)
+        self.check()
+        if self.command(["hyprctl", "eval", program]).strip() != "ok":
+            raise OSError("native clear input was not acknowledged")
+        # Only the slash command uses composer submission. Continuation delivery
+        # is exclusively queued after the new UUID/empty native context is proven.
         select.select([], [], [], 0.8)
         self.check()
-        answer = self.command(["hyprctl", "eval", input_program(self.cap.address)])
-        if answer.strip() != "ok":
-            raise OSError("native submit was not acknowledged")
+        program = (
+            "hl.dispatch(hl.dsp.send_shortcut("
+            f'{{mods="",key="Tab",window="address:{self.cap.address}"}}))'
+        )
+        if self.command(["hyprctl", "eval", program]).strip() != "ok":
+            raise OSError("native clear submit was not acknowledged")

@@ -2,6 +2,7 @@
 
 import argparse
 import ctypes
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -18,7 +19,7 @@ from datetime import datetime
 from .artifacts import DEFAULT_ROOT, file_binding
 from .continuation import Lease
 from .goal_lineage import GoalLineage, goal_observation
-from .loop import Loop, NativeLit, identity
+from .loop import Loop, NativeLit, RecoveryTransfer, identity
 from .native_window import NativeWindow, WindowCapability
 from .native_goal import read_goal
 from .records import atomic_json, private_directory
@@ -26,6 +27,155 @@ from .records import atomic_json, private_directory
 
 def user_frontier(actual):
     return {"count": actual["user_count"], "hash": actual["last_user_hash"]}
+
+
+@dataclass(frozen=True)
+class ExpiredTitleRecovery:
+    """The original waiting-title case requires its actual human first user."""
+
+    @classmethod
+    def parse(cls, transfer, failed, config):
+        if failed["phase"] != "waiting_title":
+            raise ValueError("expired waiting_title recovery authority required")
+        return cls()
+
+    def bind_user(self, transfer, failed, actual, proof):
+        grant = transfer.grant
+        human = json.loads(Path(grant["human_authority"]["path"]).read_text())
+        if (
+            human["session_id"] != actual["session_id"]
+            or human["user_frontier"] != grant["user_frontier"]
+            or human["actual_user_message"] != actual["first_user"]
+        ):
+            raise ValueError(
+                "actual same-window human frontier recovery evidence required"
+            )
+
+
+@dataclass(frozen=True)
+class ExpiredPromptRecovery:
+    """An expired delivered prompt transfers maintenance identity, never freshness."""
+
+    prompt: dict
+
+    @classmethod
+    def parse(cls, transfer, failed, config):
+        grant = transfer.grant
+        if (
+            failed["phase"] != "waiting_fresh"
+            or transfer.failed.get("maintenance_recovery") is None
+            or transfer.failed.get("maintenance_only") is not True
+        ):
+            raise ValueError("expired waiting_fresh sealed-prompt recovery required")
+        frozen = json.loads(Path(grant["config"]["path"]).read_text())
+        effective = {k: v for k, v in config.items() if k != "config_path"}
+        if {k: v for k, v in frozen.items() if k != "config_path"} != effective:
+            raise ValueError("failed recovery config changed")
+        if "config_path" in config and any(
+            file_binding(config["config_path"])[k] != grant["config"][k]
+            for k in ("bytes", "sha256")
+        ):
+            raise ValueError("actual supervisor config changed")
+        package = Path(failed["reset"]["directory"])
+        attempt = {
+            "manifest": failed["reset"]["manifest"],
+            "frontier": file_binding(package / "frontier.json"),
+            "nonce": failed["nonce"],
+            "started": failed["started"],
+            "fresh_context": failed["fresh_context"],
+        }
+        if grant["attempt"] != attempt or failed["fresh_context"]["user_input"]:
+            raise ValueError("failed prompt attempt/creation binding mismatch")
+        frontier = json.loads((package / "frontier.json").read_text())
+        if (
+            frontier["nonce"] != failed["nonce"]
+            or failed["title"] != "Buford-auto-" + frontier["nonce"]
+            or failed["routing"] != frontier["routing"]
+        ):
+            raise ValueError("failed prompt nonce/title/frontier mismatch")
+        text = (package / "resume-prompt.txt").read_text()
+        # [LAW:one-source-of-truth] historical keyboard attempts removed
+        # the file's final newline; their sealed failed supervisor carries no queue intent.
+        if "queue_ack" not in failed:
+            text = text.removesuffix("\n")
+        elif (
+            failed["prompt"] != file_binding(package / "resume-prompt.txt")
+            or failed["queue_ack"]["session_id"]
+            != failed["fresh_context"]["session_id"]
+        ):
+            raise ValueError("failed queued prompt/target intent mismatch")
+        expected = {
+            "file": file_binding(package / "resume-prompt.txt"),
+            "bytes": len(text.encode()),
+            "sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "count": 1,
+        }
+        if grant["prompt"] != expected:
+            raise ValueError("sealed prompt bytes/hash/count mismatch")
+        frozen_goal = json.loads(Path(grant["goal_ledger"]["path"]).read_text())
+        current_goal = json.loads(Path(config["goal_ledger"]).read_text())
+        # [LAW:one-source-of-truth] Recovery may append its two actual observations;
+        # it cannot rewrite the inherited objective, deadline, counters or history.
+        keys = set(frozen_goal) | set(current_goal)
+        if any(
+            frozen_goal.get(k) != current_goal.get(k)
+            for k in keys - {"receipts", "absent_goals"}
+        ):
+            raise ValueError("protected goal contract/accounting changed")
+        allowed = [grant["terminal_goal"], grant["current_goal"]]
+        if any(
+            r not in current_goal["receipts"] for r in frozen_goal["receipts"]
+        ) or any(
+            r not in frozen_goal["receipts"] + allowed for r in current_goal["receipts"]
+        ):
+            raise ValueError("protected goal receipt history changed")
+        allowed_absent = [
+            {"session_id": session, "receipt": grant[key]}
+            for session, key in (
+                (failed["reset"]["previous_session"], "terminal_goal"),
+                (grant["session_id"], "current_goal"),
+            )
+        ]
+        before_absent = frozen_goal.get("absent_goals", [])
+        after_absent = current_goal.get("absent_goals", [])
+        if any(r not in after_absent for r in before_absent) or any(
+            r not in before_absent + allowed_absent for r in after_absent
+        ):
+            raise ValueError("protected goal absence history changed")
+        return cls(expected)
+
+    def bind_user(self, transfer, failed, actual, proof):
+        initial = failed["fresh_context"]
+        if (
+            any(
+                proof[k] != initial[k]
+                for k in ("session_id", "created_at", "creation_log_id", "process_uuid")
+            )
+            or proof["user_input"] is not True
+            or datetime.fromisoformat(actual["created_at"].replace("Z", "+00:00"))
+            != datetime.fromisoformat(initial["created_at"].replace("Z", "+00:00"))
+            or actual["user_count"] != 1
+            or len(actual["first_user"].encode()) != self.prompt["bytes"]
+            or hashlib.sha256(actual["first_user"].encode()).hexdigest()
+            != self.prompt["sha256"]
+        ):
+            raise ValueError("actual sole sealed prompt/native creation mismatch")
+
+
+def recovery_case(transfer, failed, config):
+    # [LAW:parse-dont-validate] Two distinct failed-attempt capabilities own their
+    # different evidence contracts; common publication consumes the proven case.
+    cases = {
+        "expired-waiting-title-human-frontier": ExpiredTitleRecovery,
+        "expired-waiting-fresh-sealed-prompt": ExpiredPromptRecovery,
+    }
+    kind = transfer.grant.get("kind", "expired-waiting-title-human-frontier")
+    if kind not in cases:
+        raise ValueError("unknown maintenance recovery capability")
+    try:
+        return cases[kind].parse(transfer, failed, config)
+    except (KeyError, TypeError, AttributeError) as error:
+        raise ValueError("malformed failed-attempt recovery evidence") from error
 
 
 class AutoReset:
@@ -113,7 +263,16 @@ class AutoReset:
 
     def unchanged_parent(self, state, recovery_transcript=None):
         if file_binding(self.loop.control) != state["routing"]:
-            pending = self.loop.status().get("pending_bootstrap")
+            journal = self.loop.status()
+            pending = journal.get("pending_bootstrap")
+            publication = journal.get("last_bootstrap", {})
+            if (
+                publication.get("manifest") == state["reset"]["manifest"]
+                and recovery_transcript is not None
+                and publication.get("transcript")
+                == str(Path(recovery_transcript).absolute())
+            ):
+                pending = journal["session_id"]
             expected = json.loads(json.dumps(state["control_snapshot"]))
             buford = next(s for s in expected["sessions"] if s["role"] == "buford")
             if (
@@ -170,16 +329,17 @@ class AutoReset:
             or proof.get("nonce") != state["nonce"]
         ):
             raise ValueError("bootstrap receipt does not bind this native reset")
-        fresh = identity(proof["transcript"])
-        expected = (
-            (Path(state["reset"]["directory"]) / "resume-prompt.txt")
-            .read_text()
-            .rstrip("\n")
+        self.unchanged_parent(state, recovery_transcript=proof["transcript"])
+        self.require_nonce_title(state)
+        frontier = self.loop.clear_package(state["reset"])
+        current = self.window.delivered_context(
+            frontier, state["reset"]["previous_session"], state["fresh_context"]
         )
-        if (
-            fresh["user_count"] != 1
-            or (fresh["first_user"] or "").rstrip("\n") != expected
-        ):
+        if current["transcript"] != proof["transcript"]:
+            raise ValueError("native context changed before receipt publication")
+        fresh = identity(proof["transcript"])
+        expected = (Path(state["reset"]["directory"]) / "resume-prompt.txt").read_text()
+        if fresh["user_count"] != 1 or fresh["first_user"] != expected:
             raise ValueError(
                 "fresh user input changed before native receipt publication"
             )
@@ -212,6 +372,11 @@ class AutoReset:
             atomic_json(
                 snapshot, json.loads(Path(self.config["goal_ledger"]).read_text())
             )
+        elapsed = self.clock() - state["started"]
+        if elapsed > 120:
+            raise ValueError(
+                "native reset deadline exceeded before receipt publication"
+            )
         receipt = {
             "version": 1,
             "verified": True,
@@ -226,7 +391,10 @@ class AutoReset:
             "terminal_goal_receipt": file_binding(terminal_path),
             "goal_ledger": file_binding(snapshot),
             "bootstrap": proof,
-            "transport": "verified-window-native-clear-and-full-prompt",
+            "transport": "verified-window-native-clear-and-exact-thread-queue",
+            "queue_ack": state["queue_ack"],
+            "prompt": state["prompt"],
+            "native_context": current,
         }
         path = directory / (state["nonce"] + ".json")
         if path.exists():
@@ -235,7 +403,9 @@ class AutoReset:
                 raise ValueError("existing native receipt differs; do not overwrite")
         else:
             atomic_json(path, receipt)
-        self.loop.acknowledge_native_reset(path)
+        self.loop.acknowledge_native_reset(
+            path, deadline=state["started"] + 120, clock=self.clock
+        )
         state.update(phase="verified", receipt=file_binding(path))
         self.save(state)
         return state
@@ -272,8 +442,7 @@ class AutoReset:
             state.update(phase="clear_intent", started=self.clock())
             self.save(state)
             # [LAW:effects-at-boundaries] Durable intent precedes every native input.
-            self.window.type("/clear " + state["title"])
-            self.window.submit()
+            self.window.clear(state["title"])
             state["phase"] = "waiting_title"
             self.save(state)
             return state
@@ -295,16 +464,21 @@ class AutoReset:
                 and (actual["user_count"] or actual["status"] == "active")
             ):
                 raise ValueError("fresh user input before generated prompt delivery")
-            state["fresh_context"] = proof
-            state["phase"] = "prompt_intent"
-            self.save(state)
-            text = (
-                (Path(state["reset"]["directory"]) / "resume-prompt.txt")
-                .read_text()
-                .rstrip("\n")
+            self.loop.ready_clear(state["old_transcript"])
+            text = (Path(state["reset"]["directory"]) / "resume-prompt.txt").read_text()
+            if self.clock() - state["started"] > 120:
+                raise ValueError("native reset deadline exceeded before queue effect")
+            state.update(
+                fresh_context=proof,
+                phase="prompt_intent",
+                prompt=file_binding(
+                    Path(state["reset"]["directory"]) / "resume-prompt.txt"
+                ),
             )
-            self.window.type(text)
-            self.window.submit()
+            self.save(state)
+            state["queue_ack"] = self.window.queue(
+                proof, frontier, state["reset"]["previous_session"], text
+            )
             state["phase"] = "waiting_fresh"
             self.save(state)
             return state
@@ -318,9 +492,21 @@ class AutoReset:
             self.unchanged_parent(state, recovery_transcript=path)
             if path is None:
                 return state
-            if identity(path)["session_id"] != state["fresh_context"]["session_id"]:
+            frontier = json.loads(
+                (Path(state["reset"]["directory"]) / "frontier.json").read_text()
+            )
+            self.require_nonce_title(state)
+            current = self.window.delivered_context(
+                frontier, state["reset"]["previous_session"], state["fresh_context"]
+            )
+            if (
+                current["transcript"] != str(Path(path).absolute())
+                or identity(path)["session_id"] != current["session_id"]
+            ):
                 raise ValueError("fresh native context changed after prompt delivery")
-            result = self.loop.bootstrap(path)
+            result = self.loop.bootstrap(
+                path, deadline=state["started"] + 120, clock=self.clock
+            )
             return self.publish(state, result)
         raise ValueError("unknown autoreset phase")
 
@@ -330,32 +516,41 @@ class AutoReset:
             state["title"] + " | " + Path(self.config.get("cwd", ".")).name,
         )
 
+    def require_nonce_title(self, state):
+        # [LAW:single-enforcer] Activity decoration is recognized only after
+        # delivery/recovery. The waiting-title empty-context gate stays literal.
+        title = re.sub(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ", "", self.window.title())
+        if not self.title_matches(state, title):
+            raise ValueError("same-window recovery nonce title mismatch")
+
     def recover_maintenance(self, authority):
         self.bindings()
-        bound = file_binding(authority)
-        grant = json.loads(Path(authority).read_text())
-        for key in (
-            "supervisor",
-            "journal",
-            "routing",
-            "human_authority",
-            "current_goal",
-            "terminal_goal",
-        ):
-            if file_binding(grant[key]["path"]) != grant[key]:
-                raise ValueError("failed recovery evidence changed")
+        transfer = RecoveryTransfer.parse(authority)
+        bound, grant = transfer.binding, transfer.grant
         state = self.status()
         failed = json.loads(Path(grant["supervisor"]["path"]).read_text())
-        if state.get("phase") == "maintenance_recovered":
+        applied = state.get("phase") == "maintenance_recovered"
+        if applied:
             if state["recovery_authority"] != bound:
                 raise ValueError("maintenance recovery authority changed")
-            self.loop.recover_maintenance(authority)
-            return state
-        if state != failed:
+            original = {
+                k: v
+                for k, v in state.items()
+                if k
+                not in (
+                    "recovery_authority",
+                    "recovery_context",
+                    "automatic_acceptance",
+                )
+            }
+            original["phase"] = failed["phase"]
+            if original != failed:
+                raise ValueError("recovered supervisor changed")
+        elif state != failed:
             raise ValueError("failed supervisor changed before recovery")
+        case = recovery_case(transfer, failed, self.config)
         if (
-            failed["phase"] != "waiting_title"
-            or failed["started"] is None
+            failed["started"] is None
             or self.clock() - failed["started"] <= 120
             or grant["window"] != self.config["window"]
             or grant["deadline"] != self.config["deadline"]
@@ -365,11 +560,7 @@ class AutoReset:
             raise ValueError(
                 "expired same-window maintenance recovery authority required"
             )
-        if (
-            file_binding(failed["reset"]["manifest"]["path"])
-            != failed["reset"]["manifest"]
-        ):
-            raise ValueError("failed reset package changed")
+        frontier = self.loop.clear_package(failed["reset"])
         failed_journal = json.loads(Path(grant["journal"]["path"]).read_text())
         if failed_journal["reset"] != failed["reset"]:
             raise ValueError("failed reset/journal mismatch")
@@ -416,29 +607,15 @@ class AutoReset:
         ):
             raise ValueError("old user input changed before maintenance recovery")
         journal = self.loop.status()
-        if journal.get("maintenance_recovery") is None:
+        proof = journal.get("maintenance_recovery")
+        transferred = proof is not None and proof["authority"] == bound
+        if not transferred:
             self.loop.ready_clear(failed["old_transcript"])
-        else:
-            if journal["maintenance_recovery"]["authority"] != bound:
-                raise ValueError("maintenance recovery authority changed")
-            for evidence in json.loads(
-                Path(failed["reset"]["manifest"]["path"]).read_text()
-            )["files"]:
-                if file_binding(evidence["path"]) != evidence:
-                    raise ValueError("failed reset package evidence changed")
-        frontier = json.loads(
-            (Path(failed["reset"]["directory"]) / "frontier.json").read_text()
-        )
-        # [LAW:effects-at-boundaries] Parse native activity only for explicit
-        # maintenance recovery; first-prompt delivery retains the literal title.
-        title = re.sub(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ", "", self.window.title())
-        if not self.title_matches(failed, title):
-            raise ValueError("same-window recovery nonce title mismatch")
+        self.require_nonce_title(failed)
         proof = self.window.recovery_context(
             frontier, failed["reset"]["previous_session"], grant.get("retained_context")
         )
         actual = identity(grant["transcript"])
-        human = json.loads(Path(grant["human_authority"]["path"]).read_text())
         if (
             proof is None
             or proof["session_id"] != grant["session_id"]
@@ -449,9 +626,6 @@ class AutoReset:
             or (actual["model"], actual["effort"]) != ("gpt-6.1-sol", "high")
             or {k: actual[k] for k in ("cwd", "source", "originator")}
             != frontier["native_lane"]
-            or human["session_id"] != actual["session_id"]
-            or human["user_frontier"] != grant["user_frontier"]
-            or human["actual_user_message"] != actual["first_user"]
             or not actual["created_at"]
             or datetime.fromisoformat(actual["created_at"].replace("Z", "+00:00"))
             < datetime.fromisoformat(frontier["prepared_at"])
@@ -459,19 +633,25 @@ class AutoReset:
             raise ValueError(
                 "actual same-window human frontier recovery evidence required"
             )
-        terminal = json.loads(Path(grant["terminal_goal"]["path"]).read_text())
-        if (
-            terminal["goal"]
-            != read_goal(
-                self.config["goal_database"], failed["reset"]["previous_session"]
-            )["goal"]
+        case.bind_user(transfer, failed, actual, proof)
+        for key, session in (
+            ("terminal_goal", failed["reset"]["previous_session"]),
+            ("current_goal", actual["session_id"]),
         ):
-            raise ValueError("actual outgoing terminal goal changed")
+            observed_session, observed = goal_observation(
+                json.loads(Path(grant[key]["path"]).read_text())
+            )
+            if (
+                observed_session != session
+                or observed["goal"]
+                != read_goal(self.config["goal_database"], session)["goal"]
+            ):
+                raise ValueError("actual native recovery goal changed")
         self.retain_goal(
             grant["terminal_goal"]["path"], failed["reset"]["previous_session"]
         )
         self.retain_goal(grant["current_goal"]["path"], actual["session_id"])
-        self.loop.recover_maintenance(authority)
+        self.loop.recover_maintenance(transfer)
         state.update(
             phase="maintenance_recovered",
             recovery_authority=bound,
