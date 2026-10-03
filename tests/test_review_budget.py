@@ -1,7 +1,38 @@
+import json
 from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 import unittest
 
-PRODUCT = Path("/home/robbo/Work/arhugula-build-eval")
+
+class RecordedGate:
+    """Replay bound provider observations, without implementing reducer rules."""
+
+    def __init__(self, observation):
+        self.observation = observation
+
+    def reply(self, method, rows, *args, **kwargs):
+        call = self.observation["calls"][method]
+        if rows != self.observation["rows"] or call["query"] != {
+            "args": list(args),
+            "kwargs": kwargs,
+        }:
+            raise AssertionError(
+                "gate request differs from recorded canonical evidence"
+            )
+        return call["result"]
+
+    def pass_runs(self, rows, arc):
+        return [SimpleNamespace(**run) for run in self.reply("pass_runs", rows, arc)]
+
+    def _last_dispositions(self, rows):
+        return self.reply("_last_dispositions", rows)
+
+    def next_pass(self, rows, arc, **kwargs):
+        return self.reply("next_pass", rows, arc, **kwargs)
+
+    def unfixed_after_pass_3(self, rows, arc):
+        return self.reply("unfixed_after_pass_3", rows, arc)
 
 
 def rows_for(cycle_pass, head="head", severity=None, unavailable=False):
@@ -42,10 +73,15 @@ def rows_for(cycle_pass, head="head", severity=None, unavailable=False):
 
 class ReviewBudgetTests(unittest.TestCase):
     def evaluate(self, rows, observed=(), impacts=()):
-        from ops.orchestration.review_budget import load_gate, evaluate
+        from ops.orchestration.review_budget import evaluate
 
+        # [LAW:single-enforcer] The product owns reducer rules; this suite tests
+        # the adapter against recorded provider replies, never a copied reducer.
+        fixture = json.loads(
+            (Path(__file__).parent / "fixtures/review-budget-gate.json").read_text()
+        )
         return evaluate(
-            load_gate(PRODUCT),
+            RecordedGate(fixture["cases"][self._testMethodName]),
             rows,
             "arc",
             "head",
@@ -53,6 +89,19 @@ class ReviewBudgetTests(unittest.TestCase):
             list(observed),
             list(impacts),
         )
+
+    def test_missing_canonical_reducer_fails_loudly(self):
+        from ops.orchestration.review_budget import load_gate
+
+        # [LAW:no-silent-failure] Portable adapter tests cannot become a runtime
+        # fallback when the real product-owned reducer is unavailable.
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(FileNotFoundError) as refusal:
+                load_gate(directory)
+            self.assertEqual(
+                Path(refusal.exception.filename),
+                Path(directory).resolve() / "tools/review_loop_gate.py",
+            )
 
     def test_fifth_p1_quarantines_and_sixth_is_not_admitted(self):
         observed = [["old", "3", f"h{n}", "d"] for n in range(4)]
