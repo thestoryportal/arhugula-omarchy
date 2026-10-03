@@ -343,16 +343,15 @@ class Loop:
             state = self._read()
             control = self._control()
             data, receipts = self.lit.read(ticket)
-            if state.get('startup_required'):
-                if state.get('startup_receipt') is None:
-                    raise ValueError('verified startup context receipt required before workflow')
-                row = next(s for s in control['sessions'] if s['role'] == 'buford')
-                from .startup import budget
-                state['startup_workflow_admission'] = budget(row['transcript'], state['session_id'])
             if state.get("awaiting_native_receipt"):
                 raise ValueError(
                     "verified native reset receipt required before fresh-epoch admission"
                 )
+            if state.get('startup_required'):
+                if state.get('startup_receipt') is None:
+                    raise ValueError('verified startup context receipt required before workflow')
+                row = next(s for s in control['sessions'] if s['role'] == 'buford')
+                state['startup_workflow_admission'] = self._startup_budget(state, row['transcript'])
             if state.get("maintenance_only") and not maintenance:
                 raise ValueError(
                     "maintenance recovery requires a genuine native reset before production"
@@ -419,15 +418,24 @@ class Loop:
                 "epoch_completed": len(state["completed"]) - state["epoch_start"],
             }
 
+    def _startup_budget(self, state, transcript):
+        from .startup import budget, StartupBudgetRejected
+        try:
+            return budget(transcript, state['session_id'])
+        except StartupBudgetRejected as error:
+            state['startup_rejection'] = error.report
+            state['reset_requested'] = True
+            self._save(state)
+            raise
+
     def finish_startup(self):
         """Bind native context measurement before the first workflow admission."""
-        from .startup import budget
         with Lease(self.path.with_suffix('.lock')):
             state = self._read()
             row = next(s for s in self._control()['sessions'] if s['role'] == 'buford')
             if row['session_id'] != state['session_id'] or state.get('awaiting_native_receipt'):
                 raise ValueError('native bootstrap required before startup measurement')
-            report = budget(row['transcript'], state['session_id'])
+            report = self._startup_budget(state, row['transcript'])
             report.update(epoch=state['epoch'], routing=file_binding(self.control))
             state['startup_receipt'] = report
             self._save(state)
@@ -632,7 +640,7 @@ class Loop:
                     nonce=nonce,
                     prepared_at=prepared_at,
                     automatic=automatic is not None,
-                    startup_limit_percent=automatic.get('startup_limit_percent') if automatic else None,
+                    startup_limit_percent=15 if automatic is not None else None,
                     native_lane={
                         k: provenance[k] for k in ("cwd", "source", "originator")
                     },
@@ -660,40 +668,8 @@ class Loop:
                     file_binding(automatic["continuation"]),
                     file_binding(automatic["goal_receipt"]),
                 ]
-                # [DEVICE:negative-examples] The native supervisor owns the one bootstrap.
-                prompt = (
-                    f"TO: Actual fresh Buford, lead orchestrator. FROM: Outgoing Buford, lead orchestrator, UUID {state['session_id']}. "
-                    f"You are Buford, {state['model']}/{state['effort']}, in the same visible native lane. "
-                    f"BUFORD_CONTEXT_HANDOFF {nonce} {file_binding(directory / 'frontier.json')['sha256']}. "
-                    "The user explicitly requires autonomous native clear and automatic complete prompt submission, "
-                    "without HIL or manual append. First run lit quickstart; read root AGENTS.md, "
-                    "docs/orchestration/context-policy.md and docs/orchestration/roles/buford.md. "
-                    f"Verify the sealed package {directory}/manifest.json. "
-                    f"The external supervisor alone calls Loop.bootstrap; do not bootstrap again. "
-                    f"Run {sys.executable} -m ops.orchestration.auto_reset wait-bootstrap "
-                    f"--config {automatic['config']} --manifest {directory}/manifest.json "
-                    "to verify its receipt, actual fresh UUID/Sol/high, unchanged protected routing, "
-                    "deadline, nonce and preserved journal. This is a fresh context, not completed acceptance. "
-                    f"Read the complete bound continuation {automatic['continuation']} SHA256 {extra[0]['sha256']}, "
-                    f"and actual prior goal receipt {automatic['goal_receipt']} SHA256 {extra[1]['sha256']}. "
-                    f"Goal accounting ledger: {automatic['goal_ledger']}; original deadline {automatic['deadline']}. "
-                    "Native goals are thread-local: preserve the original full objective and actual per-thread receipts, "
-                    "derive lifetime totals in GoalLineage, and never claim native counters were imported. "
-                    "Finish optimization acceptance and record actual native reset evidence before production. "
-                    "Then continue the user-authorized original full goal autonomously; historical HIL ask gates "
-                    "are superseded by the standing user authorization in root AGENTS.md. A new direct pause wins. "
-                    "Use the original sealed production handoff and current LIT reads as evidence pointers; "
-                    "preserve all six categories/nine arcs, original deadline and numerical criteria. "
-                    "Do not restart finished Unit8 gate b1hxp92fk, clear protected workers, reset review budgets, "
-                    "or treat source GO as installed acceptance. Preserve worktrees/drafts/classifier denials. "
-                    "Write raw logs through the physical Mac artifact capture boundary. "
-                    "After every actual closed admitted leaf record Loop.complete. After the fifth close, "
-                    "write the current released-process and actual goal receipt through the configured release "
-                    "boundary, then finish the turn; the runtime service performs the next native clear and "
-                    "entire prompt submission automatically. Do not ask the user to clear or paste text.\n"
-                )
             path = directory / "resume-prompt.txt"
-            if automatic is not None and automatic.get('startup_limit_percent') == 15:
+            if automatic is not None:
                 # [DEVICE:negative-examples] Startup is a bounded phase, not a handoff/history audit.
                 prompt = (
                     f"TO: Fresh Buford, lead orchestrator. FROM: Outgoing Buford {state['session_id']}, lead orchestrator. "
@@ -706,11 +682,12 @@ class Loop:
                     f"Then run {sys.executable} -m ops.orchestration.startup finish --config {automatic['config']}. "
                     "This verifies native usage <=15% of the reported window. Missing metrics or excess context holds work. "
                     "Report role, UUID and pause in at most three lines. "
-                    f"Actual workflow begins by running {sys.executable} -m ops.orchestration.loop begin {state['goal_ticket']} "
-                    f"--unit {automatic.get('workflow_unit', 'reset-startup-recovery')}. After successful admission, read the bound continuation {automatic['continuation']} "
+                    f"Actual workflow begins by running {sys.executable} -m ops.orchestration.loop --state {self.path} --control {self.control} begin {state['goal_ticket']}"
+                    + (f" --unit {automatic['workflow_unit']}" if automatic.get('workflow_unit') is not None else '')
+                    + f". After successful admission, read the bound continuation {automatic['continuation']} "
                     "and full applicable Laws once for its medium. Preserve original scope/deadline, actual goal accounting, "
                     "all review budgets, protected work and independent review/CI/installed gates. "
-                    "Standing user permission applies; a newer direct pause wins. Never replay an uncertain clear or prompt.\n"
+                    "Standing user permission applies without HIL; a newer direct pause wins. Never replay an uncertain clear or prompt.\n"
                 )
             path.write_text(prompt)
             os.chmod(path, 0o600)
@@ -849,7 +826,7 @@ class Loop:
                 control["notification_thread"] = actual["session_id"]
             atomic_json(self.control, control, private=False)
             automatic = frontier.get("automatic", False)
-            if frontier.get('startup_limit_percent') == 15:
+            if automatic:
                 state.update(startup_required=True, startup_receipt=None)
             # [LAW:no-ambient-temporal-coupling] Automatic routing is provisional;
             # acknowledgement alone earns the epoch and clears the original reset.

@@ -42,6 +42,9 @@ class GoalLineage:
         for evidence in state["receipts"]:
             if file_binding(evidence["path"]) != evidence:
                 raise ValueError("goal receipt changed")
+        for item in state.get('recovery_goals', []):
+            if file_binding(item['receipt']['path']) != item['receipt']:
+                raise ValueError('recovery goal receipt changed')
         return state
 
     def record_absence(self, receipt, deadline):
@@ -114,11 +117,19 @@ class GoalLineage:
         goal = observation['goal']
         if goal is None or observation.get('remainingTokens') is not None or goal.get('tokenBudget') is not None:
             raise ValueError('actual unbounded recovery goal required')
+        usage = {k: goal[k] for k in ('tokensUsed', 'timeUsedSeconds')}
+        if any(type(v) is not int or v < 0 for v in usage.values()):
+            raise ValueError('invalid actual recovery goal usage')
         with Lease(self.path.with_suffix('.lock')):
             state = self._existing(deadline)
             # [LAW:one-source-of-truth] Separate objectives retain separate actual receipts and counters.
             item = {'session_id': session, 'receipt': file_binding(receipt)}
             records = state.setdefault('recovery_goals', [])
+            for previous in records:
+                if previous['session_id'] == session:
+                    _, old = goal_observation(json.loads(Path(previous['receipt']['path']).read_text()))
+                    if old['goal']['objective'] != goal['objective'] or any(usage[k] < old['goal'][k] for k in usage):
+                        raise ValueError('actual recovery goal contract changed or usage regressed')
             if item not in records:
                 records.append(item)
             atomic_json(self.path, state)

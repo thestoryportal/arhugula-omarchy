@@ -464,8 +464,7 @@ class AutoReset:
                 "goal_receipt": release["goal_receipt"],
                 "goal_ledger": self.config["goal_ledger"],
                 "deadline": self.config["deadline"],
-                "startup_limit_percent": self.config.get('startup_limit_percent'),
-                "workflow_unit": self.config.get('workflow_unit', 'reset-startup-recovery'),
+                "workflow_unit": self.config.get('workflow_unit'),
             },
         )
         frontier = json.loads((directory / "frontier.json").read_text())
@@ -922,11 +921,11 @@ class AutoReset:
                 != read_goal(self.config["goal_database"], session)["goal"]
             ):
                 raise ValueError("actual native recovery goal changed")
+        self.loop.recover_maintenance(transfer)
         self.retain_goal(
             grant["terminal_goal"]["path"], failed["reset"]["previous_session"]
         )
         case.retain_current(self, transfer, actual)
-        self.loop.recover_maintenance(transfer)
         state.update(
             phase="maintenance_recovered",
             recovery_authority=bound,
