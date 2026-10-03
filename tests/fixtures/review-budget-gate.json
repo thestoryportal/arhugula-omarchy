@@ -1,0 +1,995 @@
+{
+  "cases": {
+    "test_clear_does_not_reset_prior_bindings_and_duplicates_do_not_count": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {}
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": null
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "3",
+              "delivered": [
+                "merge-gate-concurrency"
+              ],
+              "diff_digest": "digest",
+              "findings": [],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 0
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "3",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "no_finding"
+        }
+      ]
+    },
+    "test_fifth_clean_mandatory_terminal_can_verify": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {
+            "3-head": "accepted"
+          }
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": null
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "3",
+              "delivered": [
+                "merge-gate-concurrency"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "3",
+                  "diff_digest": "digest",
+                  "finding_id": "3-head",
+                  "head_sha": "head",
+                  "producer": "merge-gate-concurrency",
+                  "record_kind": "finding",
+                  "severity": "P3"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 0
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "3",
+          "diff_digest": "digest",
+          "finding_id": "3-head",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "finding",
+          "severity": "P3"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "3-head",
+          "record_kind": "finding_adjudication"
+        }
+      ]
+    },
+    "test_fifth_p1_quarantines_and_sixth_is_not_admitted": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {
+            "3-head": "accepted"
+          }
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": "3"
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "3",
+              "delivered": [
+                "merge-gate-concurrency"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "3",
+                  "diff_digest": "digest",
+                  "finding_id": "3-head",
+                  "head_sha": "head",
+                  "producer": "merge-gate-concurrency",
+                  "record_kind": "finding",
+                  "severity": "P1"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 1
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "3",
+          "diff_digest": "digest",
+          "finding_id": "3-head",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "finding",
+          "severity": "P1"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "3-head",
+          "record_kind": "finding_adjudication"
+        }
+      ]
+    },
+    "test_independently_adjudicated_prose_is_followup_but_cycle_still_required": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {
+            "1-head": "accepted"
+          }
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": "2"
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "1",
+              "delivered": [
+                "codex",
+                "merge-gate-concurrency",
+                "merge-gate-spec-conformance",
+                "merge-gate-witness-adequacy"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "1",
+                  "diff_digest": "digest",
+                  "finding_id": "1-head",
+                  "head_sha": "head",
+                  "producer": "codex_review_wrapper",
+                  "record_kind": "finding",
+                  "severity": "P2"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 0
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "finding_id": "1-head",
+          "head_sha": "head",
+          "producer": "codex_review_wrapper",
+          "record_kind": "finding",
+          "severity": "P2"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-spec-conformance",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-witness-adequacy",
+          "record_kind": "no_finding"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "1-head",
+          "record_kind": "finding_adjudication"
+        }
+      ]
+    },
+    "test_p2_is_not_nonblocking_from_severity_alone": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {
+            "1-head": "accepted"
+          }
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": "2"
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "1",
+              "delivered": [
+                "codex",
+                "merge-gate-concurrency",
+                "merge-gate-spec-conformance",
+                "merge-gate-witness-adequacy"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "1",
+                  "diff_digest": "digest",
+                  "finding_id": "1-head",
+                  "head_sha": "head",
+                  "producer": "codex_review_wrapper",
+                  "record_kind": "finding",
+                  "severity": "P2"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 0
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "finding_id": "1-head",
+          "head_sha": "head",
+          "producer": "codex_review_wrapper",
+          "record_kind": "finding",
+          "severity": "P2"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-spec-conformance",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-witness-adequacy",
+          "record_kind": "no_finding"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "1-head",
+          "record_kind": "finding_adjudication"
+        }
+      ]
+    },
+    "test_pass2_p1_on_fix_delta_blocks_same_head_full_diff_admission": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {
+            "2-head": "accepted"
+          }
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": "esc"
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "1",
+              "delivered": [
+                "codex",
+                "merge-gate-concurrency",
+                "merge-gate-spec-conformance",
+                "merge-gate-witness-adequacy"
+              ],
+              "diff_digest": "digest",
+              "findings": [],
+              "head_sha": "old"
+            },
+            {
+              "complete": true,
+              "cycle_pass": "2",
+              "delivered": [
+                "codex",
+                "merge-gate-witness-adequacy"
+              ],
+              "diff_digest": "fix-delta-digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "2",
+                  "diff_digest": "fix-delta-digest",
+                  "finding_id": "2-head",
+                  "head_sha": "head",
+                  "producer": "codex_review_wrapper",
+                  "record_kind": "finding",
+                  "severity": "P1"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 0
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "old",
+          "producer": "codex_review_wrapper",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "old",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "old",
+          "producer": "merge-gate-spec-conformance",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "old",
+          "producer": "merge-gate-witness-adequacy",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "2",
+          "diff_digest": "fix-delta-digest",
+          "finding_id": "2-head",
+          "head_sha": "head",
+          "producer": "codex_review_wrapper",
+          "record_kind": "finding",
+          "severity": "P1"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "2",
+          "diff_digest": "fix-delta-digest",
+          "head_sha": "head",
+          "producer": "merge-gate-witness-adequacy",
+          "record_kind": "no_finding"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "2-head",
+          "record_kind": "finding_adjudication"
+        }
+      ]
+    },
+    "test_self_disposition_cannot_excuse_prose": {
+      "calls": {
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "1",
+              "delivered": [
+                "codex",
+                "merge-gate-concurrency",
+                "merge-gate-spec-conformance",
+                "merge-gate-witness-adequacy"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "1",
+                  "diff_digest": "digest",
+                  "finding_id": "1-head",
+                  "head_sha": "head",
+                  "producer": "codex_review_wrapper",
+                  "record_kind": "finding",
+                  "severity": "P2"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "finding_id": "1-head",
+          "head_sha": "head",
+          "producer": "codex_review_wrapper",
+          "record_kind": "finding",
+          "severity": "P2"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-spec-conformance",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-witness-adequacy",
+          "record_kind": "no_finding"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "1-head",
+          "record_kind": "finding_adjudication"
+        }
+      ]
+    },
+    "test_two_consecutive_pass3_p1_stop_before_five": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {
+            "3-head": "accepted",
+            "3-old": "accepted"
+          }
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": "3"
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "3",
+              "delivered": [
+                "merge-gate-concurrency"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "3",
+                  "diff_digest": "digest",
+                  "finding_id": "3-old",
+                  "head_sha": "old",
+                  "producer": "merge-gate-concurrency",
+                  "record_kind": "finding",
+                  "severity": "P1"
+                }
+              ],
+              "head_sha": "old"
+            },
+            {
+              "complete": true,
+              "cycle_pass": "3",
+              "delivered": [
+                "merge-gate-concurrency"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "3",
+                  "diff_digest": "digest",
+                  "finding_id": "3-head",
+                  "head_sha": "head",
+                  "producer": "merge-gate-concurrency",
+                  "record_kind": "finding",
+                  "severity": "P1"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 2
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "3",
+          "diff_digest": "digest",
+          "finding_id": "3-old",
+          "head_sha": "old",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "finding",
+          "severity": "P1"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "3-old",
+          "record_kind": "finding_adjudication"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "3",
+          "diff_digest": "digest",
+          "finding_id": "3-head",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "finding",
+          "severity": "P1"
+        },
+        {
+          "disposition": "accepted",
+          "finding_id": "3-head",
+          "record_kind": "finding_adjudication"
+        }
+      ]
+    },
+    "test_unavailable_and_partial_reviews_do_not_complete": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {}
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": "1"
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": false,
+              "cycle_pass": "1",
+              "delivered": [
+                "codex",
+                "merge-gate-concurrency"
+              ],
+              "diff_digest": "digest",
+              "findings": [],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 0
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "codex_review_wrapper",
+          "record_kind": "reviewer_unavailable"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "reviewer_unavailable"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-spec-conformance",
+          "record_kind": "reviewer_unavailable"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-witness-adequacy",
+          "record_kind": "reviewer_unavailable"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "codex_review_wrapper",
+          "record_kind": "no_finding"
+        },
+        {
+          "arc_id": "arc",
+          "cycle_pass": "1",
+          "diff_digest": "digest",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "no_finding"
+        }
+      ]
+    },
+    "test_undisposed_finding_never_becomes_code_verified": {
+      "calls": {
+        "_last_dispositions": {
+          "query": {
+            "args": [],
+            "kwargs": {}
+          },
+          "result": {}
+        },
+        "next_pass": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {
+              "diff_digest": "digest",
+              "doc_only": false,
+              "head_sha": "head"
+            }
+          },
+          "result": null
+        },
+        "pass_runs": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": [
+            {
+              "complete": true,
+              "cycle_pass": "3",
+              "delivered": [
+                "merge-gate-concurrency"
+              ],
+              "diff_digest": "digest",
+              "findings": [
+                {
+                  "arc_id": "arc",
+                  "cycle_pass": "3",
+                  "diff_digest": "digest",
+                  "finding_id": "3-head",
+                  "head_sha": "head",
+                  "producer": "merge-gate-concurrency",
+                  "record_kind": "finding",
+                  "severity": "P3"
+                }
+              ],
+              "head_sha": "head"
+            }
+          ]
+        },
+        "unfixed_after_pass_3": {
+          "query": {
+            "args": [
+              "arc"
+            ],
+            "kwargs": {}
+          },
+          "result": 0
+        }
+      },
+      "rows": [
+        {
+          "arc_id": "arc",
+          "cycle_pass": "3",
+          "diff_digest": "digest",
+          "finding_id": "3-head",
+          "head_sha": "head",
+          "producer": "merge-gate-concurrency",
+          "record_kind": "finding",
+          "severity": "P3"
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "baseline_adapter_head": "d19336f7f3e16a223136c82d0cffeef7d3c14a5e",
+    "canonical_head": "dc9f08275d5842bea40f88af3a635274919ac2e8",
+    "canonical_sources": {
+      "tools/codex_context_guard.py": {
+        "bytes": 79559,
+        "sha256": "2e9a481aab59d1ad3b385eb193a154acf3724d3fc25fa9f537e494c4aa5710e5"
+      },
+      "tools/finding_record.py": {
+        "bytes": 26256,
+        "sha256": "2bd58e92e40d04f2a9e7bb466d04fd8adb2ba46029ce3068435a2012a49dc2e6"
+      },
+      "tools/review_loop_gate.py": {
+        "bytes": 92161,
+        "sha256": "bfbf3f225c04b10b7a2e4785bd9948ad66ef6d9277ea50b1e76040d9d0dace65"
+      },
+      "tools/review_wrapper_common.py": {
+        "bytes": 25125,
+        "sha256": "6ae60fd09de13316786c28c19da19a783a78bbf83351e4a54b82a27909f17cbf"
+      }
+    },
+    "kind": "recorded-canonical-provider-observations",
+    "recorder": "Codex implementer 01a0ff92-feb6-7343-bfe0-aa6280f466c7",
+    "scope": "Frozen reducer replies for adapter tests; not a reducer implementation or ongoing canonical integration attestation."
+  },
+  "version": 1
+}

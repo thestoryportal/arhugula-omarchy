@@ -8,6 +8,7 @@ from .continuation import Lease, Stop, continue_work, select_ticket
 from .handoff import read_handoff
 from .local import CodexWorker, LocalAdapter, ProcessWorker
 from .routing import route
+from .artifacts import DEFAULT_ROOT
 
 
 def main():
@@ -21,15 +22,16 @@ def main():
     args = parser.parse_args()
     try:
         config = json.loads(args.config.read_text()) if args.config else {}
-        adapter = LocalAdapter(args.cwd, config.get("verify_argv", ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]), timeout=min(args.seconds, 300))
+        adapter = LocalAdapter(args.cwd, config.get("verify_argv", ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]), timeout=min(args.seconds, 300), artifact_root=config.get('artifact_root', DEFAULT_ROOT))
         if args.mode == "plan":
             issue, ancestors = select_ticket(adapter.export(), adapter.next())
             print(json.dumps(route(issue, ancestors) if issue else {"stop_reason": "queue-empty"}, indent=2))
             return 0
         if not args.config or not isinstance(config.get("goal"), str) or not config["goal"].strip():
             raise ValueError("run requires a trusted worker config and goal")
-        worker = (CodexWorker(adapter.cwd, min(args.seconds, 900)) if config.get("worker") == "codex"
-                  else ProcessWorker(config["worker_argv"], adapter.cwd, min(args.seconds, 900)))
+        store=config.get('artifact_root',DEFAULT_ROOT)
+        worker = (CodexWorker(adapter.cwd, min(args.seconds, 900), artifact_root=store) if config.get("worker") == "codex"
+                  else ProcessWorker(config["worker_argv"], adapter.cwd, min(args.seconds, 900), artifact_root=store))
         state = adapter.common_dir() / "orchestration"
         with Lease(state / "runner.lock"):
             handoff = state / "handoff.json"

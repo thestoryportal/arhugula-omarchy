@@ -12,7 +12,8 @@ class CodexWorkerTests(unittest.TestCase):
     def test_each_invocation_uses_current_assignment_and_receipt_file(self):
         executable = str(Path(__file__).with_name("fixtures") / "offline_codex.py")
         with tempfile.TemporaryDirectory() as directory:
-            worker = CodexWorker(directory, 10, [sys.executable, executable])
+            worker = CodexWorker(directory, 10, [sys.executable, executable],
+                                 artifact_root=Path(directory) / 'artifacts')
             for model, effort in [("gpt-6-astra", "high"), ("gpt-5.6-terra", "medium")]:
                 context = {**record(directory), "model": model, "effort": effort,
                            "supervisor": "Implement only; supervisor owns LIT/Git transitions."}
@@ -28,5 +29,6 @@ class CodexWorkerTests(unittest.TestCase):
         executable = str(Path(__file__).with_name("fixtures") / "offline_codex.py")
         with tempfile.TemporaryDirectory() as directory:
             context = {**record(directory), "supervisor": "worker only", "goal": "x" * 150000}
-            result = CodexWorker(directory, 10, [sys.executable, executable])(context)
+            result = CodexWorker(directory, 10, [sys.executable, executable],
+                                 artifact_root=Path(directory) / 'artifacts')(context)
             self.assertEqual(result["files"], ["capture.json"])

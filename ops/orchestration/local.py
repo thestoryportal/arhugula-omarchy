@@ -1,4 +1,5 @@
 """Explicit subprocess adapters; never interpret ticket text as shell commands."""
+
 import json
 import os
 from pathlib import Path
@@ -9,12 +10,20 @@ import tempfile
 
 from .continuation import Stop
 from .handoff import validate
+from .artifacts import capture, DEFAULT_ROOT
 
 
 def command(argv, cwd, *, timeout=60, input=None):
     # Own process group so a timeout cannot leave an editing child behind.
-    process = subprocess.Popen(argv, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, text=True, start_new_session=True)
+    process = subprocess.Popen(
+        argv,
+        cwd=cwd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
     try:
         stdout, stderr = process.communicate(input=input, timeout=timeout)
     except BaseException:
@@ -28,11 +37,20 @@ def command(argv, cwd, *, timeout=60, input=None):
 
 
 class LocalAdapter:
-    def __init__(self, cwd, verify_argv, *, timeout=60, lit_argv=("lit",)):
+    def __init__(
+        self,
+        cwd,
+        verify_argv,
+        *,
+        timeout=60,
+        lit_argv=("lit",),
+        artifact_root=DEFAULT_ROOT,
+    ):
         self.cwd = Path(cwd).resolve()
         self.verify_argv = verify_argv
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
+        self.artifact_root = artifact_root
 
     def checked(self, argv, cwd=None):
         result = command(argv, cwd or self.cwd, timeout=self.timeout)
@@ -51,7 +69,9 @@ class LocalAdapter:
         if result.returncode == 0:
             return result.stdout
         # LIT 0.14 uses exit 1, not an empty successful result, for exhaustion.
-        if result.returncode == 1 and result.stderr.splitlines()[:1] == ["error (code=1): no ready work"]:
+        if result.returncode == 1 and result.stderr.splitlines()[:1] == [
+            "error (code=1): no ready work"
+        ]:
             return ""
         raise Stop(f"lit-next-failed: {result.stderr.strip()}")
 
@@ -79,7 +99,9 @@ class LocalAdapter:
         self.start(ticket)
 
     def common_dir(self):
-        return Path(self.git("rev-parse", "--path-format=absolute", "--git-common-dir").strip())
+        return Path(
+            self.git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+        )
 
     def inspect(self, expected_head=None, allowed=()):
         branch = self.git("branch", "--show-current").strip()
@@ -93,27 +115,49 @@ class LocalAdapter:
         for item in self.git("worktree", "list", "--porcelain", "-z").split("\0"):
             if item.startswith("worktree "):
                 other = Path(item[9:]).resolve()
-                if other != self.cwd and self.git("status", "--porcelain=v1", "--untracked-files=all", cwd=other).strip():
+                if (
+                    other != self.cwd
+                    and self.git(
+                        "status", "--porcelain=v1", "--untracked-files=all", cwd=other
+                    ).strip()
+                ):
                     raise Stop("dirty-tree-conflict")
-        changed = set(filter(None, self.git("diff", "--name-only", "-z", "HEAD").split("\0")))
-        changed.update(filter(None, self.git("diff", "--cached", "--name-only", "-z").split("\0")))
+        changed = set(
+            filter(None, self.git("diff", "--name-only", "-z", "HEAD").split("\0"))
+        )
+        changed.update(
+            filter(None, self.git("diff", "--cached", "--name-only", "-z").split("\0"))
+        )
         changed.update(filter(None, self.git("diff", "--name-only", "-z").split("\0")))
-        changed.update(filter(None, self.git("ls-files", "--others", "--exclude-standard", "-z").split("\0")))
+        changed.update(
+            filter(
+                None,
+                self.git("ls-files", "--others", "--exclude-standard", "-z").split(
+                    "\0"
+                ),
+            )
+        )
         if changed - set(allowed):
             raise Stop("dirty-tree-conflict")
-        if (self.git("diff", "--name-only", "--diff-filter=D", "HEAD").strip()
-                or self.git("diff", "--cached", "--name-only", "--diff-filter=D").strip()):
+        if (
+            self.git("diff", "--name-only", "--diff-filter=D", "HEAD").strip()
+            or self.git("diff", "--cached", "--name-only", "--diff-filter=D").strip()
+        ):
             raise Stop("destructive")
         for name in changed:
             path = self.cwd / name
-            if path.is_symlink() or any(p.is_symlink() for p in path.parents if p != self.cwd):
+            if path.is_symlink() or any(
+                p.is_symlink() for p in path.parents if p != self.cwd
+            ):
                 raise Stop("symlink-change")
         return dict(branch=branch, head=head, worktree=str(self.cwd))
 
     def verify(self):
-        result = command(self.verify_argv, self.cwd, timeout=self.timeout)
-        evidence = f"{shlex.join(self.verify_argv)}; exit={result.returncode}\n{result.stdout[-6000:]}{result.stderr[-6000:]}"
-        return result.returncode == 0, evidence
+        result = capture(
+            self.verify_argv, self.cwd, root=self.artifact_root, timeout=self.timeout
+        )
+        evidence = f"{shlex.join(self.verify_argv)}; exit={result['exit']}; receipt={result['receipt']}\n{result['summary']}"
+        return result["terminal"] == "exited" and result["exit"] == 0, evidence
 
     def commit(self, ticket, files):
         self.inspect(allowed=files)
@@ -121,7 +165,9 @@ class LocalAdapter:
         # Literal pathspecs prevent a worker receipt from staging arbitrary globs.
         self.git("--literal-pathspecs", "add", "--", *files)
         self.git("diff", "--cached", "--check")
-        staged = set(filter(None, self.git("diff", "--cached", "--name-only", "-z").split("\0")))
+        staged = set(
+            filter(None, self.git("diff", "--cached", "--name-only", "-z").split("\0"))
+        )
         if staged - set(files):
             raise Stop("dirty-tree-conflict")
         if not self.git("diff", "--cached", "--name-only").strip():
@@ -132,29 +178,44 @@ class LocalAdapter:
 
 class ProcessWorker:
     """Trusted local argv in; one JSON receipt out. No executable comes from LIT."""
-    def __init__(self, argv, cwd, timeout):
-        if not isinstance(argv, list) or not argv or any(not isinstance(x, str) or not x for x in argv):
+
+    def __init__(self, argv, cwd, timeout, *, artifact_root=DEFAULT_ROOT):
+        if (
+            not isinstance(argv, list)
+            or not argv
+            or any(not isinstance(x, str) or not x for x in argv)
+        ):
             raise ValueError("worker argv required")
         self.argv, self.cwd, self.timeout = argv, cwd, timeout
+        self.artifact_root = artifact_root
 
     def __call__(self, context):
-        try:
-            result = command(self.argv, self.cwd, timeout=self.timeout, input=json.dumps(context))
-        except subprocess.TimeoutExpired:
+        result = capture(
+            self.argv,
+            self.cwd,
+            root=self.artifact_root,
+            timeout=self.timeout,
+            input=json.dumps(context),
+        )
+        if result["terminal"] == "timeout":
             raise Stop("worker-timeout") from None
-        if result.returncode:
+        if result["exit"] or result["terminal"] != "exited":
             raise Stop("worker-failed")
         try:
-            return json.loads(result.stdout)
+            if result["stdout"]["bytes"] > 1024 * 1024:
+                raise ValueError("worker receipt exceeds bound")
+            return json.loads(Path(result["stdout"]["path"]).read_text())
         except ValueError:
             raise Stop("invalid-worker-receipt") from None
 
 
 class CodexWorker:
     """Synchronous Codex adapter using current routing, stdin, and a JSON receipt."""
-    def __init__(self, cwd, timeout, executable=None):
+
+    def __init__(self, cwd, timeout, executable=None, *, artifact_root=DEFAULT_ROOT):
         self.cwd, self.timeout = Path(cwd), timeout
         self.executable = executable or ["codex"]
+        self.artifact_root = artifact_root
 
     def __call__(self, context):
         validate(context)
@@ -163,15 +224,33 @@ class CodexWorker:
         with tempfile.TemporaryDirectory(prefix="arhugula-codex-receipt-") as directory:
             output = Path(directory) / "receipt.json"
             schema = Path(__file__).with_name("worker-receipt.schema.json")
-            argv = [*self.executable, "exec", "--model", context["model"], "--config",
-                    f'model_reasoning_effort="{context["effort"]}"', "--sandbox", "workspace-write",
-                    "--cd", str(self.cwd), "--output-schema", str(schema),
-                    "--output-last-message", str(output), "-"]
-            try:
-                result = command(argv, self.cwd, timeout=self.timeout, input=json.dumps(context))
-            except subprocess.TimeoutExpired:
+            argv = [
+                *self.executable,
+                "exec",
+                "--model",
+                context["model"],
+                "--config",
+                f'model_reasoning_effort="{context["effort"]}"',
+                "--sandbox",
+                "workspace-write",
+                "--cd",
+                str(self.cwd),
+                "--output-schema",
+                str(schema),
+                "--output-last-message",
+                str(output),
+                "-",
+            ]
+            result = capture(
+                argv,
+                self.cwd,
+                root=self.artifact_root,
+                timeout=self.timeout,
+                input=json.dumps(context),
+            )
+            if result["terminal"] == "timeout":
                 raise Stop("worker-timeout") from None
-            if result.returncode:
+            if result["exit"] or result["terminal"] != "exited":
                 raise Stop("worker-failed")
             try:
                 return json.loads(output.read_text())
