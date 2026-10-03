@@ -4,6 +4,7 @@ Transports must attest an already-verified TLS peer before begin receives a
 credential. No transport or provider implementation is installed by this module.
 All callbacks must be bounded; no Python callback is preempted by this client.
 """
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from ipaddress import ip_address
 import re
@@ -154,6 +155,72 @@ class GatewayClient:
         self._inside_callback = False
         self._unclean = False
 
+        self._configuring = False
+        self._disabled = False
+        self._permit = None
+        self._configuration_owner = None
+
+    def claim_configuration(self):
+        """Attach one trusted configuration owner, atomically starting disabled."""
+        with self._lock:
+            if (self._configuration_owner is not None or self._active is not None
+                    or self._terminal is not None or self._inside_callback or self._configuring):
+                raise GatewayError('busy')
+            if self._fault:
+                raise GatewayError(self._fault)
+            self._configuration_owner = object()
+            self._disabled = True
+            return self._configuration_owner
+
+    def _require_configuration_owner(self, owner):
+        if owner is not self._configuration_owner:
+            raise GatewayError('identity')
+
+    @contextmanager
+    def configuration(self, owner=None):
+        """Serialize trusted configuration state with calls; forbid callback reentry.
+
+        The caller may publish its own state and rebind atomically here. This
+        grants no authority to model data. Keep transaction bodies bounded and
+        effect-free; lifecycle operations remain owned by this gateway.
+        """
+        with self._lock:
+            self._require_configuration_owner(owner)
+            if self._inside_callback or self._configuring:
+                raise GatewayError('busy')
+            self._configuring = True
+            try:
+                yield
+            finally:
+                self._configuring = False
+
+    def reconfigure(self, host: Host, local: Local | None = None, *, permit=None, owner=None):
+        """Rebind idle routes without discarding replay, exhaustion or faults.
+
+        permit(provider, service, monotonic_ms) is a bounded trusted callback;
+        exact True permits an attempt. Refusal/exception cancels without fallback.
+        """
+        with self._lock:
+            self._require_configuration_owner(owner)
+            if self._active is not None or self._terminal is not None or self._inside_callback:
+                raise GatewayError('busy')
+            if self._fault:
+                raise GatewayError(self._fault)
+            if type(host) is not Host or (local is not None and type(local) is not Local):
+                raise GatewayError('identity')
+            if permit is not None and not callable(permit):
+                raise GatewayError('invalid_request')
+            # [LAW:one-source-of-truth] Route changes retain the admission owner.
+            self._host, self._local, self._permit = host, local, permit
+            self._disabled = False
+
+    def disable(self, *, owner=None):
+        """Close admission immediately, retiring any job through normal cleanup."""
+        with self._lock:
+            self._require_configuration_owner(owner)
+            self._disabled = True
+            self.cancel()
+
     @property
     def cleanup_proven(self):
         with self._lock:
@@ -188,10 +255,13 @@ class GatewayClient:
 
     def start(self, request: Request):
         with self._lock:
-            if self._active is not None or self._terminal is not None or self._inside_callback:
+            if (self._active is not None or self._terminal is not None
+                    or self._inside_callback or self._configuring):
                 raise GatewayError('busy')
             if self._fault:
                 raise GatewayError(self._fault)
+            if self._disabled:
+                raise GatewayError('canceled')
             request = parse_request(request_bytes(request))
             if request.catalog_version != self._catalog_version:
                 raise GatewayError('stale_catalog')
@@ -231,6 +301,16 @@ class GatewayClient:
             return
         request = replace(request, budget_ms=call.deadline - call.last_time)
         call.request = request
+        # [LAW:single-enforcer] Configuration admission precedes every effect,
+        # including fallback; the existing callback barrier protects reentry.
+        try:
+            permitted = (self._permit is None or self._invoke(
+                self._permit, call.route.provider, request.service, call.last_time) is True)
+        except Exception:
+            permitted = False
+        if not permitted or self._disabled or call.cancel_requested:
+            self._finish(self._failure(call, 'canceled'))
+            return
         self._unclean = True
         try:
             if type(call.route) is Host:
@@ -292,7 +372,7 @@ class GatewayClient:
 
     def poll(self) -> Success | Degraded | Failed | None:
         with self._lock:
-            if self._inside_callback:
+            if self._inside_callback or self._configuring:
                 return None
             if self._active is not None:
                 call = self._active
