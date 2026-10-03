@@ -13,6 +13,7 @@ import tempfile
 import time
 
 from .records import atomic_json, private_directory, sync_directory
+from .processes import process_stats
 
 DEFAULT_ROOT = Path("/mnt/mac/arhugula-artifacts")
 
@@ -61,14 +62,7 @@ def summary(paths, limit=4096):
 
 
 def group_active(pgid):
-    for proc in Path("/proc").glob("[0-9]*/stat"):
-        try:
-            fields = proc.read_text().rsplit(")", 1)[1].split()
-        except FileNotFoundError:
-            continue  # The process exited during the census.
-        if int(fields[2]) == pgid and fields[0] != "Z":
-            return True
-    return False
+    return any(proc.group == pgid and proc.state != 'Z' for proc in process_stats())
 
 
 def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
