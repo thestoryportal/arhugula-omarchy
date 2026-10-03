@@ -53,6 +53,209 @@ class ResetCorrectionTests(unittest.TestCase):
         self.assertEqual(after["reset"], before["reset"])
         self.assertNotIn("native_receipt", after)
 
+    def delayed_input_log(self):
+        original = self.window.context
+        self.window.context = lambda *args: {**original(*args), "user_input": False}
+
+    def without_prompt(self, fresh):
+        rows = [json.loads(row) for row in fresh.read_text().splitlines()]
+        fresh.write_text(
+            "".join(
+                json.dumps(row) + "\n"
+                for row in rows
+                if not (
+                    row["type"] == "response_item"
+                    and row["payload"].get("role") == "user"
+                )
+            )
+        )
+
+    def provisional(self):
+        controller, fresh = self.pending()
+        with patch.object(controller, "publish", side_effect=OSError("publication")):
+            with self.assertRaises(OSError):
+                controller.step(fresh)
+        return controller, fresh
+
+    def test_rollout_before_input_log_bootstraps_and_publishes_within_gate(self):
+        controller, fresh = self.pending()
+        self.delayed_input_log()
+        self.clock = controller.status()["started"] + 119
+        result = controller.step(fresh)
+        self.assertEqual(result["phase"], "verified")
+        self.assertEqual(self.loop.status()["epoch"], 1)
+        self.assertFalse(
+            json.loads(Path(result["receipt"]["path"]).read_text())["native_context"][
+                "user_input"
+            ]
+        )
+        self.assertEqual(len(self.window.queued), 1)
+
+    def test_pending_prompt_waits_without_effects_then_readies_on_original_clock(self):
+        controller, fresh = self.pending()
+        complete = fresh.read_bytes()
+        self.without_prompt(fresh)
+        self.delayed_input_log()
+        before, supervisor = self.loop.status(), controller.status()
+        routing = self.loop.control.read_bytes()
+        self.clock = supervisor["started"] + 119
+        for _ in range(2):
+            self.assertEqual(controller.step(fresh), supervisor)
+            self.assertEqual(self.loop.status(), before)
+            self.assertEqual(self.loop.control.read_bytes(), routing)
+            self.assertFalse(Path(self.config["receipt_directory"]).exists())
+            self.assertEqual(len(self.window.queued), 1)
+        fresh.write_bytes(complete)
+        self.assertEqual(controller.step(fresh)["phase"], "verified")
+        self.assertEqual(controller.status()["started"], supervisor["started"])
+
+    def test_publication_waits_for_prompt_without_acceptance_or_replay(self):
+        controller, fresh = self.provisional()
+        complete = fresh.read_bytes()
+        self.without_prompt(fresh)
+        self.delayed_input_log()
+        before, supervisor = self.loop.status(), controller.status()
+        self.clock = supervisor["started"] + 119
+        self.assertEqual(controller.step(fresh), supervisor)
+        self.assertEqual(self.loop.status(), before)
+        self.assertFalse(Path(self.config["receipt_directory"]).exists())
+        self.assertEqual(len(self.window.queued), 1)
+        fresh.write_bytes(complete)
+        self.assertEqual(controller.step(fresh)["phase"], "verified")
+        self.assertEqual(controller.status()["started"], supervisor["started"])
+
+    def test_pending_delivery_and_publication_refuse_original_deadline(self):
+        for publication in (False, True):
+            with self.subTest(publication=publication):
+                self.setUp()
+                controller, fresh = (
+                    self.provisional() if publication else self.pending()
+                )
+                self.without_prompt(fresh)
+                self.delayed_input_log()
+                before = self.loop.status()
+                self.clock = controller.status()["started"] + 121
+                with self.assertRaisesRegex(ValueError, "deadline"):
+                    controller.step(fresh)
+                self.assertEqual(self.loop.status(), before)
+                self.assertEqual(len(self.window.queued), 1)
+
+    def test_missing_rollout_or_model_waits_in_both_delivery_phases(self):
+        for publication in (False, True):
+            for kind in ("no-rollout", "empty-rollout", "no-model"):
+                with self.subTest(publication=publication, kind=kind):
+                    self.setUp()
+                    controller, fresh = (
+                        self.provisional() if publication else self.pending()
+                    )
+                    if kind == "no-rollout":
+                        observed = self.window.context({}, "old")
+                        self.window.rollouts = []
+                        self.window.context = lambda *args: {
+                            **observed,
+                            "transcript": None,
+                        }
+                    elif kind == "empty-rollout":
+                        observed = self.window.context({}, "old")
+                        self.window.context = lambda *args: observed
+                        fresh.write_text("")
+                    else:
+                        rows = [
+                            json.loads(row) for row in fresh.read_text().splitlines()
+                        ]
+                        fresh.write_text(
+                            "".join(
+                                json.dumps(row) + "\n"
+                                for row in rows
+                                if row["type"] != "turn_context"
+                            )
+                        )
+                    self.delayed_input_log()
+                    before, supervisor = self.loop.status(), controller.status()
+                    if publication and kind == "empty-rollout":
+                        # A once-published routing identity cannot be erased as pending.
+                        with self.assertRaises(ValueError):
+                            controller.step()
+                    else:
+                        self.assertEqual(controller.step(), supervisor)
+                    self.assertEqual(self.loop.status(), before)
+                    self.assertEqual(len(self.window.queued), 1)
+
+    def test_delivery_and_publication_refuse_identity_or_prompt_contradiction(self):
+        for publication in (False, True):
+            for kind in (
+                "session_id",
+                "created_at",
+                "process_uuid",
+                "creation_log_id",
+                "missing",
+                "prompt",
+                "extra-input",
+            ):
+                with self.subTest(publication=publication, kind=kind):
+                    self.setUp()
+                    controller, fresh = (
+                        self.provisional() if publication else self.pending()
+                    )
+                    original = self.window.context
+                    if kind == "missing":
+                        self.window.context = lambda *args: None
+                    elif kind in ("prompt", "extra-input"):
+                        with fresh.open("a") as stream:
+                            stream.write(
+                                json.dumps(
+                                    {
+                                        "type": "response_item",
+                                        "payload": {
+                                            "role": "user",
+                                            "content": [{"text": "changed"}],
+                                        },
+                                    }
+                                )
+                                + "\n"
+                            )
+                        if kind == "prompt":
+                            self.without_prompt(fresh)
+                            with fresh.open("a") as stream:
+                                stream.write(
+                                    json.dumps(
+                                        {
+                                            "type": "response_item",
+                                            "payload": {
+                                                "role": "user",
+                                                "content": [{"text": "changed"}],
+                                            },
+                                        }
+                                    )
+                                    + "\n"
+                                )
+                    else:
+                        self.window.context = lambda *args: {
+                            **original(*args),
+                            kind: "changed",
+                        }
+                    before = self.loop.status()
+                    with self.assertRaises(ValueError):
+                        controller.step(fresh)
+                    self.assertEqual(self.loop.status(), before)
+                    self.assertEqual(len(self.window.queued), 1)
+
+    def test_late_supervisor_recovery_uses_durable_acceptance_after_native_evidence_loss(
+        self,
+    ):
+        controller, fresh = self.pending()
+        with patch.object(controller, "save", side_effect=OSError("supervisor")):
+            with self.assertRaises(OSError):
+                controller.step(fresh)
+        accepted = self.loop.status()
+        self.clock = controller.status()["started"] + 121
+        self.window.context = lambda *args: None
+        self.window.name = "later activity"
+        result = controller.step(fresh)
+        self.assertEqual(result["phase"], "verified")
+        self.assertEqual(self.loop.status(), accepted)
+        self.assertEqual(len(self.window.queued), 1)
+
     def test_bootstrap_is_provisional_and_late_publication_has_no_credit(self):
         controller, fresh = self.pending()
         before = self.loop.status()

@@ -1271,7 +1271,13 @@ class AutoResetTests(unittest.TestCase):
         for _ in range(4):
             controller.step()
         fresh = self.fresh()
-        fresh.write_text(fresh.read_text().replace("gpt-6.1-sol", "gpt-6-astra"))
+        # [LAW:behavior-not-structure] Change the model evidence, keeping the
+        # sealed prompt exact so refusal exercises the intended model contract.
+        rows = [json.loads(row) for row in fresh.read_text().splitlines()]
+        for row in rows:
+            if row["type"] == "turn_context":
+                row["payload"]["model"] = "gpt-6-astra"
+        fresh.write_text("".join(json.dumps(row) + "\n" for row in rows))
         with self.assertRaisesRegex(ValueError, "model"):
             controller.step(fresh)
         self.assertEqual(self.loop.status()["epoch"], 0)

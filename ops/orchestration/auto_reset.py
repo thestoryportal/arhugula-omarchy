@@ -500,6 +500,26 @@ class AutoReset:
             return path
         return None
 
+    def delivered_context(self, state):
+        # [LAW:single-enforcer] Bootstrap and publication share the same
+        # pending/contradictory/ready delivery boundary, independent of TurnInput.
+        frontier = self.loop.clear_package(state["reset"])
+        current = self.window.delivered_context(
+            frontier, state["reset"]["previous_session"], state["fresh_context"]
+        )
+        path = current["transcript"]
+        if path is None:
+            return None
+        actual = identity(path)
+        if actual["session_id"] not in (None, current["session_id"]):
+            raise ValueError("fresh native rollout identity changed after delivery")
+        if actual["user_count"] == 0:
+            return None
+        expected = (Path(state["reset"]["directory"]) / "resume-prompt.txt").read_text()
+        if actual["user_count"] != 1 or actual["first_user"] != expected:
+            raise ValueError("fresh sole user prompt changed after delivery")
+        return current if actual["model"] is not None else None
+
     def publish(self, state, result):
         proof = result["last_bootstrap"]
         if (
@@ -508,19 +528,6 @@ class AutoReset:
         ):
             raise ValueError("bootstrap receipt does not bind this native reset")
         self.unchanged_parent(state, recovery_transcript=proof["transcript"])
-        self.require_nonce_title(state)
-        frontier = self.loop.clear_package(state["reset"])
-        current = self.window.delivered_context(
-            frontier, state["reset"]["previous_session"], state["fresh_context"]
-        )
-        if current["transcript"] != proof["transcript"]:
-            raise ValueError("native context changed before receipt publication")
-        fresh = identity(proof["transcript"])
-        expected = (Path(state["reset"]["directory"]) / "resume-prompt.txt").read_text()
-        if fresh["user_count"] != 1 or fresh["first_user"] != expected:
-            raise ValueError(
-                "fresh user input changed before native receipt publication"
-            )
         accepted = result.get("native_receipt")
         if accepted is not None:
             # [LAW:one-source-of-truth] A supervisor crash cannot grant another
@@ -538,6 +545,12 @@ class AutoReset:
         elapsed = self.clock() - state["started"]
         if elapsed > 120:
             raise ValueError("native reset deadline exceeded")
+        self.require_nonce_title(state)
+        current = self.delivered_context(state)
+        if current is None:
+            return state
+        if current["transcript"] != proof["transcript"]:
+            raise ValueError("native context changed before receipt publication")
         directory = private_directory(self.config["receipt_directory"])
         old = identity(state["old_transcript"])
         if (
@@ -710,15 +723,11 @@ class AutoReset:
                 return self.publish(state, journal)
             path = fresh_transcript or self.fresh(state)
             self.unchanged_parent(state, recovery_transcript=path)
-            if path is None:
-                return state
-            frontier = json.loads(
-                (Path(state["reset"]["directory"]) / "frontier.json").read_text()
-            )
             self.require_nonce_title(state)
-            current = self.window.delivered_context(
-                frontier, state["reset"]["previous_session"], state["fresh_context"]
-            )
+            current = self.delivered_context(state)
+            if current is None:
+                return state
+            path = path or current["transcript"]
             if (
                 current["transcript"] != str(Path(path).absolute())
                 or identity(path)["session_id"] != current["session_id"]

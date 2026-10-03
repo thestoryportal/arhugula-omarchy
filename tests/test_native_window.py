@@ -289,6 +289,83 @@ class NativeWindowTests(unittest.TestCase):
         self.assertFalse(proof["user_input"])
         self.assertEqual(window.transcripts(), [])
 
+    def test_delivery_identity_does_not_require_lazy_input_log(self):
+        window, home, db, frontier, create = self.native_context_fixture()
+        identifier = create()
+        initial = window.context(frontier, "old")
+        path = home / ("rollout-2026-10-02T01-00-00-" + identifier + ".jsonl")
+        with path.open("w+") as stream:
+            for row in (
+                {
+                    "type": "session_meta",
+                    "payload": {"id": identifier, **frontier["native_lane"]},
+                },
+                {
+                    "type": "response_item",
+                    "payload": {"role": "user", "content": [{"text": "sole prompt\n"}]},
+                },
+            ):
+                stream.write(json.dumps(row) + "\n")
+            stream.flush()
+            # [LAW:behavior-not-structure] Rollout delivery precedes corroboration.
+            proof = window.delivered_context(frontier, "old", initial)
+            self.assertEqual(proof["transcript"], str(path))
+            self.assertFalse(proof["user_input"])
+
+    def test_delivery_refuses_changed_creation_and_lost_writer_lock(self):
+        for kind in (
+            "session_id",
+            "created_at",
+            "process_uuid",
+            "creation_log_id",
+            "unlocked",
+        ):
+            with self.subTest(kind=kind):
+                window, home, db, frontier, create = self.native_context_fixture()
+                identifier = create()
+                initial = window.context(frontier, "old")
+                if kind == "unlocked":
+                    for fd in (window.proc / "fd").iterdir():
+                        try:
+                            target = fd.resolve(strict=True)
+                        except FileNotFoundError:
+                            continue
+                        if target.name == identifier + ".lock":
+                            fcntl.flock(int(fd.name), fcntl.LOCK_UN)
+                else:
+                    initial[kind] = "changed"
+                with self.assertRaises(ValueError):
+                    window.delivered_context(frontier, "old", initial)
+
+    def test_delivery_refuses_foreign_or_ambiguous_owned_rollout(self):
+        for kind in ("foreign", "ambiguous"):
+            with self.subTest(kind=kind):
+                window, home, db, frontier, create = self.native_context_fixture()
+                identifier = create()
+                initial = window.context(frontier, "old")
+                for index in range(2 if kind == "ambiguous" else 1):
+                    path = home / (f"rollout-{index}-" + identifier + ".jsonl")
+                    stream = path.open("w+")
+                    self.addCleanup(stream.close)
+                    stream.write(
+                        json.dumps(
+                            {
+                                "type": "session_meta",
+                                "payload": {
+                                    "id": identifier,
+                                    **frontier["native_lane"],
+                                    "originator": "foreign"
+                                    if kind == "foreign"
+                                    else "codex-tui",
+                                },
+                            }
+                        )
+                        + "\n"
+                    )
+                    stream.flush()
+                with self.assertRaises(ValueError):
+                    window.delivered_context(frontier, "old", initial)
+
     def test_real_owned_empty_rollout_and_persisted_header_discovery(self):
         window, home, db, frontier, create = self.native_context_fixture()
         identifier = create()

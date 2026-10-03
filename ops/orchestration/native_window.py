@@ -416,15 +416,13 @@ class NativeWindow:
         # [LAW:single-enforcer] Bootstrap and receipt publication resample the
         # same bound native creation; a queue acknowledgement is not this proof.
         current = self.context(frontier, previous)
-        if (
-            current is None
-            or not current["user_input"]
-            or any(
-                current[k] != initial[k]
-                for k in ("session_id", "created_at", "process_uuid", "creation_log_id")
-            )
+        if current is None or any(
+            current[k] != initial[k]
+            for k in ("session_id", "created_at", "process_uuid", "creation_log_id")
         ):
             raise ValueError("fresh native context changed after prompt delivery")
+        # [LAW:one-source-of-truth] TurnInput is asynchronous corroboration;
+        # delivery readiness belongs to the owned rollout's sealed sole prompt.
         return current
 
     def queue(self, context, frontier, previous, text):
