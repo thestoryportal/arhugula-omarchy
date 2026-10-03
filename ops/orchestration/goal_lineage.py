@@ -108,6 +108,22 @@ class GoalLineage:
             atomic_json(self.path, state)
             return state
 
+    def record_recovery(self, receipt, deadline):
+        """Retain a different native repair objective without relabeling its usage."""
+        session, observation = goal_observation(json.loads(Path(receipt).read_text()))
+        goal = observation['goal']
+        if goal is None or observation.get('remainingTokens') is not None or goal.get('tokenBudget') is not None:
+            raise ValueError('actual unbounded recovery goal required')
+        with Lease(self.path.with_suffix('.lock')):
+            state = self._existing(deadline)
+            # [LAW:one-source-of-truth] Separate objectives retain separate actual receipts and counters.
+            item = {'session_id': session, 'receipt': file_binding(receipt)}
+            records = state.setdefault('recovery_goals', [])
+            if item not in records:
+                records.append(item)
+            atomic_json(self.path, state)
+            return state
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

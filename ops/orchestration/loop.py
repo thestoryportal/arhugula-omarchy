@@ -77,6 +77,7 @@ def identity(transcript):
         source=None,
         originator=None,
         first_user=None,
+        last_user=None,
         last_user_hash=None,
         user_count=0,
     )
@@ -103,6 +104,7 @@ def identity(transcript):
                     if result["first_user"] is None:
                         result["first_user"] = text
                     result["last_user_hash"] = hashlib.sha256(text.encode()).hexdigest()
+                    result["last_user"] = text
                     result["user_count"] += 1
             elif row.get("type") == "turn_context":
                 result.update(
@@ -341,6 +343,12 @@ class Loop:
             state = self._read()
             control = self._control()
             data, receipts = self.lit.read(ticket)
+            if state.get('startup_required'):
+                if state.get('startup_receipt') is None:
+                    raise ValueError('verified startup context receipt required before workflow')
+                row = next(s for s in control['sessions'] if s['role'] == 'buford')
+                from .startup import budget
+                state['startup_workflow_admission'] = budget(row['transcript'], state['session_id'])
             if state.get("awaiting_native_receipt"):
                 raise ValueError(
                     "verified native reset receipt required before fresh-epoch admission"
@@ -401,6 +409,7 @@ class Loop:
                 unit=unit,
             )
             state["admissions"][ticket] = state["admission"]
+            state['startup_required'] = False
             self._save(state)
             return {
                 "admission": state["admission"]["id"],
@@ -409,6 +418,20 @@ class Loop:
                 "reads": receipts,
                 "epoch_completed": len(state["completed"]) - state["epoch_start"],
             }
+
+    def finish_startup(self):
+        """Bind native context measurement before the first workflow admission."""
+        from .startup import budget
+        with Lease(self.path.with_suffix('.lock')):
+            state = self._read()
+            row = next(s for s in self._control()['sessions'] if s['role'] == 'buford')
+            if row['session_id'] != state['session_id'] or state.get('awaiting_native_receipt'):
+                raise ValueError('native bootstrap required before startup measurement')
+            report = budget(row['transcript'], state['session_id'])
+            report.update(epoch=state['epoch'], routing=file_binding(self.control))
+            state['startup_receipt'] = report
+            self._save(state)
+            return report
 
     def check(self, admission):
         with Lease(self.path.with_suffix(".lock")):
@@ -609,6 +632,7 @@ class Loop:
                     nonce=nonce,
                     prepared_at=prepared_at,
                     automatic=automatic is not None,
+                    startup_limit_percent=automatic.get('startup_limit_percent') if automatic else None,
                     native_lane={
                         k: provenance[k] for k in ("cwd", "source", "originator")
                     },
@@ -669,6 +693,25 @@ class Loop:
                     "entire prompt submission automatically. Do not ask the user to clear or paste text.\n"
                 )
             path = directory / "resume-prompt.txt"
+            if automatic is not None and automatic.get('startup_limit_percent') == 15:
+                # [DEVICE:negative-examples] Startup is a bounded phase, not a handoff/history audit.
+                prompt = (
+                    f"TO: Fresh Buford, lead orchestrator. FROM: Outgoing Buford {state['session_id']}, lead orchestrator. "
+                    f"BUFORD_CONTEXT_HANDOFF {nonce} {file_binding(directory / 'frontier.json')['sha256']}. "
+                    f"Retain {state['model']}/{state['effort']} in this same visible lane. Root user-provided AGENTS.md governs. "
+                    f"Startup only: run {sys.executable} -m ops.orchestration.startup packet "
+                    f"--config {automatic['config']} --manifest {directory}/manifest.json. "
+                    "Read the packet's full current role, context policy and Chat Law. The external supervisor alone bootstraps. "
+                    "Do not read history, full handoffs, Code or Prompt Laws, or search directories during startup. "
+                    f"Then run {sys.executable} -m ops.orchestration.startup finish --config {automatic['config']}. "
+                    "This verifies native usage <=15% of the reported window. Missing metrics or excess context holds work. "
+                    "Report role, UUID and pause in at most three lines. "
+                    f"Actual workflow begins by running {sys.executable} -m ops.orchestration.loop begin {state['goal_ticket']} "
+                    f"--unit {automatic.get('workflow_unit', 'reset-startup-recovery')}. After successful admission, read the bound continuation {automatic['continuation']} "
+                    "and full applicable Laws once for its medium. Preserve original scope/deadline, actual goal accounting, "
+                    "all review budgets, protected work and independent review/CI/installed gates. "
+                    "Standing user permission applies; a newer direct pause wins. Never replay an uncertain clear or prompt.\n"
+                )
             path.write_text(prompt)
             os.chmod(path, 0o600)
             with path.open("rb") as stream:
@@ -806,6 +849,8 @@ class Loop:
                 control["notification_thread"] = actual["session_id"]
             atomic_json(self.control, control, private=False)
             automatic = frontier.get("automatic", False)
+            if frontier.get('startup_limit_percent') == 15:
+                state.update(startup_required=True, startup_receipt=None)
             # [LAW:no-ambient-temporal-coupling] Automatic routing is provisional;
             # acknowledgement alone earns the epoch and clears the original reset.
             state.update(admission=None, awaiting_native_receipt=automatic)
@@ -926,7 +971,8 @@ class Loop:
             )
             if expected.get("notification_thread") == previous:
                 expected["notification_thread"] = grant["session_id"]
-            if not control["repair_paused"] or control not in (
+            current_authority = grant.get('kind') == 'expired-waiting-title-current-authority'
+            if (not control["repair_paused"] and not current_authority) or control not in (
                 frozen_control,
                 expected,
             ):
@@ -1012,6 +1058,7 @@ def main():
     ready = sub.add_parser("ready-clear")
     ready.add_argument("--transcript", type=Path, required=True)
     sub.add_parser("status")
+    sub.add_parser('finish-startup')
     sub.add_parser("next")
     args = parser.parse_args()
     loop = Loop(args.state, args.control, NativeLit(Path.cwd(), args.artifact_root))
@@ -1055,6 +1102,8 @@ def main():
             )
         elif args.command == "check":
             result = loop.check(args.admission)
+        elif args.command == 'finish-startup':
+            result = loop.finish_startup()
         elif args.command == "complete":
             result = loop.complete(args.ticket, args.evidence)
         elif args.command == "review":

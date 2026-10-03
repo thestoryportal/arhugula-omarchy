@@ -9,6 +9,20 @@ The recorded user pause still governs repair dispatch until lifted.
 
 ## Load for the current job
 
+For a native Buford clear, initialization must consume at most 15% of the actual
+reported context window before the first workflow admission. Use the sealed
+prompt's `ops.orchestration.startup packet` once: it runs LIT quickstart, verifies
+the external bootstrap and supplies the full current role, this policy and
+Laws:Chat. Root AGENTS is already supplied by the native CLI. Then use
+`startup finish` and the first `Loop.begin`; both check native request input plus
+response output against the reported window. Unknown metrics or excess context
+hold work. A larger configured ceiling does not change this percentage.
+Read the bounded current work pointer and applicable full medium guidance after
+that admission, before doing that medium. Do not initialize by recursively listing
+directories, replaying handoff chains, or reading Code/Prompt guidance for work that
+has not begun. Full applicable Laws are retained; their loading boundary is the
+actual work, not a speculative startup audit.
+
 At startup read root AGENTS, your role file in `roles/`, and this policy. Read the
 current routing record only if you route messages. Do not load historical rosters,
 team checkpoints, previous handoffs, completed logs or other roles by default.

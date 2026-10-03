@@ -106,6 +106,9 @@ def _codex_usage(state: dict[str, Any], usage: Any) -> None:
     # [LAW:one-source-of-truth] Codex input_tokens already includes cached input.
     state["latest_request_input_tokens"] = input_tokens
     state["cached_input_tokens"] = cached
+    output = usage.get('output_tokens')
+    state['latest_response_output_tokens'] = output if _nonnegative(output) else None
+    state['estimated_consumed_context_tokens'] = input_tokens + output if _nonnegative(output) else None
 
 
 def _claude_usage(state: dict[str, Any], usage: Any) -> None:

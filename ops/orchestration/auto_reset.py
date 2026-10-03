@@ -209,9 +209,46 @@ class ExpiredTitleRecovery:
                 "actual same-window human frontier recovery evidence required"
             )
 
+    def bind_parent(self, transfer, failed):
+        if user_frontier(identity(failed['old_transcript'])) != failed['old_user_frontier']:
+            raise ValueError('old user input changed before maintenance recovery')
+
+    def retain_current(self, controller, transfer, actual):
+        return controller.retain_goal(transfer.grant['current_goal']['path'], actual['session_id'])
+
 
 @dataclass(frozen=True)
-class ExpiredPromptRecovery:
+class CurrentAuthorityRecovery(ExpiredTitleRecovery):
+    """A new evidenced human frontier repairs an expired clear without replay."""
+
+    def bind_parent(self, transfer, failed):
+        grant = transfer.grant
+        frozen = grant['parent_transcript']
+        current = file_binding(failed['old_transcript'])
+        # [LAW:parse-dont-validate] Parse a new capability; never alter the failed frontier.
+        if (file_binding(frozen['path']) != frozen
+                or any(current[k] != frozen[k] for k in ('bytes', 'sha256'))
+                or user_frontier(identity(frozen['path'])) != grant['parent_frontier']):
+            raise ValueError('current parent transcript/frontier evidence changed')
+
+    def bind_user(self, transfer, failed, actual, proof):
+        human = bound_json(transfer.grant['human_authority'])
+        if (human['session_id'] != actual['session_id']
+                or human['user_frontier'] != user_frontier(actual)
+                or human['actual_user_message'] != actual['last_user']):
+            raise ValueError('actual current human recovery authority changed')
+
+    def retain_current(self, controller, transfer, actual):
+        path = transfer.grant['current_goal']['path']
+        session, observation = goal_observation(json.loads(Path(path).read_text()))
+        ledger = GoalLineage(controller.config['goal_ledger'])
+        if observation['goal'] is not None and observation['goal']['objective'] != json.loads(ledger.path.read_text())['objective']:
+            return ledger.record_recovery(path, controller.config['deadline'])
+        return controller.retain_goal(path, actual['session_id'])
+
+
+@dataclass(frozen=True)
+class ExpiredPromptRecovery(ExpiredTitleRecovery):
     """An expired delivered prompt transfers maintenance identity, never freshness."""
 
     prompt: dict
@@ -327,6 +364,7 @@ def recovery_case(transfer, failed, config):
     cases = {
         "expired-waiting-title-human-frontier": ExpiredTitleRecovery,
         "expired-waiting-fresh-sealed-prompt": ExpiredPromptRecovery,
+        "expired-waiting-title-current-authority": CurrentAuthorityRecovery,
     }
     kind = transfer.grant.get("kind", "expired-waiting-title-human-frontier")
     if kind not in cases:
@@ -386,6 +424,13 @@ class AutoReset:
         if actual != session:
             raise ValueError("actual current goal observation required")
         ledger = GoalLineage(self.config["goal_ledger"])
+        recovery = self.loop.status().get('maintenance_recovery')
+        if recovery is not None:
+            grant = bound_json(recovery['authority'])
+            if (grant.get('kind') == 'expired-waiting-title-current-authority'
+                    and grant['session_id'] == session and observation['goal'] is not None
+                    and observation['goal']['objective'] != json.loads(ledger.path.read_text())['objective']):
+                return ledger.record_recovery(receipt, self.config['deadline'])
         if observation["goal"] is None:
             if read_goal(self.config["goal_database"], session)["goal"] is not None:
                 raise ValueError("native goal appeared after absence observation")
@@ -419,6 +464,8 @@ class AutoReset:
                 "goal_receipt": release["goal_receipt"],
                 "goal_ledger": self.config["goal_ledger"],
                 "deadline": self.config["deadline"],
+                "startup_limit_percent": self.config.get('startup_limit_percent'),
+                "workflow_unit": self.config.get('workflow_unit', 'reset-startup-recovery'),
             },
         )
         frontier = json.loads((directory / "frontier.json").read_text())
@@ -784,7 +831,8 @@ class AutoReset:
             or grant["window"] != self.config["window"]
             or grant["deadline"] != self.config["deadline"]
             or grant["maintenance_only"] is not True
-            or not self.loop._control()["repair_paused"]
+            or (not self.loop._control()["repair_paused"]
+                and not isinstance(case, CurrentAuthorityRecovery))
         ):
             raise ValueError(
                 "expired same-window maintenance recovery authority required"
@@ -799,6 +847,8 @@ class AutoReset:
         # [LAW:single-enforcer] Recovery requires a frozen maintenance hold;
         # protected session identities still match the pre-failure routing.
         expected["repair_paused"] = True
+        if isinstance(case, CurrentAuthorityRecovery):
+            expected['repair_paused'] = routing['repair_paused']
         # A failed provisional bootstrap may already have moved Buford routing.
         # Its unchanged original journal still owns all counters and reset evidence.
         pending = failed_journal.get("pending_bootstrap")
@@ -830,11 +880,7 @@ class AutoReset:
             ImplementerRefresh.parse(refresh, original, protected, grant["routing"])
         elif routing != expected and routing != original:
             raise ValueError("protected routing changed before maintenance recovery")
-        if (
-            user_frontier(identity(failed["old_transcript"]))
-            != failed["old_user_frontier"]
-        ):
-            raise ValueError("old user input changed before maintenance recovery")
+        case.bind_parent(transfer, failed)
         journal = self.loop.status()
         proof = journal.get("maintenance_recovery")
         transferred = proof is not None and proof["authority"] == bound
@@ -879,7 +925,7 @@ class AutoReset:
         self.retain_goal(
             grant["terminal_goal"]["path"], failed["reset"]["previous_session"]
         )
-        self.retain_goal(grant["current_goal"]["path"], actual["session_id"])
+        case.retain_current(self, transfer, actual)
         self.loop.recover_maintenance(transfer)
         state.update(
             phase="maintenance_recovered",
