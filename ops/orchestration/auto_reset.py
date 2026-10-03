@@ -20,13 +20,171 @@ from .artifacts import DEFAULT_ROOT, file_binding
 from .continuation import Lease
 from .goal_lineage import GoalLineage, goal_observation
 from .loop import Loop, NativeLit, RecoveryTransfer, identity
-from .native_window import NativeWindow, WindowCapability
+from .native_window import NativeWindow, QueueRefused, WindowCapability
 from .native_goal import read_goal
 from .records import atomic_json, private_directory
 
 
 def user_frontier(actual):
     return {"count": actual["user_count"], "hash": actual["last_user_hash"]}
+
+
+def bound_json(binding):
+    if file_binding(binding["path"]) != binding:
+        raise ValueError("bound recovery artifact changed")
+    return json.loads(Path(binding["path"]).read_text())
+
+
+@dataclass(frozen=True)
+class ImplementerRefresh:
+    """A proven sequence changes only the implementer UUID/transcript."""
+
+    routing: dict
+
+    @classmethod
+    def parse(cls, binding, original, routing, routing_binding):
+        try:
+            return cls._parse(binding, original, routing, routing_binding)
+        except (KeyError, TypeError, AttributeError, StopIteration) as error:
+            raise ValueError("malformed implementer refresh chain") from error
+
+    @classmethod
+    def _parse(cls, binding, original, routing, routing_binding):
+        refresh = bound_json(binding)
+        expected = json.loads(json.dumps(original))
+        first = next(s for s in expected["sessions"] if s["role"] == "implementer")
+        current = next(s for s in routing["sessions"] if s["role"] == "implementer")
+        if (
+            refresh["kind"] != "authorized-idle-implementer-native-refresh"
+            or refresh["production_paused"] is not True
+            or refresh["previous_session"] != first["session_id"]
+            or refresh["session_id"] != current["session_id"]
+            or any(
+                refresh["control_after"][k] != routing_binding[k]
+                for k in ("sha256", "bytes")
+            )
+        ):
+            raise ValueError("implementer routing refresh evidence mismatch")
+        chain = refresh.get("refresh_chain")
+        if (
+            chain is None
+            and refresh.get("immediate_previous_session", refresh["previous_session"])
+            != refresh["previous_session"]
+        ):
+            raise ValueError("bound implementer refresh chain required")
+        if chain is not None:
+            if not isinstance(chain, list) or not chain:
+                raise ValueError("nonempty bound implementer refresh chain required")
+            steps = [bound_json(step) for step in chain]
+            # [LAW:parse-dont-validate] Resolve historical mutable-path bindings
+            # through immutable snapshots, never by trusting an aggregate endpoint.
+            snapshots = [refresh["control_before"], routing_binding]
+            snapshots.extend(s["control_before"] for s in steps[1:])
+            snapshots.extend(s["control_after"] for s in steps[1:])
+            documents = {}
+            for snapshot in snapshots:
+                documents[(snapshot["bytes"], snapshot["sha256"])] = bound_json(
+                    snapshot
+                )
+            before = original
+            previous = first["session_id"]
+            native_process = None
+            for step in steps:
+                left = documents.get(
+                    (step["control_before"]["bytes"], step["control_before"]["sha256"])
+                )
+                right = documents.get(
+                    (step["control_after"]["bytes"], step["control_after"]["sha256"])
+                )
+                if (
+                    left != before
+                    or right is None
+                    or step["previous_session"] != previous
+                    or step["session_id"] == previous
+                    or step["kind"] != refresh["kind"]
+                    or step["production_paused"] is not True
+                    or step["native_acceptance"] is not False
+                ):
+                    raise ValueError("implementer refresh chain adjacency mismatch")
+                next_row = next(
+                    s for s in right["sessions"] if s["role"] == "implementer"
+                )
+                permitted = json.loads(json.dumps(before))
+                row = next(
+                    s for s in permitted["sessions"] if s["role"] == "implementer"
+                )
+                row.update(
+                    session_id=step["session_id"], transcript=next_row["transcript"]
+                )
+                if right != permitted:
+                    raise ValueError(
+                        "protected routing changed inside implementer refresh chain"
+                    )
+                delivered = bound_json(step["delivery"])
+                cls.require_identity(delivered, step["session_id"])
+                if "native_creation_witness" in step:
+                    creation = cls.witness(step["native_creation_witness"])[
+                        "fresh_context"
+                    ]
+                    observation = cls.witness(step["actual_identity_witness"])
+                    cls.require_identity(observation["identity"], step["session_id"])
+                    proof = observation["proof"]
+                else:
+                    creation = bound_json(step["native_creation"])
+                    proof = bound_json(step["current_native_proof"])
+                if (
+                    creation["session_id"] != step["session_id"]
+                    or creation["user_input"] is not False
+                    or proof["user_input"] is not True
+                    or native_process not in (None, proof["process_uuid"])
+                    or any(
+                        creation[k] != proof[k]
+                        for k in (
+                            "session_id",
+                            "created_at",
+                            "creation_log_id",
+                            "process_uuid",
+                        )
+                    )
+                    or proof["transcript"] != next_row["transcript"]
+                ):
+                    raise ValueError(
+                        "implementer refresh native creation binding mismatch"
+                    )
+                native_process = proof["process_uuid"]
+                before, previous = right, step["session_id"]
+            if (
+                before != routing
+                or refresh["immediate_previous_session"]
+                != steps[-1]["previous_session"]
+                or refresh["delivery"] != steps[-1]["delivery"]
+                or bound_json(refresh["control_before"]) != original
+            ):
+                raise ValueError("implementer refresh chain endpoint mismatch")
+        delivered = bound_json(refresh["delivery"])
+        cls.require_identity(delivered, current["session_id"])
+        first.update(session_id=current["session_id"], transcript=current["transcript"])
+        if expected != routing:
+            raise ValueError("protected routing changed outside implementer refresh")
+        return cls(expected)
+
+    @staticmethod
+    def require_identity(delivered, session):
+        if (delivered["session_id"], delivered["model"], delivered["effort"]) != (
+            session,
+            "gpt-6.1-sol",
+            "high",
+        ):
+            raise ValueError("actual refreshed implementer identity mismatch")
+
+    @staticmethod
+    def witness(binding):
+        receipt = bound_json(binding)
+        if receipt["exit"] != 0 or receipt["terminal"] != "exited":
+            raise ValueError("successful native refresh witness required")
+        if file_binding(receipt["stderr"]["path"]) != receipt["stderr"]:
+            raise ValueError("native refresh witness stderr changed")
+        return bound_json(receipt["stdout"])
 
 
 @dataclass(frozen=True)
@@ -61,21 +219,22 @@ class ExpiredPromptRecovery:
     @classmethod
     def parse(cls, transfer, failed, config):
         grant = transfer.grant
-        if (
-            failed["phase"] != "waiting_fresh"
-            or transfer.failed.get("maintenance_recovery") is None
-            or transfer.failed.get("maintenance_only") is not True
-        ):
+        if failed["phase"] != "waiting_fresh":
             raise ValueError("expired waiting_fresh sealed-prompt recovery required")
         frozen = json.loads(Path(grant["config"]["path"]).read_text())
-        effective = {k: v for k, v in config.items() if k != "config_path"}
-        if {k: v for k, v in frozen.items() if k != "config_path"} != effective:
+        # [LAW:one-source-of-truth] Historical evidence stays frozen; the grant
+        # separately attests the reviewed execution config and installed blobs.
+        excluded = {"config_path", "source_acceptance"}
+        effective = {k: v for k, v in config.items() if k not in excluded}
+        if {k: v for k, v in frozen.items() if k not in excluded} != effective:
             raise ValueError("failed recovery config changed")
-        if "config_path" in config and any(
-            file_binding(config["config_path"])[k] != grant["config"][k]
-            for k in ("bytes", "sha256")
-        ):
-            raise ValueError("actual supervisor config changed")
+        execution = grant["execution_config"]
+        if file_binding(config["config_path"]) != execution or {
+            k: v
+            for k, v in json.loads(Path(execution["path"]).read_text()).items()
+            if k != "config_path"
+        } != {k: v for k, v in config.items() if k != "config_path"}:
+            raise ValueError("actual execution config/source attestation changed")
         package = Path(failed["reset"]["directory"])
         attempt = {
             "manifest": failed["reset"]["manifest"],
@@ -153,7 +312,7 @@ class ExpiredPromptRecovery:
             )
             or proof["user_input"] is not True
             or datetime.fromisoformat(actual["created_at"].replace("Z", "+00:00"))
-            != datetime.fromisoformat(initial["created_at"].replace("Z", "+00:00"))
+            < datetime.fromisoformat(initial["created_at"].replace("Z", "+00:00"))
             or actual["user_count"] != 1
             or len(actual["first_user"].encode()) != self.prompt["bytes"]
             or hashlib.sha256(actual["first_user"].encode()).hexdigest()
@@ -204,6 +363,23 @@ class AutoReset:
         ]:
             if file_binding(bound["path"]) != bound:
                 raise ValueError("autoreset authority/source binding changed")
+        # [LAW:one-source-of-truth] Installed files are not proof of the code executing
+        # this controller. Match the actual loaded candidate blobs as well.
+        for path in (
+            __file__,
+            sys.modules[Loop.__module__].__file__,
+            sys.modules[NativeWindow.__module__].__file__,
+        ):
+            actual = file_binding(path)
+            accepted = [
+                b
+                for b in self.config["source_acceptance"]
+                if Path(b["path"]).name == Path(path).name
+            ]
+            if len(accepted) != 1 or any(
+                actual[k] != accepted[0][k] for k in ("bytes", "sha256")
+            ):
+                raise ValueError("executing autoreset candidate source is not attested")
 
     def retain_goal(self, receipt, session):
         actual, observation = goal_observation(json.loads(Path(receipt).read_text()))
@@ -267,7 +443,9 @@ class AutoReset:
             pending = journal.get("pending_bootstrap")
             publication = journal.get("last_bootstrap", {})
             if (
-                publication.get("manifest") == state["reset"]["manifest"]
+                pending is None
+                and journal.get("awaiting_native_receipt") is False
+                and publication.get("manifest") == state["reset"]["manifest"]
                 and recovery_transcript is not None
                 and publication.get("transcript")
                 == str(Path(recovery_transcript).absolute())
@@ -343,6 +521,20 @@ class AutoReset:
             raise ValueError(
                 "fresh user input changed before native receipt publication"
             )
+        accepted = result.get("native_receipt")
+        if accepted is not None:
+            # [LAW:one-source-of-truth] A supervisor crash cannot grant another
+            # epoch or revoke the already durable in-deadline journal decision.
+            if (
+                file_binding(accepted["path"]) != accepted
+                or json.loads(Path(accepted["path"]).read_text())["bootstrap"] != proof
+                or result["native_acceptance"]["accepted_at"] > state["started"] + 120
+                or result.get("awaiting_native_receipt") is not False
+            ):
+                raise ValueError("durable native acceptance changed")
+            state.update(phase="verified", receipt=accepted)
+            self.save(state)
+            return state
         elapsed = self.clock() - state["started"]
         if elapsed > 120:
             raise ValueError("native reset deadline exceeded")
@@ -379,12 +571,15 @@ class AutoReset:
             )
         receipt = {
             "version": 1,
-            "verified": True,
+            # [LAW:one-source-of-truth] This durable candidate is never acceptance
+            # evidence alone; only the journal's acknowledgement grants credit.
+            "verified": False,
+            "status": "provisional",
             "manifest": state["reset"]["manifest"],
             "nonce": state["nonce"],
             "previous_session": proof["previous_session"],
-            "session_id": result["session_id"],
-            "epoch": result["epoch"],
+            "session_id": result["pending_bootstrap"],
+            "epoch": result["epoch"] + 1,
             "transcript": proof["transcript"],
             "seconds": round(elapsed, 3),
             "goal_receipt": state["goal_receipt"],
@@ -431,6 +626,13 @@ class AutoReset:
             raise ValueError(
                 "uncertain native input effect; inspect actual title/transcript before recovery"
             )
+        if (
+            phase == "waiting_fresh"
+            and journal.get("native_receipt") is not None
+            and journal.get("last_bootstrap", {}).get("manifest")
+            == state["reset"]["manifest"]
+        ):
+            return self.publish(state, journal)
         if state["started"] is not None and self.clock() - state["started"] > 120:
             raise ValueError("native reset deadline exceeded; production remains held")
         if phase == "waiting_idle":
@@ -446,7 +648,7 @@ class AutoReset:
             state["phase"] = "waiting_title"
             self.save(state)
             return state
-        if phase == "waiting_title":
+        if phase in ("waiting_title", "prompt_refused"):
             self.unchanged_parent(state)
             if not self.title_matches(state, self.window.title()):
                 return state
@@ -456,6 +658,11 @@ class AutoReset:
             proof = self.window.context(frontier, state["reset"]["previous_session"])
             if proof is None:
                 return state
+            if phase == "prompt_refused" and any(
+                proof[k] != state["fresh_context"][k]
+                for k in ("session_id", "created_at", "creation_log_id", "process_uuid")
+            ):
+                raise ValueError("refused queue context changed; cannot retarget")
             path = proof["transcript"]
             actual = identity(path) if path is not None else None
             if (
@@ -476,9 +683,22 @@ class AutoReset:
                 ),
             )
             self.save(state)
-            state["queue_ack"] = self.window.queue(
-                proof, frontier, state["reset"]["previous_session"], text
-            )
+            try:
+                state["queue_ack"] = self.window.queue(
+                    proof, frontier, state["reset"]["previous_session"], text
+                )
+            except QueueRefused as error:
+                state["phase"] = "prompt_refused"
+                state.setdefault("queue_refusals", []).append(
+                    {
+                        "effect": "not_dispatched",
+                        "reason": str(error),
+                        "context": proof,
+                        "prompt": state["prompt"],
+                    }
+                )
+                self.save(state)
+                raise
             state["phase"] = "waiting_fresh"
             self.save(state)
             return state
@@ -565,42 +785,38 @@ class AutoReset:
         if failed_journal["reset"] != failed["reset"]:
             raise ValueError("failed reset/journal mismatch")
         routing = json.loads(Path(grant["routing"]["path"]).read_text())
-        if routing != failed["control_snapshot"]:
+        original = json.loads(json.dumps(failed["control_snapshot"]))
+        expected = json.loads(json.dumps(original))
+        # A failed provisional bootstrap may already have moved Buford routing.
+        # Its unchanged original journal still owns all counters and reset evidence.
+        pending = failed_journal.get("pending_bootstrap")
+        if pending is not None:
+            if pending != grant["session_id"]:
+                raise ValueError("pending bootstrap recovery identity changed")
+            buford = next(s for s in expected["sessions"] if s["role"] == "buford")
+            previous = buford["session_id"]
+            buford.update(session_id=pending, transcript=grant["transcript"])
+            if expected.get("notification_thread") == previous:
+                expected["notification_thread"] = pending
+        protected = json.loads(json.dumps(routing))
+        if pending is not None:
+            row = next(s for s in protected["sessions"] if s["role"] == "buford")
+            old = next(s for s in original["sessions"] if s["role"] == "buford")
+            if row not in (
+                old,
+                next(s for s in expected["sessions"] if s["role"] == "buford"),
+            ):
+                raise ValueError("provisional Buford routing changed")
+            row.update(old)
+            if protected.get("notification_thread") == pending:
+                protected["notification_thread"] = previous
+        if protected != original:
             refresh = grant.get("implementer_refresh")
-            if refresh is None or file_binding(refresh["path"]) != refresh:
+            if refresh is None:
                 raise ValueError("bound implementer-only routing refresh required")
-            refresh = json.loads(Path(refresh["path"]).read_text())
-            expected = json.loads(json.dumps(failed["control_snapshot"]))
-            implementer = next(
-                s for s in expected["sessions"] if s["role"] == "implementer"
-            )
-            current = next(s for s in routing["sessions"] if s["role"] == "implementer")
-            if (
-                refresh["kind"] != "authorized-idle-implementer-native-refresh"
-                or refresh["production_paused"] is not True
-                or refresh["previous_session"] != implementer["session_id"]
-                or refresh["session_id"] != current["session_id"]
-                or any(
-                    refresh["control_after"][k] != grant["routing"][k]
-                    for k in ("sha256", "bytes")
-                )
-                or file_binding(refresh["delivery"]["path"]) != refresh["delivery"]
-            ):
-                raise ValueError("implementer routing refresh evidence mismatch")
-            delivery = json.loads(Path(refresh["delivery"]["path"]).read_text())
-            if (delivery["session_id"], delivery["model"], delivery["effort"]) != (
-                current["session_id"],
-                "gpt-6.1-sol",
-                "high",
-            ):
-                raise ValueError("actual refreshed implementer identity mismatch")
-            implementer.update(
-                session_id=current["session_id"], transcript=current["transcript"]
-            )
-            if routing != expected:
-                raise ValueError(
-                    "protected routing changed outside implementer refresh"
-                )
+            ImplementerRefresh.parse(refresh, original, protected, grant["routing"])
+        elif routing != expected and routing != original:
+            raise ValueError("protected routing changed before maintenance recovery")
         if (
             user_frontier(identity(failed["old_transcript"]))
             != failed["old_user_frontier"]
@@ -739,13 +955,21 @@ def wait_bootstrap(controller, manifest):
             actual = identity(receipt["transcript"])
             journal = controller.loop.status()
             if (
-                not receipt["verified"]
+                receipt["status"] != "provisional"
+                or receipt["verified"] is not False
+                or journal.get("native_receipt") != state["receipt"]
+                or journal.get("awaiting_native_receipt") is not False
                 or (actual["session_id"], actual["model"], actual["effort"])
                 != (receipt["session_id"], "gpt-6.1-sol", "high")
                 or journal["session_id"] != receipt["session_id"]
             ):
                 raise ValueError("actual fresh native bootstrap mismatch")
-            return receipt
+            return {
+                **receipt,
+                "verified": True,
+                "status": "accepted",
+                "acceptance": journal["native_acceptance"],
+            }
         time.sleep(
             0.1
         )  # Mechanical receipt arrival only; never grants workflow authority.

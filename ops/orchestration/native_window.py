@@ -12,6 +12,10 @@ from datetime import datetime, timezone
 from .artifacts import capture, DEFAULT_ROOT, file_binding
 
 
+class QueueRefused(ValueError):
+    """The effect boundary refused before invoking the queue transport."""
+
+
 def clear_program(address, title):
     if not re.fullmatch(r"0x[0-9a-f]+", address):
         raise ValueError("invalid window address")
@@ -426,10 +430,17 @@ class NativeWindow:
     def queue(self, context, frontier, previous, text):
         # [LAW:single-enforcer] Reuse native ownership/provenance at the effect
         # boundary; an enqueue acknowledgement never proves actual user delivery.
-        current = self.context(frontier, previous)
-        if current != context or current["user_input"]:
-            raise ValueError("native queue target context changed or already has input")
-        session = str(uuid.UUID(context["session_id"]))
+        # [LAW:types-are-the-program] Only this pre-dispatch arm proves zero effect;
+        # every failure after command invocation remains uncertain and unreplayable.
+        try:
+            current = self.context(frontier, previous)
+            if current != context or current["user_input"]:
+                raise ValueError(
+                    "native queue target context changed or already has input"
+                )
+            session = str(uuid.UUID(context["session_id"]))
+        except (ValueError, OSError) as error:
+            raise QueueRefused(str(error)) from error
         answer = self.command(
             ["codex", "queue", "--thread", session, "--message", text]
         )

@@ -146,9 +146,22 @@ class AutoResetTests(unittest.TestCase):
             "receipt_directory": str(self.root / "receipts"),
             "sessions": str(self.root),
             "source_acceptance": [file_binding(authority)],
+            "control": str(fixture.control),
+            "state": str(self.loop.path),
+            "supervisor": str(self.root / "supervisor.json"),
+            "cwd": str(self.root),
+            "artifact_root": str(self.root / "artifacts"),
+            "runtime_unit": "test-only",
+            "version": 1,
         }
         self.window = WindowSeam(self.root)
         self.clock = 100
+        from ops.orchestration import auto_reset, loop, native_window
+
+        self.config["source_acceptance"].extend(
+            file_binding(module.__file__)
+            for module in (auto_reset, loop, native_window)
+        )
 
     def controller(self):
         from ops.orchestration.auto_reset import AutoReset
@@ -379,6 +392,10 @@ class AutoResetTests(unittest.TestCase):
             ) if key == "journal" else path.write_text(json.dumps(value))
             grant[key] = file_binding(path)
         authority = self.root / "second-recovery-authority.json"
+        execution = self.root / "second-execution-config.json"
+        execution.write_text(json.dumps(self.config))
+        self.config["config_path"] = str(execution)
+        grant["execution_config"] = file_binding(execution)
         authority.write_text(json.dumps(grant))
         return controller, authority, fresh, predecessor
 
@@ -427,7 +444,7 @@ class AutoResetTests(unittest.TestCase):
 
         def late_receipt(path, data, **kwargs):
             atomic_json(path, data, **kwargs)
-            if data.get("verified") is True:
+            if "bootstrap" in data:
                 self.clock += 121
 
         with patch(
@@ -507,9 +524,7 @@ class AutoResetTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "native context changed"):
                     controller.step(fresh)
                 self.assertNotIn("native_receipt", self.loop.status())
-                self.assertEqual(
-                    self.loop.status()["epoch"], 0 if boundary == "bootstrap" else 1
-                )
+                self.assertEqual(self.loop.status()["epoch"], 0)
 
     def test_legacy_expired_prompt_recovers_without_retrospective_acceptance(self):
         controller, authority, fresh, predecessor = self.prompt_recovery_fixture(
@@ -1283,7 +1298,7 @@ class AutoResetTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(OSError, "disk failure"):
                 controller.step(fresh)
-        self.assertEqual(self.loop.status()["epoch"], 1)
+        self.assertEqual(self.loop.status()["epoch"], 0)
         recovered = self.controller()
         recovered.step(fresh)
         self.assertEqual(self.loop.status()["epoch"], 1)

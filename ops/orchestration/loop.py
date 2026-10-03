@@ -156,7 +156,7 @@ class RecoveryTransfer:
             "terminal_goal",
         ]
         if grant.get("kind") == "expired-waiting-fresh-sealed-prompt":
-            evidence_keys.extend(("config", "goal_ledger"))
+            evidence_keys.extend(("config", "execution_config", "goal_ledger"))
         for key in evidence_keys:
             if file_binding(grant[key]["path"]) != grant[key]:
                 raise ValueError("failed recovery evidence changed")
@@ -768,6 +768,14 @@ class Loop:
             buford = next(s for s in control["sessions"] if s["role"] == "buford")
             if buford["session_id"] not in (state["session_id"], actual["session_id"]):
                 raise ValueError("Buford routing changed by another owner")
+            accepted = state.get("native_receipt")
+            if accepted is not None:
+                history = state.setdefault("native_receipt_history", [])
+                history.append(
+                    {"receipt": accepted, "acceptance": state["native_acceptance"]}
+                )
+                state.pop("native_receipt")
+                state.pop("native_acceptance")
             state["pending_bootstrap"] = actual["session_id"]
             self._save(state)
             previous = buford["session_id"]
@@ -778,16 +786,19 @@ class Loop:
             if control.get("notification_thread") == previous:
                 control["notification_thread"] = actual["session_id"]
             atomic_json(self.control, control, private=False)
-            state.update(
-                session_id=actual["session_id"],
-                epoch=state["epoch"] + 1,
-                epoch_start=len(state["completed"]),
-                reset=None,
-                pending_bootstrap=None,
-                admission=None,
-                reset_requested=False,
-                awaiting_native_receipt=frontier.get("automatic", False),
-            )
+            automatic = frontier.get("automatic", False)
+            # [LAW:no-ambient-temporal-coupling] Automatic routing is provisional;
+            # acknowledgement alone earns the epoch and clears the original reset.
+            state.update(admission=None, awaiting_native_receipt=automatic)
+            if not automatic:
+                state.update(
+                    session_id=actual["session_id"],
+                    epoch=state["epoch"] + 1,
+                    epoch_start=len(state["completed"]),
+                    reset=None,
+                    pending_bootstrap=None,
+                    reset_requested=False,
+                )
             state["last_bootstrap"] = {
                 "seconds": round(time.monotonic() - began, 3),
                 "reads": reads,
@@ -805,18 +816,39 @@ class Loop:
             state = self._read()
             proof = json.loads(Path(receipt).read_text())
             if (
-                proof.get("verified") is not True
-                or proof["session_id"] != state["session_id"]
+                proof.get("verified") is not False
+                or proof.get("status") != "provisional"
+                or proof["session_id"] != state["pending_bootstrap"]
                 or proof["manifest"] != state["last_bootstrap"]["manifest"]
                 or proof["nonce"] != state["last_bootstrap"]["nonce"]
                 or proof["seconds"] > 120
+                or proof["epoch"] != state["epoch"] + 1
+                or state["reset"]["manifest"] != proof["manifest"]
             ):
                 raise ValueError("native reset acceptance receipt mismatch")
             if deadline is not None and clock() > deadline:
                 raise ValueError("native reset deadline exceeded before acceptance")
-            state["native_receipt"] = file_binding(receipt)
-            state["awaiting_native_receipt"] = False
-            state["maintenance_only"] = False
+            # All evidence is durable before this acceptance decision. A crash
+            # before the decision leaves the pending transfer recoverable.
+            bound = file_binding(receipt)
+            state["pending_native_receipt"] = bound
+            self._save(state)
+            accepted_at = clock()
+            if deadline is not None and accepted_at > deadline:
+                raise ValueError("native reset deadline exceeded before acceptance")
+            state.update(
+                session_id=state["pending_bootstrap"],
+                epoch=proof["epoch"],
+                epoch_start=len(state["completed"]),
+                reset=None,
+                reset_requested=False,
+                pending_bootstrap=None,
+                native_receipt=bound,
+                pending_native_receipt=None,
+                native_acceptance={"accepted_at": accepted_at, "deadline": deadline},
+                awaiting_native_receipt=False,
+                maintenance_only=False,
+            )
             self._save(state)
 
     def recover_maintenance(self, authority):
@@ -852,6 +884,9 @@ class Loop:
                 "admission": None,
                 "maintenance_only": True,
                 "pending_maintenance": None,
+                "pending_bootstrap": None,
+                "pending_native_receipt": None,
+                "awaiting_native_receipt": False,
                 "maintenance_recovery_history": history,
                 "maintenance_recovery": {
                     "authority": binding,
@@ -861,7 +896,10 @@ class Loop:
             frozen_control = json.loads(Path(grant["routing"]["path"]).read_text())
             expected = json.loads(json.dumps(frozen_control))
             buford = next(s for s in expected["sessions"] if s["role"] == "buford")
-            if buford["session_id"] != failed["session_id"]:
+            if buford["session_id"] not in (
+                failed["session_id"],
+                failed.get("pending_bootstrap"),
+            ):
                 raise ValueError("failed Buford routing mismatch")
             previous = buford["session_id"]
             buford.update(
