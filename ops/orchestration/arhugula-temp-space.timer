@@ -5,7 +5,6 @@ Description=Automatically maintain workflow temporary space
 OnBootSec=1min
 OnUnitActiveSec=5min
 AccuracySec=30s
-Persistent=true
 Unit=arhugula-temp-space.service
 
 [Install]
