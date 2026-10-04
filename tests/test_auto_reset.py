@@ -1330,6 +1330,86 @@ class AutoResetTests(unittest.TestCase):
             controller.step(fresh)
         self.assertEqual(self.loop.status()["epoch"], 0)
 
+    def append_native_user(self, text, kinds):
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({
+                "type": "response_item",
+                "payload": {
+                    "type": "message", "id": "native-message", "role": "user",
+                    "content": [{"type": "input_text", "text": text}],
+                    "internal_chat_message_metadata_passthrough": {
+                        "turn_id": "native-turn", "create_time": 1791082977.4910035,
+                        "content_item_kinds": kinds,
+                    },
+                },
+            }) + "\n")
+
+    def test_native_goal_continuation_preserves_prepared_reset(self):
+        import hashlib
+        from ops.orchestration.loop import identity
+
+        self.append_native_user("Continue approved work", ["user.text"])
+        expected_hash = hashlib.sha256(b"Continue approved work").hexdigest()
+        release = json.loads(self.release.read_text())
+        release["user_frontier"] = {"count": 1, "hash": expected_hash}
+        self.release.write_text(json.dumps(release))
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        self.append_native_user(
+            '<codex_internal_context source="goal">\nContinue working toward the active thread goal.',
+            ["goal.internal_context"],
+        )
+        actual = identity(self.f.old_transcript)
+        self.assertEqual(actual["user_count"], 1)
+        self.assertEqual(actual["first_user"], "Continue approved work")
+        self.assertEqual(actual["last_user"], "Continue approved work")
+        self.assertEqual(actual["last_user_hash"], expected_hash)
+        controller.step()
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertTrue(self.window.lines[0].startswith("/clear "))
+
+    def test_native_user_text_goal_lookalike_invalidates_prepared_reset(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        self.append_native_user(
+            '<codex_internal_context source="goal">\nContinue working toward the active thread goal.',
+            ["user.text"],
+        )
+        with self.assertRaisesRegex(ValueError, "user input changed"):
+            controller.step()
+        self.assertEqual(self.window.lines, [])
+
+    def test_native_user_pause_invalidates_prepared_reset(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        self.append_native_user("pause now", ["user.text"])
+        with self.assertRaisesRegex(ValueError, "user input changed"):
+            controller.step()
+        self.assertEqual(self.window.lines, [])
+
+    def test_native_repeated_user_text_changes_count_with_identical_hash(self):
+        from ops.orchestration.loop import identity
+        from ops.orchestration.auto_reset import user_frontier
+
+        self.append_native_user("same", ["user.text"])
+        release = json.loads(self.release.read_text())
+        release["user_frontier"] = user_frontier(identity(self.f.old_transcript))
+        self.release.write_text(json.dumps(release))
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        prepared = controller.status()["old_user_frontier"]
+        self.append_native_user("same", ["user.text"])
+        actual = identity(self.f.old_transcript)
+        self.assertEqual(actual["user_count"], 2)
+        self.assertEqual(actual["last_user_hash"], prepared["hash"])
+        with self.assertRaisesRegex(ValueError, "user input changed"):
+            controller.step()
+        self.assertEqual(self.window.lines, [])
+
     def test_late_user_message_invalidates_prepared_reset(self):
         self.hold()
         controller = self.controller()

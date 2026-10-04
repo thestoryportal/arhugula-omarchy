@@ -95,7 +95,15 @@ def identity(transcript):
                     source=payload.get("source"),
                     originator=payload.get("originator"),
                 )
-            elif row.get("type") == "response_item" and payload.get("role") == "user":
+            # [LAW:single-enforcer] Native provenance separates automatic goal
+            # context from user input, including identical user-authored text.
+            elif (
+                row.get("type") == "response_item"
+                and payload.get("role") == "user"
+                and payload.get("internal_chat_message_metadata_passthrough", {}).get(
+                    "content_item_kinds"
+                ) != ["goal.internal_context"]
+            ):
                 text = "\n".join(c.get("text", "") for c in payload.get("content", []))
                 # Native CLI records injected AGENTS/environment before the user input.
                 if not text.startswith(
