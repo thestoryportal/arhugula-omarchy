@@ -597,8 +597,11 @@ class AutoReset:
             return state
         if current["transcript"] != proof["transcript"]:
             raise ValueError("native context changed before receipt publication")
-        directory = private_directory(self.config["receipt_directory"])
         old = identity(state["old_transcript"])
+        # [LAW:no-ambient-temporal-coupling] A continued outgoing turn must finish
+        # before final accounting; the original reset deadline still bounds the wait.
+        if old["status"] == "active":
+            return state
         if (
             old["status"] != "complete"
             or user_frontier(old) != state["old_user_frontier"]
@@ -609,6 +612,15 @@ class AutoReset:
         terminal = read_goal(
             self.config["goal_database"], state["reset"]["previous_session"]
         )
+        # [LAW:no-ambient-temporal-coupling] An idle turn is not goal release;
+        # only a non-active native goal can make its usage terminal.
+        if terminal["goal"] is not None and terminal["goal"]["status"] == "active":
+            return state
+        if terminal["goal"] is not None and terminal["goal"]["status"] not in {
+            "paused", "blocked", "complete", "usageLimited", "budgetLimited"
+        }:
+            raise ValueError("unknown outgoing native goal status")
+        directory = private_directory(self.config["receipt_directory"])
         digest = hashlib.sha256(
             json.dumps(terminal, sort_keys=True).encode()
         ).hexdigest()
@@ -711,9 +723,7 @@ class AutoReset:
             self.unchanged_parent(state)
             if not self.title_matches(state, self.window.title()):
                 return state
-            frontier = json.loads(
-                (Path(state["reset"]["directory"]) / "frontier.json").read_text()
-            )
+            frontier = self.loop.clear_package(state["reset"])
             proof = self.window.context(frontier, state["reset"]["previous_session"])
             if proof is None:
                 return state
@@ -730,7 +740,8 @@ class AutoReset:
                 and (actual["user_count"] or actual["status"] == "active")
             ):
                 raise ValueError("fresh user input before generated prompt delivery")
-            self.loop.ready_clear(state["old_transcript"])
+            # [LAW:no-ambient-temporal-coupling] Clear consumed the old idle
+            # capability; prompt delivery belongs to the proven empty new context.
             text = (Path(state["reset"]["directory"]) / "resume-prompt.txt").read_text()
             if self.clock() - state["started"] > 120:
                 raise ValueError("native reset deadline exceeded before queue effect")

@@ -133,7 +133,7 @@ class AutoResetTests(unittest.TestCase):
             )
             connection.execute(
                 "INSERT INTO thread_goals VALUES (?,?,?,?,?,?,?,?,?)",
-                ("old", "goal", "full scope", "active", None, 100, 10, 1000, 1000),
+                ("old", "goal", "full scope", "paused", None, 100, 10, 1000, 1000),
             )
         self.config = {
             "authority": file_binding(authority),
@@ -1381,6 +1381,144 @@ class AutoResetTests(unittest.TestCase):
             controller.step()
         self.assertEqual(self.window.lines, [])
 
+    def test_postclear_active_outgoing_goal_waits_for_native_relinquishment(self):
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE thread_goals SET status='active'")
+        self.hold()
+        controller = self.controller()
+        for _ in range(3):
+            controller.step()
+        fresh = self.fresh()
+        controller.step(fresh)
+        self.assertEqual(controller.status()["phase"], "waiting_fresh")
+        self.assertEqual(self.loop.status()["epoch"], 0)
+        self.assertTrue(self.loop.status()["awaiting_native_receipt"])
+        self.assertNotIn("native_receipt", self.loop.status())
+        self.assertEqual(list(Path(self.config["receipt_directory"]).glob(
+            "*.terminal-goal.*.json")), [])
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE thread_goals SET status='complete', "
+                               "tokens_used=140,time_used_seconds=14 "
+                               "WHERE thread_id='old'")
+        controller.step(fresh)
+        self.assertEqual(controller.status()["phase"], "verified")
+        ledger = json.loads(Path(self.config["goal_ledger"]).read_text())
+        self.assertEqual((ledger["tokens_used"], ledger["seconds_used"]), (140, 14))
+        self.assertEqual(len(self.window.queued), 1)
+
+    def test_postclear_unknown_outgoing_goal_status_refuses_acceptance(self):
+        self.hold()
+        controller = self.controller()
+        for _ in range(3):
+            controller.step()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE thread_goals SET status='unknown'")
+        with self.assertRaisesRegex(ValueError, "unknown outgoing native goal status"):
+            controller.step(self.fresh())
+        self.assertEqual(self.loop.status()["epoch"], 0)
+        self.assertNotIn("native_receipt", self.loop.status())
+
+    def test_manual_bootstrap_refuses_active_outgoing_lane(self):
+        self.loop.prepare_clear(self.root / "package", [])
+        fresh = self.f.fresh_transcript()
+        before = self.f.control.read_bytes()
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_started"}}) + "\n")
+        with self.assertRaisesRegex(ValueError, "idle matching lane"):
+            self.loop.bootstrap(fresh)
+        self.assertEqual(self.loop.status()["epoch"], 0)
+        self.assertEqual(self.f.control.read_bytes(), before)
+
+    def test_postclear_old_goal_reentry_delivers_once_and_retains_accounting(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        self.append_native_user("continue old goal", ["goal.internal_context"])
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_started"}}) + "\n")
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE thread_goals SET status='active',tokens_used=125, "
+                               "time_used_seconds=12 WHERE thread_id='old'")
+        controller.step()
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertEqual(len(self.window.queued), 1)
+        self.assertEqual(self.window.queued[0], ("new", (
+            Path(controller.status()["reset"]["directory"])
+            / "resume-prompt.txt").read_text()))
+        fresh = self.fresh()
+        controller.step(fresh)
+        self.assertEqual(controller.status()["phase"], "waiting_fresh")
+        self.assertTrue(self.loop.status()["awaiting_native_receipt"])
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_complete"}}) + "\n")
+        controller.step(fresh)
+        self.assertEqual(controller.status()["phase"], "waiting_fresh")
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE thread_goals SET status='complete'")
+        controller.step(fresh)
+        self.assertEqual(controller.status()["phase"], "verified")
+        self.assertEqual(self.loop.status()["epoch"], 1)
+        ledger = json.loads(Path(self.config["goal_ledger"]).read_text())
+        self.assertEqual(ledger["tokens_used"], 125)
+        self.assertEqual(ledger["seconds_used"], 12)
+        self.assertEqual(len(self.window.queued), 1)
+
+    def test_postclear_changed_sealed_prompt_refuses_delivery(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        package = Path(controller.status()["reset"]["directory"])
+        (package / "resume-prompt.txt").write_text("changed prompt")
+        with self.assertRaisesRegex(ValueError, "sealed clear package"):
+            controller.step()
+        self.assertEqual(self.window.queued, [])
+
+    def test_postclear_accounting_wait_expires_without_acceptance(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_started"}}) + "\n")
+        controller.step()
+        fresh = self.fresh()
+        controller.step(fresh)
+        self.clock += 121
+        with self.assertRaisesRegex(ValueError, "deadline exceeded"):
+            controller.step(fresh)
+        self.assertEqual(self.loop.status()["epoch"], 0)
+        self.assertTrue(self.loop.status()["awaiting_native_receipt"])
+        self.assertNotIn("native_receipt", self.loop.status())
+        self.assertEqual(len(self.window.queued), 1)
+
+    def test_postclear_real_user_pause_refuses_delivery(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        self.append_native_user("pause now", ["user.text"])
+        with self.assertRaisesRegex(ValueError, "user input changed"):
+            controller.step()
+        self.assertEqual(self.window.queued, [])
+
+    def test_postclear_active_fresh_context_refuses_delivery(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        with self.window.rollouts[0].open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_started"}}) + "\n")
+        with self.assertRaisesRegex(ValueError, "fresh user input"):
+            controller.step()
+        self.assertEqual(self.window.queued, [])
+
     def test_native_user_pause_invalidates_prepared_reset(self):
         self.hold()
         controller = self.controller()
@@ -1618,10 +1756,12 @@ class AutoResetTests(unittest.TestCase):
         controller.step()
         with sqlite3.connect(self.database) as connection:
             connection.execute(
-                "UPDATE thread_goals SET tokens_used=120,time_used_seconds=12,updated_at_ms=2000"
+                "UPDATE thread_goals SET status='active',tokens_used=120,time_used_seconds=12,updated_at_ms=2000"
             )
         for _ in range(3):
             controller.step()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE thread_goals SET status='complete'")
         controller.step(self.fresh())
         ledger = json.loads(Path(self.config["goal_ledger"]).read_text())
         self.assertEqual((ledger["tokens_used"], ledger["seconds_used"]), (120, 12))

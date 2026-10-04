@@ -737,7 +737,13 @@ class Loop:
             for name in ("frontier.json", "resume-prompt.txt")
         ):
             raise ValueError("sealed package lacks frontier or full prompt")
-        return json.loads((directory / "frontier.json").read_text())
+        frontier = json.loads((directory / "frontier.json").read_text())
+        # [LAW:single-enforcer] Released ownership belongs to the sealed package,
+        # including delivery after the old goal thread automatically reenters.
+        for handle in frontier["owned_processes"]:
+            if Path(f"/proc/{int(handle['pid'])}").exists():
+                raise ValueError("owned writer remains active")
+        return frontier
 
     def ready_clear(self, transcript):
         state = self.status()
@@ -752,10 +758,7 @@ class Loop:
                 "native clear requires an idle matching lane and sealed package"
             )
         reset = state["reset"]
-        frontier = self.clear_package(reset)
-        for handle in frontier["owned_processes"]:
-            if Path(f"/proc/{int(handle['pid'])}").exists():
-                raise ValueError("owned writer remains active")
+        self.clear_package(reset)
         return {"clear_allowed": True, "reset": reset}
 
     def bootstrap(self, transcript, *, deadline=None, clock=time.monotonic):
@@ -798,12 +801,13 @@ class Loop:
                 raise ValueError(
                     "bootstrap recovery identity differs from durable intent"
                 )
-            old_routing = next(
-                s for s in self._control()["sessions"] if s["role"] == "buford"
-            )
-            old_transcript = old_routing["transcript"]
-            if state["pending_bootstrap"] is None:
-                self.ready_clear(old_transcript)
+            # [LAW:no-ambient-temporal-coupling] Automatic clear consumed the
+            # old idle capability; manual bootstrap still requires that proof.
+            if not frontier.get("automatic", False) and state["pending_bootstrap"] is None:
+                old_routing = next(
+                    s for s in self._control()["sessions"] if s["role"] == "buford"
+                )
+                self.ready_clear(old_routing["transcript"])
             _, reads = self.lit.read(state["goal_ticket"])
             if (
                 time.monotonic() - began > 120
