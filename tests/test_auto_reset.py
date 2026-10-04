@@ -1381,6 +1381,91 @@ class AutoResetTests(unittest.TestCase):
             controller.step()
         self.assertEqual(self.window.lines, [])
 
+    def test_postclear_old_goal_reentry_delivers_once_and_retains_accounting(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        self.append_native_user("continue old goal", ["goal.internal_context"])
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_started"}}) + "\n")
+        with sqlite3.connect(self.database) as connection:
+            connection.execute("UPDATE thread_goals SET tokens_used=125, "
+                               "time_used_seconds=12 WHERE thread_id='old'")
+        controller.step()
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertEqual(len(self.window.queued), 1)
+        self.assertEqual(self.window.queued[0], ("new", (
+            Path(controller.status()["reset"]["directory"])
+            / "resume-prompt.txt").read_text()))
+        fresh = self.fresh()
+        controller.step(fresh)
+        self.assertEqual(controller.status()["phase"], "waiting_fresh")
+        self.assertTrue(self.loop.status()["awaiting_native_receipt"])
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_complete"}}) + "\n")
+        controller.step(fresh)
+        self.assertEqual(controller.status()["phase"], "verified")
+        self.assertEqual(self.loop.status()["epoch"], 1)
+        ledger = json.loads(Path(self.config["goal_ledger"]).read_text())
+        self.assertEqual(ledger["tokens_used"], 125)
+        self.assertEqual(ledger["seconds_used"], 12)
+        self.assertEqual(len(self.window.queued), 1)
+
+    def test_postclear_changed_sealed_prompt_refuses_delivery(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        package = Path(controller.status()["reset"]["directory"])
+        (package / "resume-prompt.txt").write_text("changed prompt")
+        with self.assertRaisesRegex(ValueError, "sealed clear package"):
+            controller.step()
+        self.assertEqual(self.window.queued, [])
+
+    def test_postclear_accounting_wait_expires_without_acceptance(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_started"}}) + "\n")
+        controller.step()
+        fresh = self.fresh()
+        controller.step(fresh)
+        self.clock += 121
+        with self.assertRaisesRegex(ValueError, "deadline exceeded"):
+            controller.step(fresh)
+        self.assertEqual(self.loop.status()["epoch"], 0)
+        self.assertTrue(self.loop.status()["awaiting_native_receipt"])
+        self.assertNotIn("native_receipt", self.loop.status())
+        self.assertEqual(len(self.window.queued), 1)
+
+    def test_postclear_real_user_pause_refuses_delivery(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        self.append_native_user("pause now", ["user.text"])
+        with self.assertRaisesRegex(ValueError, "user input changed"):
+            controller.step()
+        self.assertEqual(self.window.queued, [])
+
+    def test_postclear_active_fresh_context_refuses_delivery(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        with self.window.rollouts[0].open("a") as stream:
+            stream.write(json.dumps({"type": "event_msg", "payload": {
+                "type": "task_started"}}) + "\n")
+        with self.assertRaisesRegex(ValueError, "fresh user input"):
+            controller.step()
+        self.assertEqual(self.window.queued, [])
+
     def test_native_user_pause_invalidates_prepared_reset(self):
         self.hold()
         controller = self.controller()
