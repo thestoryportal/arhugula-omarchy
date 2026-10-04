@@ -1,0 +1,3 @@
+#!/bin/sh
+# [LAW:one-source-of-truth] The installed helper owns scratch policy for every LIT caller.
+exec /usr/bin/python3 "$HOME/.local/share/arhugula-workflow/temp_space.py" exec -- "$HOME/.local/share/arhugula-workflow/lit.real" "$@"
