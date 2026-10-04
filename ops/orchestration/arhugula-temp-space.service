@@ -1,0 +1,8 @@
+[Unit]
+Description=Maintain available workflow temporary space
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/share/arhugula-workflow/temp_space.py maintain
+UMask=0077
+TimeoutStartSec=120
