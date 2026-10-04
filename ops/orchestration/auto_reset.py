@@ -609,10 +609,18 @@ class AutoReset:
             raise ValueError(
                 "terminal outgoing goal accounting requires the unchanged completed turn"
             )
-        directory = private_directory(self.config["receipt_directory"])
         terminal = read_goal(
             self.config["goal_database"], state["reset"]["previous_session"]
         )
+        # [LAW:no-ambient-temporal-coupling] An idle turn is not goal release;
+        # only a non-active native goal can make its usage terminal.
+        if terminal["goal"] is not None and terminal["goal"]["status"] == "active":
+            return state
+        if terminal["goal"] is not None and terminal["goal"]["status"] not in {
+            "paused", "blocked", "complete", "usageLimited", "budgetLimited"
+        }:
+            raise ValueError("unknown outgoing native goal status")
+        directory = private_directory(self.config["receipt_directory"])
         digest = hashlib.sha256(
             json.dumps(terminal, sort_keys=True).encode()
         ).hexdigest()

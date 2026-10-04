@@ -801,8 +801,13 @@ class Loop:
                 raise ValueError(
                     "bootstrap recovery identity differs from durable intent"
                 )
-            # [LAW:no-ambient-temporal-coupling] The exact fresh handoff proves
-            # the completed clear; old goal activity cannot revoke that transition.
+            # [LAW:no-ambient-temporal-coupling] Automatic clear consumed the
+            # old idle capability; manual bootstrap still requires that proof.
+            if not frontier.get("automatic", False) and state["pending_bootstrap"] is None:
+                old_routing = next(
+                    s for s in self._control()["sessions"] if s["role"] == "buford"
+                )
+                self.ready_clear(old_routing["transcript"])
             _, reads = self.lit.read(state["goal_ticket"])
             if (
                 time.monotonic() - began > 120
