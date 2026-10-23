@@ -1,0 +1,84 @@
+Codex Stop-hook reader for upstream Memento pin 4f95f159: Codex rollout records are
+translated into the Claude-shaped records the upstream checks already read.
+
+--- a/hooks/scripts/context-ceiling.py
++++ b/hooks/scripts/context-ceiling.py
+@@ -108,6 +108,58 @@
+     layers. [LAW:effects-at-boundaries] the payload's two names become paths here and nowhere else."""
+     return in_force(session_directory(hook["session_id"]), anchored(hook["cwd"]))
+ 
++# A Codex rollout states the same facts in its own record grammar. [LAW:locality-or-seam] each
++# Codex record is translated once, at the one reader every check below goes through, into the
++# Claude-shaped record those checks already read, so none of them learns a second grammar; a
++# Claude record passes through untouched. The newest request's usage becomes an assistant usage
++# record (Codex input_tokens already counts cached input, so no cache field is added), a shell
++# tool call becomes a Bash tool_use bound by its call_id, its output the tool_result, and a user
++# message a turn opener. Every other Codex record is translated to nothing.
++CODEX_RECORDS = ("response_item", "event_msg")
++CODEX_SHELL_TOOLS = ("exec", "exec_command", "shell")
++CODEX = {
++    "token_count": lambda p: {"type": "assistant", "message": {"usage": {
++        "input_tokens": p["info"]["last_token_usage"]["input_tokens"],
++        "output_tokens": p["info"]["last_token_usage"]["output_tokens"]}}} if p["info"] else {},
++    "custom_tool_call": lambda p: {"type": "assistant", "message": {"content": [{
++        "type": "tool_use", "id": p["call_id"], "input": {"command": p["input"]},
++        "name": "Bash" if p["name"] in CODEX_SHELL_TOOLS else p["name"]}]}},
++    "function_call": lambda p: {"type": "assistant", "message": {"content": [{
++        "type": "tool_use", "id": p["call_id"], "input": {"command": p["arguments"]},
++        "name": "Bash" if p["name"] in CODEX_SHELL_TOOLS else p["name"]}]}},
++    "custom_tool_call_output": lambda p: {"type": "user", "message": {"content": [{
++        "type": "tool_result", "tool_use_id": p["call_id"], "content": p["output"],
++        "is_error": not codex_succeeded(p["output"])}]}},
++    "message": lambda p: {"type": "user", "message": {"content": p["content"]}}
++    if p["role"] == "user" else {},
++}
++CODEX["function_call_output"] = CODEX["custom_tool_call_output"]
++
++# A command's own exit report, in the text form exec_command prints and the JSON form a code-mode
++# cell prints when it returns the exec_command result itself.
++CODEX_EXIT = re.compile(r'(?:Process exited with code |"?exit_code"?\s*[:=]\s*)(-?\d+)')
++
++def codex_succeeded(output):
++    """Whether a Codex tool output proves its command succeeded, which is what upstream's is_error
++    flag carries for Claude. A code-mode cell's `Script completed` says only that the cell ran,
++    not that the command inside it did, so success is the command's own exit report: at least one,
++    every one zero, in a cell that did not itself fail. A result reporting no exit is ambiguous,
++    and an ambiguous result earns no close-out credit."""
++    text = text_of(output)
++    exits = CODEX_EXIT.findall(text)
++    cell_ran = not text.startswith("Script ") or text.startswith("Script completed")
++    return cell_ran and bool(exits) and all(code == "0" for code in exits)
++
++def claude_shaped(record):
++    if record.get("type") not in CODEX_RECORDS:
++        return record
++    return CODEX.get(record["payload"]["type"], lambda payload: {})(record["payload"])
++
++def codex_rollout(transcript_path):
++    """Whether the transcript is a Codex rollout, which always opens on its session_meta record."""
++    with open(transcript_path, "rb") as handle:
++        return json.loads(handle.readline() or b"{}").get("type") == "session_meta"
++
+ def records_newest_first(transcript_path):
+     """This session's records, reading only as far back as the caller consumes. Sidechains are
+     a subagent's conversation, so they never reach a caller. A torn final line is ordinary in a
+@@ -126,7 +178,7 @@
+                 except ValueError:
+                     continue
+                 if not record.get("isSidechain"):
+-                    yield record
++                    yield claude_shaped(record)
+             end = start
+ 
+ def context_tokens(transcript_path):
+@@ -135,6 +187,10 @@
+             usage = record["message"].get("usage")
+             if usage:
+                 return sum(usage.get(field, 0) for field in EVERY_PROMPT_COMPONENT)
++    # [LAW:no-silent-failure] Codex records its request usage before every Stop, so a rollout
++    # with none is a format this reader no longer understands, never an empty context.
++    if codex_rollout(transcript_path):
++        raise ValueError(f"no Codex last_token_usage in {transcript_path}")
+     return 0
+ 
+ def starts_a_turn(record):
