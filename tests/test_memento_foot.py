@@ -9,35 +9,56 @@ import subprocess
 import tempfile
 import unittest
 
-from ops.orchestration.memento_foot.foot_helper import FootHelper, keystrokes
+from ops.orchestration.memento_foot.foot_helper import FootHelper
 from ops.orchestration.memento_foot.build import build, LAUNCHER
+
+# More typed characters than /clear in one burst read as a paste.
+PASTE_AFTER = len("/clear")
+OLD, NEW = "5a1b2c3d-0000-4000-8000-000000000001", "6e7f8091-0000-4000-8000-000000000002"
 
 
 class Host:
-    """Offline /proc, Claude session file and compositor for one Claude-under-foot lane."""
+    """Offline /proc, Claude session file, transcripts and compositor for one Claude-under-foot lane."""
 
     def __init__(self, root):
         self.root = Path(root)
-        self.proc, self.sessions = self.root / "proc", self.root / "sessions"
+        self.proc, self.sessions, self.projects = self.root / "proc", self.root / "sessions", self.root / "projects"
         for pid, parent, start, comm in ((50, 1, "7", "foot"), (60, 50, "9", "claude")):
-            d = self.proc / str(pid)
-            d.mkdir(parents=True)
-            (d / "stat").write_text(f"{pid} ({comm}) S {parent} " + " ".join(["0"] * 16) + f" 0 {start} 0\n")
-            (d / "comm").write_text(comm + "\n")
+            self.process(pid, parent, start, comm)
         self.sessions.mkdir()
         self.record = {"pid": 60, "procStart": "9", "pidDomain": "linux:m:pid:[1]",
-                       "sessionId": "s1", "status": "busy", "updatedAt": 1}
+                       "sessionId": OLD, "status": "busy", "updatedAt": 1}
         self.write()
+        self.prompt(OLD, "earlier work")  # the outgoing session's own prompt
         self.clients = [{"pid": 50, "address": "0xabc", "mapped": True, "acceptsInput": True}]
         self.clients[0]["stableId"] = "window1"
         self.keyboard = {"main": True, "active_keymap": "English (US)", "capsLock": False}
-        self.clear_changes_session = True
-        self.draft, self.submitted = "", []
-        self.after_clear_draft = ""
-        self.typed, self.ack = [], "ok"
+        self.clear_changes_session, self.clear_receipt, self.foreign = True, False, []
+        # The receipt's full identity is the session directory in its override path.
+        self.override = lambda s: f"/p/sessions/{s}/memento.conf"
+        self.draft, self.submitted, self.burst = "", [], 0
+        self.after_clear_draft, self.first_inputs, self.records_input = "", [], True
+        self.typed, self.ack, self.on_eval = [], "ok", None
+
+    def process(self, pid, parent, start, comm):
+        d = self.proc / str(pid)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "stat").write_text(f"{pid} ({comm}) S {parent} " + " ".join(["0"] * 16) + f" 0 {start} 0\n")
+        (d / "comm").write_text(comm + "\n")
 
     def write(self):
         (self.sessions / "60.json").write_text(json.dumps(self.record))
+
+    def append(self, session, record):
+        path = self.projects / "-w" / f"{session}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a") as handle:
+            handle.write(json.dumps(record) + "\n")
+
+    def prompt(self, session, text):
+        """A prompt as Claude records what a person submitted."""
+        self.append(session, {"type": "user", "promptId": "p", "origin": {"kind": "human"},
+                              "message": {"role": "user", "content": text}})
 
     def run(self, argv):
         if argv[:2] == ["hyprctl", "-j"]:
@@ -45,25 +66,48 @@ class Host:
                 return json.dumps({"keyboards": [self.keyboard]})
             return json.dumps(self.clients)
         self.typed.append(argv[2])
+        if self.on_eval:
+            self.on_eval()  # ownership may change as soon as a script is sent
+        # Claude's composer as observed on the Facade lane (cmt-80f558da): the short /clear burst
+        # submitted, but a Return ending a long typing burst was pasted as a newline; a Return sent
+        # after a pause submits.
         for mods, key in re.findall(r'\{("[^"}]*"),("[^"}]*")\}', argv[2]):
             mods, key = json.loads(mods), json.loads(key)
             if mods == "CTRL" and key == "u":
                 self.draft = ""
+            elif key == "Return" and self.burst > PASTE_AFTER:
+                self.draft += "\n"
             elif key == "Return":
-                self.submitted.append(self.draft)
-                self.draft = ""
+                self.submit()
             elif key != "Escape":
                 char = {"slash": "/", "space": " ", "period": ".", "minus": "-"}.get(key, key)
                 self.draft += "_" if mods == "SHIFT" and key == "minus" else char.upper() if mods == "SHIFT" else char
-        if self.submitted and self.submitted[-1] == "/clear":
-            self.record.update(updatedAt=self.record["updatedAt"] + 1, status="idle")
-            if self.clear_changes_session:
-                self.record["sessionId"] = "s2"
-            self.write()
-            self.draft = self.after_clear_draft
+                self.burst += 1
         return self.ack
 
+    def submit(self):
+        text, self.draft = self.draft, ""
+        self.submitted.append(text)
+        if text != "/clear":
+            if self.records_input:
+                self.prompt(self.record["sessionId"], text)
+            return
+        self.record.update(updatedAt=self.record["updatedAt"] + 1, status="idle")
+        if self.clear_changes_session:
+            self.record["sessionId"] = NEW
+        self.write()
+        session = self.record["sessionId"]
+        # Claude records the clear as a command, never as a person's prompt.
+        self.append(session, {"type": "user", "message": {"role": "user", "content": "<command-name>/clear</command-name>"}})
+        with (self.root / "clear.log").open("a") as handle:
+            handle.writelines(f"t session={s[:8]} event=SessionStart override={self.override(s)} -> no-override\n"
+                              for s in self.foreign + [session] * self.clear_receipt)
+        for text in self.first_inputs:
+            self.prompt(session, text)
+        self.draft = self.after_clear_draft
+
     def sleep(self, _):
+        self.burst = 0
         self.record["status"] = "idle"  # the outgoing turn ends while the helper waits
         self.write()
 
@@ -77,28 +121,31 @@ class FootHelperTests(unittest.TestCase):
         self.msg.write_text("handoff text")
         self.goal = Path(self.dir.name) / "goal"
         self.goal.write_text("")
+        self.pointer = f"Read and follow the handoff at {self.msg}"
 
     def helper(self):
         h = self.host
         return FootHelper(60, self.msg, self.goal, 10, proc=h.proc, sessions=h.sessions,
                           run=h.run, sleep=h.sleep, timeout=3, clear_log=Path(self.dir.name) / "clear.log")
 
-    def test_waits_for_idle_clears_same_window_then_types_only_the_pointer(self):
-        self.helper().handoff()
-        self.assertEqual(self.host.typed, [keystrokes("0xabc", "/clear"),
-                                           keystrokes("0xabc", f"Read and follow the handoff at {self.msg}")])
-        self.assertEqual(json.loads(self.msg.with_name("handoff.md.foot-intent").read_text())["phase"], "delivered")
+    def phase(self):
+        return json.loads(self.msg.with_name("handoff.md.foot-intent").read_text())["phase"]
 
-    def test_actual_goal_only_is_carried(self):
+    def test_waits_for_idle_clears_same_window_then_submits_only_the_pointer(self):
+        self.helper().handoff()
+        self.assertEqual(self.host.submitted, ["/clear", self.pointer])
+        self.assertEqual(self.phase(), "delivered")
+
+    def test_actual_goal_only_is_carried_after_the_pointer_is_received(self):
         self.goal.write_text("ship the parser")
         self.helper().handoff()
-        self.assertEqual(self.host.typed[-1], keystrokes("0xabc", "/goal ship the parser"))
+        self.assertEqual(self.host.submitted, ["/clear", self.pointer, "/goal ship the parser"])
 
     def test_existing_composer_draft_cannot_fuse_with_clear_or_bottle(self):
         self.host.draft = "unsent draft"
         self.host.after_clear_draft = "leftover after clear"
         self.helper().handoff()
-        self.assertEqual(self.host.submitted, ["/clear", f"Read and follow the handoff at {self.msg}"])
+        self.assertEqual(self.host.submitted, ["/clear", self.pointer])
 
     def test_transient_goal_removed_only_after_success(self):
         self.goal.write_text("ship the parser")
@@ -109,7 +156,7 @@ class FootHelperTests(unittest.TestCase):
     def test_refuses_before_any_input(self):
         cases = {
             "session identity changed": lambda h: h.record.update(sessionId="other"),
-            "process reused": lambda h: (h.proc / "60" / "stat").write_text("60 (claude) S 50 " + "0 " * 17 + "99 0\n"),
+            "process reused": lambda h: h.process(60, 50, "99", "claude"),
             "no longer under foot": lambda h: (h.proc / "50" / "comm").write_text("bash\n"),
             "ambiguous window": lambda h: h.clients.append(dict(h.clients[0], address="0xdef")),
         }
@@ -147,28 +194,39 @@ class FootHelperTests(unittest.TestCase):
         self.assertTrue(self.goal.exists())
         self.assertTrue(self.msg.exists())
 
-    def test_keystrokes_refuse_text_outside_the_safe_set(self):
-        with self.assertRaises(ValueError):
-            keystrokes("0xabc", "first line\nsecond input")
+    def test_composer_input_refuses_text_or_address_outside_the_safe_set(self):
+        for address, text in (("0xabc", "first line\nsecond input"), ("window", "text")):
+            with self.subTest(address=address, text=text), self.assertRaises(ValueError):
+                self.helper().composer_input(address, text)
 
     def test_unchanged_session_id_requires_the_clear_hook_receipt(self):
-        self.host.clear_changes_session = False
-        original = self.host.run
-        def run(argv):
-            result = original(argv)
-            if argv[:2] == ["hyprctl", "eval"] and len(self.host.typed) == 1:
-                (Path(self.dir.name) / "clear.log").write_text(
-                    "2026-10-23T00:00:00 session=s1 event=SessionStart override=x -> no-override\n")
-            return result
-        self.host.run = run
+        self.host.clear_changes_session, self.host.clear_receipt = False, True
         self.helper().handoff()
-        self.assertEqual(len(self.host.typed), 2)
+        # The outgoing session's own earlier prompt is not the cleared session's first input.
+        self.assertEqual((self.host.submitted, self.phase()), (["/clear", self.pointer], "delivered"))
+
+    def test_another_sessions_same_prefix_receipt_is_not_this_sessions_clear(self):
+        self.host.clear_changes_session, self.host.foreign = False, [OLD[:8] + "-1111-4000-8000-000000000009"]
+        with self.assertRaisesRegex(ValueError, "uncertain clear"):
+            self.helper().handoff()
+        self.assertEqual((self.host.submitted, self.phase()), (["/clear"], "clear_intent"))
+
+    def test_same_prefix_receipt_without_a_consistent_full_identity_delivers_nothing(self):
+        for name, override in {"no session directory": lambda s: "x",
+                               "another session's directory": lambda s: f"/p/sessions/{NEW}/memento.conf"}.items():
+            with self.subTest(name):
+                self.setUp()
+                self.host.clear_changes_session, self.host.clear_receipt = False, True
+                self.host.override = override
+                with self.assertRaisesRegex(ValueError, "no consistent full session identity"):
+                    self.helper().handoff()
+                self.assertEqual((self.host.submitted, self.phase()), (["/clear"], "clear_intent"))
 
     def test_idle_timestamp_change_is_not_a_clear_receipt(self):
         self.host.clear_changes_session = False
         with self.assertRaisesRegex(ValueError, "uncertain clear"):
             self.helper().handoff()
-        self.assertEqual(len(self.host.typed), 1)
+        self.assertEqual(self.host.submitted, ["/clear"])
 
     def test_reused_window_is_refused_before_input(self):
         helper = self.helper()
@@ -186,6 +244,38 @@ class FootHelperTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "keyboard"):
             self.helper().handoff()
         self.assertEqual(self.host.typed, [])
+
+    def assert_not_delivered(self, reason):
+        with self.assertRaisesRegex(ValueError, reason):
+            self.helper().handoff()
+        self.assertEqual((self.host.submitted, self.phase()), (["/clear", self.pointer], "deliver_intent"))
+        self.assertTrue(self.goal.exists())
+        with self.assertRaisesRegex(ValueError, "never replay"):
+            self.helper().handoff()
+        self.assertEqual(self.host.submitted, ["/clear", self.pointer])
+
+    def test_compositor_ack_without_the_recorded_pointer_is_not_delivery(self):
+        self.host.records_input = False
+        self.assert_not_delivered("uncertain delivery: the cleared session never recorded the handoff")
+
+    def test_unrelated_first_input_is_not_delivery(self):
+        self.host.first_inputs = ["hello"]
+        self.assert_not_delivered("uncertain delivery: the cleared session's first input is not the handoff")
+
+    def test_ambiguous_transcripts_are_not_delivery(self):
+        (self.host.projects / "-other").mkdir(parents=True)
+        (self.host.projects / "-other" / f"{NEW}.jsonl").write_text("")
+        self.assert_not_delivered(f"uncertain session: several transcripts name session {NEW}")
+
+    def test_ownership_change_in_the_submit_gap_gets_no_return(self):
+        for name, change in {"foot replaced at the same address": lambda h: h.process(50, 1, "12", "foot"),
+                             "claude restarted under the same pid": lambda h: h.process(60, 50, "13", "claude")}.items():
+            with self.subTest(name):
+                self.setUp()
+                self.host.on_eval = lambda change=change: change(self.host)
+                with self.assertRaisesRegex(ValueError, "uncertain clear_intent: the bound foot window changed mid-input"):
+                    self.helper().handoff()
+                self.assertEqual((len(self.host.typed), self.host.submitted, self.phase()), (1, [], "clear_intent"))
 
 
 class BuildTests(unittest.TestCase):

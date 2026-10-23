@@ -21,6 +21,7 @@ REPO = Path(__file__).resolve().parents[1]
 # The exact pinned bytes of the files these gates execute; the pin below verifies every byte.
 PINNED = REPO / "tests/fixtures/memento-4f95f159/memento"
 THREAD = "01a1692e-9731-7251-8e34-d363eb25263a"
+NEW_THREAD = "01a16999-0b1c-7d2e-8f30-4152637485a6"
 LAUNCHER = "skills/message-in-a-bottle/bin/finalize-session"
 SKILL = "skills/message-in-a-bottle/SKILL.md"
 MARKER = "handoff scheduled → foot codex pid 70 in 10s (log: /tmp/finalize-log.x)"
@@ -51,6 +52,21 @@ def meta():
 def user(text):
     return {"type": "response_item", "payload": {"type": "message", "role": "user",
                                                  "content": [{"type": "input_text", "text": text}]}}
+
+
+def typed(text):
+    """A user message as Codex records typed input, marked user.text."""
+    record = user(text)
+    record["payload"]["internal_chat_message_metadata_passthrough"] = {"content_item_kinds": ["user.text"]}
+    return record
+
+
+def injected():
+    """The user-role context Codex writes into a new thread before its first typed input."""
+    record = user("<environment_context>\n  <cwd>/w</cwd>\n</environment_context>")
+    record["payload"]["internal_chat_message_metadata_passthrough"] = {
+        "content_item_kinds": ["environments.environment_context"]}
+    return record
 
 
 def usage(last, total=None):
@@ -288,9 +304,13 @@ class CodexHost:
         self.clear_log.write_text(f"t session={THREAD[:8]} event=Stop tokens=1 ceiling=2 -> allow-under\n")
         self.clients = [{"pid": 50, "address": "0xabc", "mapped": True, "acceptsInput": True, "stableId": "w1"}]
         self.keyboard = {"main": True, "active_keymap": "English (US)", "capsLock": False}
-        self.new_sessions, self.foreign, self.ends_turn = ["01a16999"], [], True
+        self.new_sessions, self.foreign, self.ends_turn = [NEW_THREAD], [], True
+        # The receipt's full identity is the session directory in its override path.
+        self.override, self.guardian = lambda s: f"/p/sessions/{s}/memento.conf", None
         self.draft, self.submitted, self.burst, self.records_input, self.on_sleep = "", [], False, True, None
         self.evals, self.on_eval = 0, None
+        # A working /clear makes the next input a new thread; until then input lands in this thread.
+        self.cleared, self.clear_works, self.first_inputs, self.thread = False, True, [], self.rollout
 
     def process(self, pid, parent, start, comm):
         d = self.proc / str(pid)
@@ -328,15 +348,26 @@ class CodexHost:
         text, self.draft = self.draft, ""
         self.submitted.append(text)
         if text == "/clear":
+            self.cleared = self.clear_works  # as in Codex: no new thread and no SessionStart receipt yet
+            return
+        if not self.records_input:
+            return
+        if self.cleared:  # the first input after /clear starts the new thread and writes its receipts
+            self.cleared = False
             with self.clear_log.open("a") as handle:
-                handle.writelines(f"t session={s} event=SessionStart override=x codex={owner} -> no-override\n"
-                                  for s, owner in self.foreign)
-                handle.writelines(f"t session={s} event=SessionStart override=x codex=60:9 -> no-override\n"
-                                  for s in self.new_sessions)
-        elif self.records_input:
-            rollout = self.rollout.with_name(f"rollout-2026-10-23T00-00-01-{self.new_sessions[0]}-7000.jsonl")
-            with rollout.open("a") as handle:
-                handle.write(json.dumps(user(text)) + "\n")
+                handle.writelines(f"t session={s[:8]} event=SessionStart override={self.override(s)} codex={owner}"
+                                  " -> no-override\n" for s, owner in self.foreign + [(s, "60:9") for s in self.new_sessions])
+            first = (self.new_sessions + [s for s, _ in self.foreign] + ["01a16eee-0000-7000-8000-000000000000"])[0]
+            if self.guardian:  # Codex's guardian review thread, recorded beside the user thread
+                self.rollout.with_name(f"rollout-2026-10-23T00-00-01-{self.guardian}.jsonl").write_text(
+                    json.dumps(typed("review this action")) + "\n")
+            self.thread = self.rollout.with_name(f"rollout-2026-10-23T00-00-01-{first}.jsonl")
+            self.record(injected(), *map(typed, self.first_inputs))
+        self.record(typed(text))
+
+    def record(self, *records):
+        with self.thread.open("a") as handle:
+            handle.writelines(json.dumps(r) + "\n" for r in records)
 
     def sleep(self, _):
         self.burst = False
@@ -375,34 +406,66 @@ class CodexFootHelperTests(unittest.TestCase):
         self.helper().handoff()
         self.assertEqual(self.host.submitted, ["/clear", f"Read and follow the handoff at {self.msg}"])
 
-    def test_clear_without_a_new_session_receipt_delivers_nothing(self):
-        self.host.new_sessions = []
-        with self.assertRaisesRegex(ValueError, "uncertain clear"):
+    def assert_not_handed_off(self, reason="the cleared session never recorded the handoff"):
+        with self.assertRaisesRegex(ValueError, f"uncertain delivery: {reason}"):
             self.helper().handoff()
-        self.assertEqual(self.host.submitted, ["/clear"])
+        self.assertEqual(self.host.submitted, ["/clear", f"Read and follow the handoff at {self.msg}"])
+        self.assertIn("deliver_intent", self.msg.with_name(self.msg.name + ".foot-intent").read_text())
+
+    def test_new_thread_without_this_codexs_receipt_is_not_a_handoff(self):
+        self.host.new_sessions = []
+        self.assert_not_handed_off()
 
     def test_another_lanes_clear_receipt_is_not_this_windows_clear(self):
-        self.host.new_sessions, self.host.foreign = [], [("01a16bbb", "999:1")]
-        with self.assertRaisesRegex(ValueError, "uncertain clear"):
-            self.helper().handoff()
-        self.assertEqual(self.host.submitted, ["/clear"])
+        self.host.new_sessions, self.host.foreign = [], [("01a16bbb-0000-7000-8000-000000000000", "999:1")]
+        self.assert_not_handed_off()
 
     def test_unbound_clear_receipts_are_not_this_windows_clear(self):
-        self.host.new_sessions, self.host.foreign = [], [("01a16bbb", "none"), ("01a16ccc", "unreadable")]
-        with self.assertRaisesRegex(ValueError, "uncertain clear"):
-            self.helper().handoff()
-        self.assertEqual(self.host.submitted, ["/clear"])
+        self.host.new_sessions = []
+        self.host.foreign = [("01a16bbb-0000-7000-8000-000000000000", "none"), ("01a16ccc-0000-7000-8000-000000000000", "unreadable")]
+        self.assert_not_handed_off()
+
+    def test_pointer_landing_in_the_old_thread_is_not_a_handoff(self):
+        self.host.clear_works = False
+        self.assert_not_handed_off()
+
+    def test_unrelated_first_input_before_the_pointer_is_not_a_handoff(self):
+        self.host.first_inputs = ["hello"]
+        self.assert_not_handed_off("the cleared session's first input is not the handoff")
 
     def test_own_clear_receipt_beside_another_lanes_still_delivers(self):
-        self.host.foreign = [("01a16bbb", "999:1")]
+        self.host.foreign = [("01a16bbb-0000-7000-8000-000000000000", "999:1")]
         self.helper().handoff()
         self.assertEqual(self.host.submitted, ["/clear", f"Read and follow the handoff at {self.msg}"])
 
     def test_ambiguous_new_sessions_deliver_nothing(self):
-        self.host.new_sessions = ["01a16999", "01a16aaa"]
-        with self.assertRaisesRegex(ValueError, "several new sessions"):
-            self.helper().handoff()
-        self.assertEqual(self.host.submitted, ["/clear"])
+        self.host.new_sessions = [NEW_THREAD, "01a16aaa-0000-7000-8000-000000000000"]
+        self.assert_not_handed_off("several new sessions started")
+
+    def test_guardian_thread_sharing_the_new_prefix_is_not_the_new_thread(self):
+        self.host.guardian = NEW_THREAD[:8] + "-a20b-78e2-8646-6b254485555f"
+        self.helper().handoff()
+        self.assertEqual(self.host.submitted, ["/clear", f"Read and follow the handoff at {self.msg}"])
+        self.assertIn("delivered", self.msg.with_name(self.msg.name + ".foot-intent").read_text())
+
+    def test_new_thread_sharing_the_old_threads_prefix_is_still_the_new_thread(self):
+        self.host.new_sessions = [THREAD[:8] + "-0b1c-7d2e-8f30-4152637485a6"]
+        self.helper().handoff()
+        self.assertIn("delivered", self.msg.with_name(self.msg.name + ".foot-intent").read_text())
+
+    def test_receipt_naming_the_old_thread_is_not_a_new_thread(self):
+        self.host.new_sessions = [THREAD]
+        self.assert_not_handed_off("the clear started no new thread")
+
+    def test_receipt_without_a_consistent_full_identity_delivers_nothing(self):
+        for name, override in {"no session directory": lambda s: "x",
+                               "another session's directory": lambda s: "/p/sessions/01a16ddd-0000-7000-8000-000000000000/memento.conf"}.items():
+            with self.subTest(name):
+                self.setUp()
+                self.host.override = override
+                with self.assertRaisesRegex(ValueError, "no consistent full session identity"):
+                    self.helper().handoff()
+                self.assertNotIn("delivered", self.msg.with_name(self.msg.name + ".foot-intent").read_text())
 
     def test_unparseable_rollout_line_is_not_a_turn_state(self):
         with self.host.rollout.open("a") as handle:
