@@ -11,7 +11,7 @@ activation receipt exists (`O/.local/buford-loop/workflow-activation.json` is
 absent). Every row's status is `inactive` until its own unit lands. Until WP-17
 activation, the existing gates govern everything listed here.
 
-Facts were read at 2026-10-23T22:41Z by claude-coder (session
+Facts were read at 2026-10-23T22:46:14Z by claude-coder (session
 `1c4c420e-3207-45b6-830b-c741708760cd`) against:
 
 | Repository | Remote | Revision read |
@@ -79,8 +79,8 @@ source of every H row is its blob at `91e76a4`; for O it is the protected bytes 
 | Carrier | Revision | Old rule | Disposition | Scope | Enforcer | Verification | Rollback source | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `AGENTS.md`, `CLAUDE.md`, `docs/orchestration/{paired-lanes-framework,context-policy,communication,authorization,memento-current}.md`, `roles/*.md` | protected, differs from or absent in `main` (table below) | Startup route, measured admission, pointer delivery, review independence, no-HIL through normal controls | retain; the released c12 workflow already runs on these bytes | all lanes | read by each session; no code enforcer | WT-02, WT-03, WT-05 | protected bytes below; older `main` copies of AGENTS/CLAUDE/context-policy/communication/buford role | inactive |
-| `docs/orchestration/session-control.json`, `launch-profiles.json` | protected, absent in `main` | Native identity, ceilings, pause, model/effort | retain | all lanes | `ops/orchestration/session_context.py admit` reads the caller-supplied ceiling | WT-05, WT-07 | protected bytes below | inactive |
-| `.promptctl/memento.conf` (`2a4f8ed2…`, 17 B, untracked) | protected | Effective 225 000-token project ceiling | retain; Buford/operator owned | all Claude/Codex lanes | installed Memento `ceiling` reader | WT-07 | protected bytes | inactive |
+| `docs/orchestration/session-control.json`, `launch-profiles.json` | protected, absent in `main` | Native identity, transcripts, ceilings, pause, notification target, model/effort | retain | all lanes | `ops/orchestration/session_context.py admit` reads the caller-supplied ceiling | WT-05, WT-07 | protected bytes below | inactive |
+| `.promptctl/memento.conf` (untracked) | protected (table below) | Effective 225 000-token project ceiling | retain; Buford/operator owned | all Claude/Codex lanes | installed Memento `ceiling` reader | WT-07 | protected bytes | inactive |
 | `ops/orchestration/loop.py` | protected, differs from `main` | `fingerprint(data, ticket, goal)` and `Loop.check(admission)` re-read the comment-sensitive authority token before a consequential step | reuse | all scheduling | `Loop.check` | WT-02 | protected bytes; `main` blob | inactive |
 | `ops/orchestration/local.py` | identical to `main` | `start` raises `claim-conflict` and never passes `--take`; `dirty-tree-conflict` stops a dirty adapter checkout | reuse | all claims | `LocalAdapter.start` | WT-02 | `main` | inactive |
 | `ops/orchestration/artifacts.py`, `records.py` | identical to `main` | `capture` fsyncs logs to the Mac share (refusing a guest-disk fallback) and publishes its receipt through `records.atomic_json`: temporary file, `fsync`, `os.replace`, and an unacknowledged replacement is marked uncertain | reuse | artifact receipts | `records.atomic_json`, `artifacts.require_mac_share` | WT-22, WT-23 | `main` | inactive |
@@ -121,13 +121,21 @@ remains the task record; no unit adds a second store.
 
 `origin/main` lacks most of the guidance the team runs on today. These working
 files in the root checkout are protected: no unit may sweep them into its commit,
-and no unit may assume `main` contains them. Hashes are SHA-256 of the working file
-at the read time; *state* compares it with the same path at `origin/main`
-`4e9fc3b`.
+and no unit may assume `main` contains them. Hashes are SHA-256 of the bytes at the
+read time; *state* compares them with the same path at `origin/main` `4e9fc3b`.
+
+The active guidance is still being edited while the team runs on it (the framework
+moved from v5 to v6 during this read). So these bindings name a retained snapshot,
+not whatever is on disk later: an exact copy of every listed file is kept under
+`O/docs/orchestration/implementation-evidence/wo-u01-claude-coder-1/snapshot/`. That
+copy is also the rollback source for these bytes. A later on-disk change is new
+protected work and needs its own binding.
 
 | Path | State | Bytes | SHA-256 |
 | --- | --- | --- | --- |
+| `.codex/config.toml` | absent | 219 | `e72038d955b37cc34dbd58a9ae357a430e24cceb183fb01e1905298aa60378c6` |
 | `.ignore` | absent | 227 | `b81e710759023fc9dea5cfc0e320c6e1224c267d9646745088e87739a2d103b0` |
+| `.promptctl/memento.conf` | absent | 17 | `2a4f8ed2bcab4e0d56c34377ff7c009bf9d73ab3e9924572afa583e5f9eabbcf` |
 | `:memory:.ses` | absent | 51 | `64c22436660805a3b3a369d8667b2e685a8193e5581f15c90bc3eb38197e5eeb` |
 | `docs/diagnostics/01a0bdf2-bec8-71e1-946d-4ac8c3d0ce6c/case.md` | absent | 1976 | `3295f45f6b52f9741993c2ee90259bbac8d4993ec95dec8aac10e8bb8e950ac6` |
 | `docs/diagnostics/01a0bdf2-bec8-71e1-946d-4ac8c3d0ce6c/report.md` | absent | 2702 | `7684fa8cd5357be23cac0a8bec43b06420c17dc535a9b4c793df07bacea24a82` |
@@ -135,14 +143,14 @@ at the read time; *state* compares it with the same path at `origin/main`
 | `docs/orchestration/authorization.md` | absent | 3806 | `45eb5e65102ec7457903e8189123f8dad73bec83ba60273cb08bf1b228a3fba4` |
 | `docs/orchestration/launch-profiles.json` | absent | 1745 | `5e6033b2d9edc6db2924f2f825e823d7ba3f63961943c236587786cb73c94be1` |
 | `docs/orchestration/memento-current.md` | absent | 4297 | `546aead8fe73c12d771387a961f73b3efb61bde538291497f318b2ce4f7dd886` |
-| `docs/orchestration/paired-lanes-framework.md` | absent | 12426 | `ab71d82ac653e3c1e0b3037883f5fb7a071371b0c37168440f1e78b3d6be0aba` |
+| `docs/orchestration/paired-lanes-framework.md` | absent | 13085 | `2422eecc7b57aa8262cef188eb0fc860be46ad14320cfbfc3910a1acae3baf72` |
 | `docs/orchestration/roles/claude-coder.md` | absent | 2124 | `f7837ea35b61d23cdcf99a3316b7b3291cfdcc4fc2fac624cee5dacb7c72db6b` |
 | `docs/orchestration/roles/codex-reviewer.md` | absent | 2156 | `5cc823a3e0f02a216d91ba82d09d6e87384939cbfe0e6afa430f13f23526dc50` |
-| `docs/orchestration/roles/facade-coder.md` | absent | 486 | `6df93c3c6c60c7e8696d3b68d958ed1e05a5346c3fd66eaf51de7f8060d94f35` |
+| `docs/orchestration/roles/facade-coder.md` | absent | 741 | `0d1371a66e716ca36fb26f647c2e35d668a25f510e3746b119f1bb186aeea339` |
 | `docs/orchestration/roles/implementer.md` | absent | 440 | `7475a2df158973656e99adceeb4e26cba320638f486e4769d32403d028d95779` |
 | `docs/orchestration/roles/reviewer.md` | absent | 1066 | `bb282eb193c986c25f51d1ba87666fc6499b36c534d2220cc9cd0ff343040adc` |
 | `docs/orchestration/roles/runtime.md` | absent | 2079 | `fdb8e17352405baadd1218bf3a36bffa391ef7dd2ebf344b0869445b832eae8d` |
-| `docs/orchestration/session-control.json` | absent | 2836 | `bf6135ec95f3b24039bcdbcbe991fe832317f9de0ccb5e90cebc6ce00a3b4e0e` |
+| `docs/orchestration/session-control.json` | absent | 2836 | `e2699f0991d522e5de993e5104f945d0d98f9f9d492cbd93554d5c87a5f03cb3` |
 | `docs/orchestration/workflow-optimization-lit-index.md` | absent | 15227 | `774e619f6170c824e9ad2cfb3ab25c29f2553f1388aee2c95a37d8790856047c` |
 | `docs/orchestration/workflow-optimization-prd.md` | absent | 53709 | `c0fbeab3f0a849b415d2ddeda5eeaf337d2d2bc715baa5569d167a98b66eac39` |
 | `docs/orchestration/workflow-optimization-specification.md` | absent | 104455 | `e16b61e85a2d7afebe46b8e3fbf2b216945536705cb3b63cad023b819fc99df5` |
@@ -167,13 +175,11 @@ at the read time; *state* compares it with the same path at `origin/main`
 | `tests/test_loop.py` | differs | 15329 | `2e81e8d34bd5db6fb9c383574e0a102011fce923aeb18041c254949b8091659e` |
 | `tests/test_review_budget.py` | differs | 12645 | `834b5a55165415b4d93866ae585945753b2f66791ea0bc254fbc631580c4247d` |
 
-Also protected and untracked: `.codex/config.toml` (219 B, `e72038d955b37cc34dbd58a9ae357a430e24cceb183fb01e1905298aa60378c6`)
-and `.promptctl/memento.conf` (17 B, `2a4f8ed2bcab4e0d56c34377ff7c009bf9d73ab3e9924572afa583e5f9eabbcf`).
 The `.local/`, `.harness/` and `docs/orchestration/{implementation,review}-evidence/`
 trees are retained evidence. They are excluded from this table and from any commit.
 
 These modified or untracked files are byte-identical to `origin/main`, so they need
-no landing: `ops/orchestration/local.py`, `ops/orchestration/runner.py`, `tests/test_codex_worker.py`, `tests/test_isolated_lit.py`, `tests/test_local_adapter.py`, `ops/orchestration/artifacts.py`, `ops/orchestration/goal_lineage.py`, `ops/orchestration/native_goal.py`, `ops/orchestration/processes.py`, `ops/orchestration/records.py`, `ops/orchestration/session_context.py`, `ops/orchestration/startup.py`, `tests/test_artifacts.py`, `tests/test_goal_lineage.py`, `tests/test_native_window.py`, `tests/test_process_census.py`, `tests/test_reset_corrections.py`, `tests/test_session_context.py`, `tests/test_startup_budget.py`, `tests/test_startup_recovery.py`.
+no landing: `ops/orchestration/artifacts.py`, `ops/orchestration/goal_lineage.py`, `ops/orchestration/local.py`, `ops/orchestration/native_goal.py`, `ops/orchestration/processes.py`, `ops/orchestration/records.py`, `ops/orchestration/runner.py`, `ops/orchestration/session_context.py`, `ops/orchestration/startup.py`, `tests/test_artifacts.py`, `tests/test_codex_worker.py`, `tests/test_goal_lineage.py`, `tests/test_isolated_lit.py`, `tests/test_local_adapter.py`, `tests/test_native_window.py`, `tests/test_process_census.py`, `tests/test_reset_corrections.py`, `tests/test_session_context.py`, `tests/test_startup_budget.py`, `tests/test_startup_recovery.py`.
 
 The working tree also deletes 25 tracked historical handoff, plan and spec files
 that are still in `origin/main` (`git status --porcelain | grep '^ D '`). The
@@ -197,21 +203,23 @@ exists beyond that.
   orchestration differs from `main`. A unit that modifies one of these files bases on
   `main` and brings forward only the bytes it explicitly owns, with provenance and
   review. Landing those bytes is a real dependency of that unit.
+- *Local client configuration* (`.promptctl/memento.conf`, the effective Memento
+  ceiling; `.codex/config.toml`): Buford/operator policy. Retain, never commit; no
+  worker edits them.
 - *Unrelated local residue* (`docs/diagnostics/`, `.ignore`, `nvim.log`,
   `:memory:.ses`): retain and never commit. No adoption dependency.
 
 ## Prerequisites, holds and unknowns
 
-- **Native identity.** `session-control.json` lists the current lanes. LIT
-  comments on WO-U01 and WO-U02 cite earlier UUIDs (claude-coder `eece00ad`,
-  profile-coder `be2808b1`, Buford `01a16ac3`); those are historical and grant
-  nothing. WO-U02's assignee is still `be2808b1`, while the registered profile-coder
-  is `a1c7950c`. Reconciling that belongs to profile-coder.
-- **Codex admission metrics are unknown.** The `implementer`, `profile-reviewer`
-  and `facade-reviewer` entries have `transcript: null`, so `session_context
-  admit` cannot measure them. Buford's c12 comment `cmt-ed8dd3ef` defers the
-  native blank-thread messaging repair; a Codex thread without a persisted rollout
-  cannot be shown to have received a queue message.
+- **Native identity.** `session-control.json` is the only current source of lane
+  UUIDs; it changed during this read (Buford is now `01a16aee`, and every Codex lane
+  now names a transcript, so `session_context admit` can measure it). LIT comments
+  on WO-U01 and WO-U02 cite earlier UUIDs (claude-coder `eece00ad`, profile-coder
+  `be2808b1`, Buford `01a16ac3` and `01a16ad8`); those are historical and grant
+  nothing.
+- **Queue delivery to a blank thread.** Buford's c12 comment `cmt-ed8dd3ef` defers
+  the native blank-thread messaging repair. A Codex thread without a persisted
+  rollout cannot be shown to have received a queue message.
 - **Delivery.** No automatic LIT-comment-to-session delivery is configured
   (communication.md). A queued message is not evidence that the reviewer started.
 - **Activation inputs (WT-27).** The activation receipt, accepted policy file
