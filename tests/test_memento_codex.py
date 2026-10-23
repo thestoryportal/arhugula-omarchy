@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import stat
 import tempfile
 import unittest
 from unittest import mock
@@ -662,11 +661,11 @@ class SupervisorService(unittest.TestCase):
 
     def test_unit_is_installed_persistent_and_not_session_bound(self):
         text = (ROOT / "ops/orchestration/units/buford-memento-reset.service").read_text()
-        directives = [l for l in text.splitlines() if l and not l.startswith("#")]
+        directives = [line for line in text.splitlines() if line and not line.startswith("#")]
         for line in ("Type=exec", "Restart=on-failure", "WantedBy=default.target"):
             self.assertIn(line, directives)
-        self.assertFalse([l for l in directives if l.startswith(("PartOf=", "BindsTo="))])
-        start = next(l for l in directives if l.startswith("ExecStart=")).split("=", 1)[1].split()
+        self.assertFalse([line for line in directives if line.startswith(("PartOf=", "BindsTo="))])
+        start = next(line for line in directives if line.startswith("ExecStart=")).split("=", 1)[1].split()
         self.assertEqual(start[1:4], ["-m", "ops.orchestration.auto_reset", "run"])
         self.assertTrue(start[0].startswith("/") and start[-1].startswith("/"))
 

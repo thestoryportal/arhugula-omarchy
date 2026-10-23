@@ -477,6 +477,9 @@ class AutoReset:
             waiting = {"phase": "waiting_release", **({"ceiling_decisions": decided} if decided else {})}
             self.save(waiting)
             return waiting
+        # [LAW:no-mode-explosion] A config without "memento" is the frozen pre-Memento
+        # contract, kept only so its regression suite still runs; Buford deletes it at
+        # the verified Memento cutover. No other variant is admitted.
         memento = self.config.get("memento")
         lane = self.window.outgoing({"native_lane": self.native_lane()}) if memento else None
         if memento and lane["thread"] != release.get("outgoing"):
