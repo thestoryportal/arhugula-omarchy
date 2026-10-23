@@ -467,5 +467,231 @@ class FreshContextMark(unittest.TestCase):
             self.context()
 
 
+import test_loop  # noqa: E402  (the shared journal fixture, as test_startup_budget uses it)
+
+
+def bottle_data(**changes):
+    value = {
+        "role": "buford",
+        "outgoing": {"session_id": "live", "model": "gpt-6.1-sol", "effort": "high", "window": 475000, "process": "pid:4484:2"},
+        "lit": {"ticket": "arhugula-harness-trial-193.c12", "comments": ["cmt-1"]},
+        "release_receipt": "/r/owner.json",
+        "pause": ["docs/orchestration/session-control.json#repair_paused", "AGENTS.md:109-116"],
+        "goal_receipt": "/r/goal.json",
+        "next_step": "startup packet, finish, then Loop.begin",
+    }
+    value.update(changes)
+    return value
+
+
+class MementoPackage(unittest.TestCase):
+    setUp = test_loop.LoopTests.setUp
+    fresh_transcript = test_loop.LoopTests.fresh_transcript
+
+    def outgoing_rollout(self, status="task_complete"):
+        path = self.root / "live.jsonl"
+        rows = [
+            {"type": "session_meta", "payload": {"id": "live", "cwd": "/w", "source": "cli", "originator": "codex-tui"}},
+            {"type": "turn_context", "payload": {"model": "gpt-6.1-sol", "effort": "high"}},
+            {"type": "event_msg", "payload": {"type": status}},
+        ]
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+        return path
+
+    def prepare(self, bottle=None):
+        from ops.orchestration.loop import Bottle
+
+        self.bottle = self.root / "bottle.json"
+        self.bottle.write_text(json.dumps(bottle or bottle_data()))
+        continuation, goal = self.root / "continuation.txt", self.root / "goal.json"
+        continuation.write_text("next")
+        goal.write_text("{}")
+        rollout = self.outgoing_rollout()
+        memento = {
+            "outgoing": {"thread": "live", "rollout": str(rollout), "device": 1, "inode": 2},
+            "predecessor": {"session": "old"},
+            "log_mark": 41,
+            "bottle": Bottle.parse(self.bottle).binding,
+            "ceiling_layers": ["/o/.local/memento/codex.conf"],
+        }
+        automatic = {"config": "/c.json", "continuation": str(continuation), "goal_receipt": str(goal), "memento": memento}
+        return self.loop.prepare_clear(self.root / "package", [], automatic=automatic), rollout
+
+    def test_outgoing_lane_is_previous_and_routed_journal_identity_is_inherited(self):
+        reset, _ = self.prepare()
+        self.assertEqual((reset["previous_session"], reset["inherited_session"]), ("live", "old"))
+        frontier = json.loads((self.root / "package/frontier.json").read_text())
+        self.assertEqual(frontier["log_mark"], 41)
+        self.assertEqual(set(frontier["excluded_sessions"]), {"live", "old", "protected"})
+        prompt = (self.root / "package/resume-prompt.txt").read_text()
+        self.assertIn(f"sealed bottle {self.bottle}", prompt)
+        self.assertIn("--ceiling-layer /o/.local/memento/codex.conf", prompt)
+
+    def test_bottle_is_sealed_before_clear_and_a_changed_bottle_refuses(self):
+        reset, _ = self.prepare()
+        manifest = json.loads(Path(reset["manifest"]["path"]).read_text())
+        self.assertIn(str(self.bottle), [f["path"] for f in manifest["files"]])
+        self.bottle.write_text(json.dumps(bottle_data(next_step="changed")))
+        with self.assertRaises(ValueError):
+            self.loop.clear_package(reset)
+
+    def test_bottle_carries_pointers_only(self):
+        from ops.orchestration.loop import Bottle
+
+        for bad in (bottle_data(objective="ship it"), bottle_data(deadline="x"), bottle_data(lit={"ticket": "t", "comments": []})):
+            path = self.root / "bad.json"
+            path.write_text(json.dumps(bad))
+            with self.subTest(bad=sorted(bad)), self.assertRaises(ValueError):
+                Bottle.parse(path)
+
+    def test_ready_clear_binds_the_outgoing_lane_not_the_routed_predecessor(self):
+        _, rollout = self.prepare()
+        self.assertTrue(self.loop.ready_clear(rollout)["clear_allowed"])
+        with self.assertRaises(ValueError):
+            self.loop.ready_clear(self.old_transcript)
+
+    def test_fresh_identity_equal_to_the_inherited_predecessor_refuses(self):
+        self.prepare()
+        with self.assertRaises(ValueError):
+            self.loop.bootstrap(self.fresh_transcript("old"))
+
+    def test_ceiling_reset_request_is_idempotent_and_holds_admission(self):
+        evidence = {"turn": "live:3", "band": "close", "usage": 190000}
+        self.loop.request_reset(evidence)
+        self.assertEqual(self.loop.request_reset(evidence), [evidence])
+        with self.assertRaisesRegex(ValueError, "context-reset-required"):
+            self.loop.begin("u1")
+
+    def test_startup_holds_despite_an_older_epoch_receipt(self):
+        state = self.loop._read()
+        state.update(startup_required=True, startup_receipt={"epoch": state["epoch"] - 1})
+        self.loop._save(state)
+        with self.assertRaisesRegex(ValueError, "startup context receipt"):
+            self.loop.begin("u1")
+
+
+class StubLoop:
+    def __init__(self):
+        self.requests = []
+
+    def _control(self):
+        return {"sessions": [dict(ROW, session_id=OUT, transcript="/dead.jsonl")]}
+
+    def request_reset(self, evidence):
+        self.requests.append(evidence)
+
+
+class StubWindow:
+    def __init__(self):
+        self.instructions = []
+        self.fail = None
+
+    def outgoing(self, frontier):
+        return {"thread": OUT, "rollout": "/live.jsonl", "device": 1, "inode": 2}
+
+    def instruct(self, frontier, thread, text):
+        if self.fail:
+            raise self.fail
+        self.instructions.append((thread, text))
+        return {"message_id": "m", "session_id": thread}
+
+
+class CeilingFold(unittest.TestCase):
+    def setUp(self):
+        from ops.orchestration.auto_reset import AutoReset
+
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.root))
+        layers = Layers(self).write("ceiling = 150_000\n")
+        self.loop, self.window = StubLoop(), StubWindow()
+        config = {"cwd": "/w", "memento": {"ceiling_layers": [str(p) for p in layers]}}
+        self.controller = AutoReset(self.loop, self.root / "supervisor.json", config, self.window)
+
+    def fold(self, **changes):
+        with mock.patch("ops.orchestration.auto_reset.inspect_transcript", return_value=summary(**changes)):
+            return self.controller.fold(self.controller.status())
+
+    def test_repeated_turn_end_gives_one_decision_and_one_instruction(self):
+        for _ in range(3):
+            self.fold(latest_request_input_tokens=160000)
+        self.assertEqual(len(self.window.instructions), 1)
+        self.assertEqual(self.window.instructions[0][0], OUT)
+        self.assertEqual(self.controller.status()["ceiling_decisions"][f"{OUT}:3"]["phase"], "instructed")
+
+    def test_close_band_requests_one_reset_and_under_band_instructs_nothing(self):
+        self.fold(latest_request_input_tokens=100000)
+        self.assertEqual((self.window.instructions, self.loop.requests), ([], []))
+        self.fold(latest_request_input_tokens=190000, completion_count=4)
+        self.fold(latest_request_input_tokens=190000, completion_count=4)
+        self.assertEqual(len(self.loop.requests), 1)
+        self.assertIn("released boundary", self.window.instructions[-1][1])
+
+    def test_crash_after_instruction_intent_never_replays(self):
+        self.window.fail = KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt):
+            self.fold(latest_request_input_tokens=160000)
+        self.window.fail = None
+        with self.assertRaisesRegex(ValueError, "uncertain ceiling instruction"):
+            self.fold(latest_request_input_tokens=160000)
+        self.assertEqual(self.window.instructions, [])
+
+    def test_active_turn_is_not_measured_until_its_end(self):
+        self.fold(status="active", latest_request_input_tokens=190000)
+        self.assertNotIn("ceiling_decisions", self.controller.status())
+
+
+class SupervisorService(unittest.TestCase):
+    def test_absent_compositor_is_a_read_only_wait_until_the_socket_returns(self):
+        from ops.orchestration import auto_reset
+
+        runtime = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(runtime))
+        socket_path = runtime / "hypr" / "sig" / ".socket2.sock"
+        sleeps = []
+
+        def sleep(seconds):
+            sleeps.append(seconds)
+            socket_path.parent.mkdir(parents=True, exist_ok=True)
+            socket_path.write_text("")
+
+        with mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": str(runtime), "HYPRLAND_INSTANCE_SIGNATURE": "sig"}):
+            with self.assertRaises(auto_reset.CompositorAbsent):
+                auto_reset.Wakeups([]).close()
+            auto_reset.compositor_wait(sleep)
+        self.assertEqual(sleeps, [5])
+
+    def test_unit_is_installed_persistent_and_not_session_bound(self):
+        text = (ROOT / "ops/orchestration/units/buford-memento-reset.service").read_text()
+        directives = [l for l in text.splitlines() if l and not l.startswith("#")]
+        for line in ("Type=exec", "Restart=on-failure", "WantedBy=default.target"):
+            self.assertIn(line, directives)
+        self.assertFalse([l for l in directives if l.startswith(("PartOf=", "BindsTo="))])
+        start = next(l for l in directives if l.startswith("ExecStart=")).split("=", 1)[1].split()
+        self.assertEqual(start[1:4], ["-m", "ops.orchestration.auto_reset", "run"])
+        self.assertTrue(start[0].startswith("/") and start[-1].startswith("/"))
+
+    def test_executing_source_closure_must_cover_ceiling_vendor_unit_and_layers(self):
+        from ops.orchestration import auto_reset, loop, native_window
+        from ops.orchestration.artifacts import file_binding
+
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(root))
+        authority, continuation, layer = root / "a", root / "c", root / "codex.conf"
+        for path in (authority, continuation, layer):
+            path.write_text("ceiling = 150_000\n")
+        base = [file_binding(m.__file__) for m in (auto_reset, loop, native_window)]
+        full = base + [
+            file_binding(auto_reset.ceiling.__file__),
+            file_binding(auto_reset.ceiling_config.__file__),
+            *(file_binding(p) for p in auto_reset.CLOSURE_FILES),
+        ]
+        for acceptance, memento in ((base, {}), (full, {"ceiling_layers": [str(layer)]})):
+            config = {"authority": file_binding(authority), "continuation": file_binding(continuation), "source_acceptance": acceptance, "memento": memento}
+            with self.subTest(size=len(acceptance)), self.assertRaisesRegex(ValueError, "not attested"):
+                auto_reset.AutoReset(None, root / "s.json", config, None).bindings()
+        config["source_acceptance"] = full + [file_binding(layer)]
+        auto_reset.AutoReset(None, root / "s.json", config, None).bindings()
+
+
 if __name__ == "__main__":
     unittest.main()
