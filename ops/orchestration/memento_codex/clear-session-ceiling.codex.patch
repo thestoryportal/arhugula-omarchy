@@ -1,0 +1,35 @@
+Codex owner on the SessionStart(clear) receipt, upstream Memento pin 4f95f159.
+
+--- a/hooks/scripts/clear-session-ceiling.py
++++ b/hooks/scripts/clear-session-ceiling.py
+@@ -21,6 +21,24 @@
+ from ceiling_config import CONFIG_NAME, session_directory  # noqa: E402
+ from ceiling_log import hook_payload, log  # noqa: E402
+ 
++
++def codex_owner():
++    """The codex process this hook runs under, as `pid:start-ticks`, so a Codex lane's own
++    handoff helper can tell its clear from any other lane's line in this shared log.
++    [LAW:no-silent-failure] the receipt is still written for a lane with no codex ancestor
++    (`none`) or no readable /proc (`unreadable`); neither value can match a helper's owner."""
++    pid = os.getppid()
++    try:
++        for _ in range(8):
++            stat = open(f"/proc/{pid}/stat").read()
++            fields = stat[stat.rfind(")") + 2:].split()
++            if open(f"/proc/{pid}/comm").read().strip() == "codex":
++                return f"{pid}:{fields[19]}"
++            pid = int(fields[1])
++    except (OSError, ValueError, IndexError):
++        return "unreadable"
++    return "none"
++
+ # [LAW:no-silent-failure] the same guard the Stop hook keeps: every way this can stop before it
+ # acts - stdin that is not a JSON object, a hooks.json drifted onto another event or source, a
+ # payload missing session_id - exits nonzero with the reason on stderr, and first records the stop
+@@ -52,4 +70,4 @@
+               else f"{type(unresolved).__name__}: {unresolved}")
+     log(hook if isinstance(hook, dict) else {}, f"stopped: {reason}", override=override)
+     raise
+-log(hook, "dropped" if dropped else "no-override", override=override)
++log(hook, "dropped" if dropped else "no-override", override=override, codex=codex_owner())
