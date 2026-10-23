@@ -55,6 +55,15 @@ class LocalAdapter:
         # LIT derives the claiming session from the environment; pinning it here
         # keeps every claim and renewal by this adapter under one identity.
         self.lit_env = dict(os.environ)
+        # LIT records CLAUDE_CODE_SESSION_ID itself and prefers it over --assignee;
+        # a Codex session names its native thread through that fallback. With
+        # neither, LIT would leave the claim anonymous: there is no owner to claim as.
+        thread = self.lit_env.get("CODEX_THREAD_ID")
+        self.owner_args = (
+            ["--assignee", f"codex_{thread}"] if thread
+            else [] if self.lit_env.get("CLAUDE_CODE_SESSION_ID")
+            else None
+        )
         self.claims = {}
 
     def checked(self, argv, cwd=None, env=None):
@@ -92,10 +101,12 @@ class LocalAdapter:
         # [LAW:single-enforcer] Every native claim passes this ownership check.
         # Native start silently transfers a same-checkout claim to another session,
         # so a current holder other than this adapter's refuses before any mutation.
+        if self.owner_args is None:
+            raise Stop("claim-owner-unknown")
         if self.assignee(ticket) != holder:
             raise Stop("claim-conflict")
         try:
-            self.lit("start", ticket)
+            self.lit("start", ticket, *self.owner_args)
         except Stop as error:
             raise Stop("claim-conflict") from error
         owner = self.assignee(ticket)

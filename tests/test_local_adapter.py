@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -138,6 +139,34 @@ class NativeClaimTests(unittest.TestCase):
             adapter = LocalAdapter(self.trees[lane], ["true"])
         getattr(adapter, method)(self.ticket)
         return adapter
+
+    def native(self, **identity):
+        # Exactly the given native session variables, whatever runs the suite.
+        environment = {k: v for k, v in os.environ.items()
+                       if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID")}
+        return mock.patch.dict("os.environ", {**environment, **identity}, clear=True)
+
+    def test_codex_session_claims_and_renews_as_its_native_thread(self):
+        with self.native(CODEX_THREAD_ID="thread-1"):
+            owner = LocalAdapter(self.trees["lane"], ["true"])
+            owner.start(self.ticket)
+            owner.assert_claim(self.ticket)
+            self.assertEqual(self.issue()["assignee"], "codex_thread-1")
+        with self.native(CODEX_THREAD_ID="thread-2"):
+            successor = LocalAdapter(self.trees["lane"], ["true"])
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            successor.start(self.ticket)
+        self.assertEqual(self.issue()["assignee"], "codex_thread-1")
+
+    def test_claim_without_a_native_session_refuses_before_any_mutation(self):
+        with self.native():
+            anonymous = LocalAdapter(self.trees["lane"], ["true"])
+        for method in (anonymous.start, anonymous.assert_claim):
+            with self.subTest(method=method.__name__):
+                with self.assertRaisesRegex(Stop, "claim-owner-unknown"):
+                    method(self.ticket)
+                self.assertEqual(self.issue()["status"], "open")
+                self.assertNotIn("assignee", self.issue())
 
     def test_same_checkout_successor_cannot_take_over_native_claim(self):
         self.claim("owner")
