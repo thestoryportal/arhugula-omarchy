@@ -14,7 +14,7 @@ Codex lanes never reach a Claude transport.
        TARGET=$(_pane_target "${TMUX_PANE:-}") \
          || TARGET=$(_pane_target "$(_discover_tmux_pane || true)") \
          || TARGET=""
-@@ -773,6 +775,35 @@
+@@ -773,6 +775,44 @@
        trap - EXIT
        echo "handoff scheduled → tmux $TARGET in ${HANDOFF_DELAY_SECONDS}s (log: $LOGFILE)"
  
@@ -43,8 +43,17 @@ Codex lanes never reach a Claude transport.
 +        exit 0
 +      fi
 +      _mktemp_or_exit LOGFILE log
-+      nohup python3 "$SELFDIR/codex-foot-helper" "$CODEX_PID" "$MSGFILE" "$GOALFILE" \
-+        "$HANDOFF_DELAY_SECONDS" </dev/null >>"$LOGFILE" 2>&1 &
++      # Codex's command runner kills the command's process group when it returns, so the helper gets
++      # its own OS session; Popen returns only after that child has exec'd, leaving no launch race.
++      python3 - "$SELFDIR/codex-foot-helper" "$CODEX_PID" "$MSGFILE" "$GOALFILE" \
++        "$HANDOFF_DELAY_SECONDS" "$LOGFILE" <<'PYDETACH'
++import subprocess
++import sys
++
++with open(sys.argv[-1], "ab") as log:
++    subprocess.Popen([sys.executable, *sys.argv[1:-1]], stdin=subprocess.DEVNULL,
++                     stdout=log, stderr=log, start_new_session=True)
++PYDETACH
 +      trap - EXIT
 +      echo "handoff scheduled → foot codex pid $CODEX_PID in ${HANDOFF_DELAY_SECONDS}s (log: $LOGFILE)"
      elif [[ -z "$HOSTED" && -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then

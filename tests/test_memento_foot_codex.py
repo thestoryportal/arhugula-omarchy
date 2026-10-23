@@ -1,5 +1,6 @@
 """Memento on a Codex lane: the real Stop gate, ceiling command, launcher and Foot helper."""
 
+import contextlib
 import difflib
 import importlib.machinery
 import importlib.util
@@ -8,8 +9,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 
 from ops.orchestration.memento_codex.build import build, HELPER
@@ -31,6 +34,14 @@ def build_plugin(out):
     named = {str(p.relative_to(PINNED)) for p in PINNED.rglob("*") if p.is_file()}
     return build(PINNED, out, {"commit": pin["commit"], "replaced": pin["replaced"],
                                "files": {n: pin["files"][n] for n in named - set(pin["replaced"])}})
+
+
+def alive(pid):
+    """A live process: present in /proc and not a zombie awaiting its reaper."""
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except FileNotFoundError:  # already reaped
+        return False
 
 
 def meta():
@@ -184,8 +195,12 @@ class CodexGateTests(unittest.TestCase):
         self.assertFalse((self.case / "config/sessions/other").exists())
 
     def launch(self, *args, chain=("foot",), **env):
-        """Run the built launcher under an offline process table: this shell, codex 70, then the
-        `chain` of its ancestors as pids 50, 40, ... under init."""
+        return subprocess.run(["bash", str(self.plugin / LAUNCHER), *args], env=self.launch_env(chain, **env),
+                              capture_output=True, text=True)
+
+    def launch_env(self, chain=("foot",), **env):
+        """An offline process table for the launcher: this shell, codex 70, then the `chain` of its
+        ancestors as pids 50, 40, ... under init. Dry-run unless FINALIZE_DRY_RUN is overridden."""
         tools = self.case / "tools"
         tools.mkdir(exist_ok=True)
         pids = [50 - 10 * i for i in range(len(chain))]
@@ -200,9 +215,45 @@ case "$pid:$field" in 70:comm) echo codex;; 70:ppid) echo 50;; {cases}
         (tools / "tmux").write_text('#!/bin/sh\ncase "$1" in display-message) echo "%1 0 s:0.0";; esac\n')
         for tool in tools.iterdir():
             tool.chmod(0o755)
-        env = dict(self.env, PATH=f"{tools}{os.pathsep}{os.environ['PATH']}", FINALIZE_DRY_RUN="1",
-                   MEMENTO_HANDOFF_DIR=str(self.case / "handoffs"), CODEX_THREAD_ID=THREAD, **env)
-        return subprocess.run(["bash", str(self.plugin / LAUNCHER), *args], env=env, capture_output=True, text=True)
+        return dict(self.env, PATH=f"{tools}{os.pathsep}{os.environ['PATH']}", FINALIZE_DRY_RUN="1",
+                    MEMENTO_HANDOFF_DIR=str(self.case / "handoffs"), CODEX_THREAD_ID=THREAD) | env
+
+    def test_scheduled_helper_survives_the_command_runners_group_cleanup(self):
+        # Codex kills the command's process group once the command returns. A stand-in helper beside
+        # a copy of the built launcher records its pid and session, then waits to be cleaned up.
+        bin_dir, record = self.case / "bin", self.case / "helper.json"
+        bin_dir.mkdir()
+        shutil.copy(self.plugin / LAUNCHER, bin_dir / "finalize-session")
+        (bin_dir / "codex-foot-helper").write_text(
+            f"import json, os, time\nopen({str(record)!r}, 'w').write(json.dumps([os.getpid(), os.getsid(0)]))\n"
+            "time.sleep(60)\n")
+        env = self.launch_env(HYPRLAND_INSTANCE_SIGNATURE="offline", FINALIZE_DRY_RUN="")
+        with subprocess.Popen(["bash", str(bin_dir / "finalize-session"), "bottle"], env=env, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True) as runner:
+            out, err = runner.communicate(timeout=30)
+        self.assertEqual(runner.returncode, 0, err)
+        self.assertIn("handoff scheduled → foot codex pid 70", out)
+        with contextlib.suppress(ProcessLookupError):  # the group may already be empty
+            os.killpg(runner.pid, signal.SIGKILL)
+        deadline = time.monotonic() + 10
+        while not record.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertTrue(record.exists(), "the helper never ran past the runner's group cleanup")
+        pid, sid = json.loads(record.read_text())
+        self.addCleanup(self.reap, pid, bin_dir / "codex-foot-helper")
+        self.assertNotEqual(sid, runner.pid)
+        self.assertTrue(alive(pid), "the helper died with the runner's process group")
+
+    def reap(self, pid, helper):
+        """Kill exactly the stand-in helper this test scheduled, then wait for it to be gone."""
+        if not alive(pid):
+            return
+        self.assertIn(str(helper), Path(f"/proc/{pid}/cmdline").read_bytes().decode().replace("\0", " "))
+        os.kill(pid, signal.SIGKILL)
+        deadline = time.monotonic() + 10
+        while alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(alive(pid))
 
     def test_launcher_selects_same_foot_codex_transport_or_refuses(self):
         # Foot runs codex directly, or through the login shell it started (the retained Scratch lane).
