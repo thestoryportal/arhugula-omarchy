@@ -1,7 +1,10 @@
+import json
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from ops.orchestration.local import LocalAdapter, ProcessWorker
 from ops.orchestration.continuation import Stop
@@ -97,3 +100,81 @@ class LocalAdapterTests(unittest.TestCase):
         result=json.loads(receipts[0].read_text())
         self.assertEqual(result['stderr']['bytes'],2000001)
         self.assertLess(len(result['summary']),5000)
+
+
+@unittest.skipUnless(shutil.which("lit"), "native claim behavior requires lit")
+class NativeClaimTests(unittest.TestCase):
+    """Claims through real LIT; each adapter runs under one native session identity."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name) / "repo"
+        self.root.mkdir()
+        git(self.root, "init", "-b", "main")
+        git(self.root, "config", "user.name", "Test")
+        git(self.root, "config", "user.email", "test@example.invalid")
+        (self.root / "base.txt").write_text("base\n")
+        git(self.root, "add", "base.txt")
+        git(self.root, "commit", "-m", "baseline")
+        subprocess.run(["lit", "init", "--skip-agents", "--skip-hooks"], cwd=self.root,
+                       check=True, capture_output=True)
+        self.trees = {}
+        for lane in ("lane", "other"):
+            self.trees[lane] = Path(directory.name) / lane
+            git(self.root, "worktree", "add", "-b", lane, str(self.trees[lane]))
+        subprocess.run(["lit", "new", "--title", "Claimed unit", "--topic", "claims"],
+                       cwd=self.trees["lane"], check=True, capture_output=True)
+        self.ticket = self.issue()["id"]
+
+    def adapter(self, session, lane="lane"):
+        return LocalAdapter(self.trees[lane], ["true"]), {"CLAUDE_CODE_SESSION_ID": session}
+
+    def issue(self):
+        exported = subprocess.run(["lit", "export"], cwd=self.trees["lane"], check=True,
+                                  capture_output=True, text=True).stdout
+        (issue,) = json.loads(exported)["issues"]
+        return issue
+
+    def claim(self, session, method="start", lane="lane"):
+        adapter, env = self.adapter(session, lane)
+        with mock.patch.dict("os.environ", env):
+            getattr(adapter, method)(self.ticket)
+        return adapter
+
+    def test_same_checkout_successor_cannot_take_over_native_claim(self):
+        self.claim("owner")
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("successor")
+        self.assertEqual(self.issue()["assignee"], "claude_owner")
+
+    def test_other_checkout_claim_refuses_without_take(self):
+        self.claim("owner")
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("other", lane="other")
+        self.assertEqual(self.issue()["assignee"], "claude_owner")
+
+    def test_owner_renews_its_claim_and_detects_a_later_reassignment(self):
+        owner = self.claim("owner")
+        with mock.patch.dict("os.environ", {"CLAUDE_CODE_SESSION_ID": "owner"}):
+            owner.assert_claim(self.ticket)
+            subprocess.run(["lit", "update", self.ticket, "--assignee", "claude_reassigned"],
+                           cwd=self.trees["lane"], check=True, capture_output=True)
+            with self.assertRaisesRegex(Stop, "claim-conflict"):
+                owner.assert_claim(self.ticket)
+        self.assertEqual(self.issue()["assignee"], "claude_reassigned")
+
+    def test_asserting_an_unheld_claim_never_claims(self):
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("owner", "assert_claim")
+        self.assertEqual(self.issue()["status"], "open")
+        self.claim("owner")
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("owner", "assert_claim")
+
+    def test_identity_change_inside_one_adapter_is_reported_not_recorded(self):
+        adapter = self.claim("owner")
+        with mock.patch.dict("os.environ", {"CLAUDE_CODE_SESSION_ID": "successor"}):
+            with self.assertRaisesRegex(Stop, "claim-conflict"):
+                adapter.assert_claim(self.ticket)
+        self.assertEqual(adapter.claims[self.ticket], "claude_owner")

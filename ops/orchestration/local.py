@@ -51,6 +51,7 @@ class LocalAdapter:
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
         self.artifact_root = artifact_root
+        self.claims = {}
 
     def checked(self, argv, cwd=None):
         result = command(argv, cwd or self.cwd, timeout=self.timeout)
@@ -78,11 +79,28 @@ class LocalAdapter:
     def export(self):
         return json.loads(self.lit("export"))
 
-    def start(self, ticket):
+    def assignee(self, ticket):
+        (issue,) = [i for i in self.export()["issues"] if i["id"] == ticket]
+        # LIT export omits the field for an issue nobody holds.
+        return issue.get("assignee", "")
+
+    def claim(self, ticket, holder):
+        # [LAW:single-enforcer] Every native claim passes this ownership check.
+        # Native start silently transfers a same-checkout claim to a new session,
+        # so a current holder other than ours refuses before any mutation.
+        if self.assignee(ticket) != holder:
+            raise Stop("claim-conflict")
         try:
             self.lit("start", ticket)
         except Stop as error:
             raise Stop("claim-conflict") from error
+        owner = self.assignee(ticket)
+        if not owner or holder not in ("", owner):
+            raise Stop("claim-conflict")
+        self.claims[ticket] = owner
+
+    def start(self, ticket):
+        self.claim(ticket, self.claims.get(ticket, ""))
 
     def show(self, ticket):
         return self.lit("show", ticket)
@@ -94,9 +112,9 @@ class LocalAdapter:
         self.lit("done", ticket)
 
     def assert_claim(self, ticket):
-        # LIT has no read-only exported claims API. Renew using its native
-        # conflict check; never pass --take. Revalidation checked in_progress.
-        self.start(ticket)
+        # LIT has no read-only exported claims API. Renew only the claim this
+        # adapter made, through the native conflict check; never pass --take.
+        self.claim(ticket, self.claims.get(ticket))
 
     def common_dir(self):
         return Path(
