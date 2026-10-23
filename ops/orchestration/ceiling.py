@@ -150,8 +150,6 @@ def decide(measurement, bound, task_budget, expected=None):
         reasons.append("ceiling-" + position)
     if measurement.request_input + task_budget + bound.reserve > bound.ceiling:
         reasons.append("insufficient-headroom")
-    if measurement.status != "complete":
-        reasons.append("session-not-complete")
     text = INSTRUCTIONS[position]
     return Decision(
         turn=(measurement.identity.session_id, measurement.turns),

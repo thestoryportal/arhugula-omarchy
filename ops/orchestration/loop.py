@@ -136,6 +136,48 @@ def identity(transcript):
     return result
 
 
+BOTTLE_SHAPE = {
+    "role": str,
+    "outgoing": dict,
+    "lit": dict,
+    "release_receipt": str,
+    "pause": list,
+    "goal_receipt": str,
+    "next_step": str,
+}
+
+
+@dataclass(frozen=True)
+class Bottle:
+    """The outgoing lane's sealed message: pointers only, never the conversation.
+
+    The goal ledger stays the only home of objective and deadline, so a bottle that
+    carries any key beyond pointers is refused rather than becoming a second source.
+    """
+
+    binding: dict
+
+    @classmethod
+    def parse(cls, path):
+        binding = file_binding(path)
+        data = json.loads(Path(path).read_text())
+        if (
+            set(data) != set(BOTTLE_SHAPE)
+            or any(type(data[k]) is not t for k, t in BOTTLE_SHAPE.items())
+            or set(data["outgoing"]) != {"session_id", "model", "effort", "window", "process"}
+            or set(data["lit"]) != {"ticket", "comments"}
+            or not data["lit"]["comments"]
+            or not all(isinstance(p, str) and p for p in data["pause"])
+        ):
+            raise ValueError("bottle must hold only the sealed pointer schema")
+        return cls(binding)
+
+    def sealed(self):
+        if file_binding(self.binding["path"]) != self.binding:
+            raise ValueError("sealed bottle changed; refuse delivery")
+        return self.binding
+
+
 @dataclass(frozen=True)
 class RecoveryTransfer:
     """Bound failed attempt and immutable predecessor chain, without epoch credit."""
@@ -356,7 +398,9 @@ class Loop:
                     "verified native reset receipt required before fresh-epoch admission"
                 )
             if state.get('startup_required'):
-                if state.get('startup_receipt') is None:
+                receipt = state.get('startup_receipt')
+                # An older epoch's receipt never stands in for this context's startup.
+                if receipt is None or receipt.get('epoch') != state['epoch']:
                     raise ValueError('verified startup context receipt required before workflow')
                 row = next(s for s in control['sessions'] if s['role'] == 'buford')
                 state['startup_workflow_admission'] = self._startup_budget(state, row['transcript'])
@@ -435,6 +479,17 @@ class Loop:
             state['reset_requested'] = True
             self._save(state)
             raise
+
+    def request_reset(self, evidence):
+        """Record a ceiling close decision; admission holds until a genuine reset."""
+        with Lease(self.path.with_suffix(".lock")):
+            state = self._read()
+            requests = state.setdefault("reset_requests", [])
+            if evidence not in requests:
+                requests.append(evidence)
+            state["reset_requested"] = True
+            self._save(state)
+            return requests
 
     def finish_startup(self):
         """Bind native context measurement before the first workflow admission."""
@@ -626,13 +681,19 @@ class Loop:
                 raise ValueError("clear package already sealed")
             nonce = str(uuid.uuid4())
             prepared_at = datetime.now(timezone.utc).isoformat()
+            control = self._control()
+            memento = (automatic or {}).get("memento")
+            outgoing = memento["outgoing"] if memento else None
+            # The outgoing lane is the thread the native process actually holds; a
+            # routed journal identity that differs is only an inherited predecessor.
+            previous = outgoing["thread"] if outgoing else state["session_id"]
+            inherited = state["session_id"] if previous != state["session_id"] else None
             provenance = identity(
-                next(
-                    s["transcript"]
-                    for s in self._control()["sessions"]
-                    if s["role"] == "buford"
-                )
+                outgoing["rollout"]
+                if outgoing
+                else next(s["transcript"] for s in control["sessions"] if s["role"] == "buford")
             )
+            bottle = Bottle(memento["bottle"]).sealed() if memento else None
             atomic_json(
                 directory / "frontier.json",
                 dict(
@@ -652,6 +713,21 @@ class Loop:
                     native_lane={
                         k: provenance[k] for k in ("cwd", "source", "originator")
                     },
+                    **(
+                        dict(
+                            outgoing=outgoing,
+                            inherited_session=inherited,
+                            predecessor=memento["predecessor"],
+                            log_mark=memento["log_mark"],
+                            excluded_sessions=sorted(
+                                {previous, *([inherited] if inherited else [])}
+                                | {s["session_id"] for s in control["sessions"]}
+                            ),
+                            bottle=bottle,
+                        )
+                        if memento
+                        else {}
+                    ),
                 ),
             )
             prompt = (
@@ -694,6 +770,13 @@ class Loop:
                     "Report role, UUID and pause in at most three lines. "
                     f"Actual workflow begins by running {sys.executable} -m ops.orchestration.loop --state {self.path} --control {self.control} begin {state['goal_ticket']}"
                     + (f" --unit {automatic['workflow_unit']}" if automatic.get('workflow_unit') is not None else '')
+                    + "".join(f" --ceiling-layer {p}" for p in (memento or {}).get("ceiling_layers", ()))
+                    + (
+                        f". Then read and follow the sealed bottle {bottle['path']} sha256 {bottle['sha256']}; "
+                        "a changed bottle holds"
+                        if bottle
+                        else ""
+                    )
                     + f". After successful admission, read the bound continuation {automatic['continuation']} "
                     "and full applicable Laws once for its medium. Preserve original scope/deadline, actual goal accounting, "
                     "all review budgets, protected work and independent review/CI/installed gates. "
@@ -711,13 +794,15 @@ class Loop:
                         file_binding(directory / "frontier.json"),
                         file_binding(path),
                         *extra,
+                        *([bottle] if bottle else []),
                     ],
                 ),
             )
             state["reset"] = {
                 "directory": str(directory),
                 "manifest": file_binding(directory / "manifest.json"),
-                "previous_session": state["session_id"],
+                "previous_session": previous,
+                **({"inherited_session": inherited} if memento else {}),
             }
             state["admission"] = None
             self._save(state)
@@ -751,10 +836,10 @@ class Loop:
         state = self.status()
         actual = identity(transcript)
         if (
-            actual["status"] != "complete"
-            or actual["session_id"] != state["session_id"]
+            state["reset"] is None
+            or actual["status"] != "complete"
+            or actual["session_id"] != state["reset"]["previous_session"]
             or (actual["model"], actual["effort"]) != (state["model"], state["effort"])
-            or state["reset"] is None
         ):
             raise ValueError(
                 "native clear requires an idle matching lane and sealed package"
@@ -772,9 +857,9 @@ class Loop:
             actual = identity(transcript)
             if (actual["model"], actual["effort"]) != (state["model"], state["effort"]):
                 raise ValueError("fresh model/effort mismatch")
-            if (
-                not actual["session_id"]
-                or actual["session_id"] == reset["previous_session"]
+            if not actual["session_id"] or actual["session_id"] in (
+                reset["previous_session"],
+                reset.get("inherited_session"),
             ):
                 raise ValueError("native context must have a fresh identity")
             token = f"BUFORD_CONTEXT_HANDOFF {frontier['nonce']} {file_binding(Path(reset['directory']) / 'frontier.json')['sha256']}"
@@ -1020,6 +1105,7 @@ def main():
     begin.add_argument("ticket")
     begin.add_argument("--maintenance", action="store_true")
     begin.add_argument("--headroom-hold", action="store_true")
+    begin.add_argument("--ceiling-layer", type=Path, action="append", default=[])
     begin.add_argument(
         "--unit", help="stable shipping-unit ID under a multi-unit LIT ticket"
     )
@@ -1078,13 +1164,29 @@ def main():
                 state["effort"],
             ):
                 raise ValueError("actual Buford identity/model/effort mismatch")
-            usage = actual["input_tokens"]
-            fits = (
-                type(usage) is int
-                and usage >= 0
-                and usage + buford["task_budget"] + buford["reserve"]
-                <= buford["ceiling"]
-            )
+            from .ceiling import Bound, CeilingHold, Measurement, decide
+            from .session_context import inspect_transcript
+
+            # [LAW:single-enforcer] Admission headroom is the per-decision Memento bound
+            # of this measured lane; a missing layer or metric holds instead of fitting.
+            try:
+                measurement = Measurement.parse(
+                    inspect_transcript("codex", buford["transcript"])
+                )
+                if (measurement.identity.session_id, measurement.identity.model) != (
+                    state["session_id"],
+                    state["model"],
+                ):
+                    raise CeilingHold("measured lane is not the journal's Buford")
+                decision = decide(
+                    measurement,
+                    Bound.resolve(buford, args.ceiling_layer, measurement),
+                    buford["task_budget"],
+                )
+            except CeilingHold as error:
+                # Undecidable is a hold, not a measured overrun: no reset is requested.
+                raise ValueError(f"ceiling-hold: {error}") from error
+            fits = decision.admit
             result = loop.begin(
                 args.ticket,
                 maintenance=args.maintenance,
