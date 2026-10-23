@@ -6,10 +6,10 @@ remembered across a changed identity, model or reported window.
 """
 
 from dataclasses import dataclass
+import hashlib
 import math
 from pathlib import Path
 
-from .artifacts import file_binding
 from .vendor.memento import ceiling_config as memento
 
 
@@ -94,6 +94,37 @@ class Bound:
 
 
 @dataclass(frozen=True)
+class Snapshot:
+    """One read of a layer file: the bytes its binding names are the bytes parsed.
+
+    The pinned grammar reads a layer only through exists() and read_text(), so it
+    parses this snapshot as it would the file, and its messages still name the file.
+    """
+
+    path: Path
+    data: bytes
+
+    @classmethod
+    def read(cls, path):
+        path = Path(path).absolute()
+        return cls(path, path.read_bytes())
+
+    @property
+    def binding(self):
+        return {"path": str(self.path), "bytes": len(self.data),
+                "sha256": hashlib.sha256(self.data).hexdigest()}
+
+    def exists(self):
+        return True
+
+    def read_text(self):
+        return self.data.decode()
+
+    def __str__(self):
+        return str(self.path)
+
+
+@dataclass(frozen=True)
 class Authority:
     """The one ceiling authority: sealed layer bytes plus the handoff reserve.
 
@@ -102,14 +133,15 @@ class Authority:
     """
 
     record: dict
+    layers: tuple
 
     @classmethod
     def seal(cls, memento_config):
         reserve = memento_config["handoff_reserve"]
         if type(reserve) is not int or reserve < 0:
             raise CeilingHold("handoff reserve must be a non-negative integer")
-        layers = [file_binding(p) for p in memento_config["ceiling_layers"]]
-        return cls({"layers": layers, "handoff_reserve": reserve})
+        layers = tuple(Snapshot.read(p) for p in memento_config["ceiling_layers"])
+        return cls({"layers": [s.binding for s in layers], "handoff_reserve": reserve}, layers)
 
     @classmethod
     def sealed(cls, record):
@@ -118,24 +150,22 @@ class Authority:
         if record is None:
             raise CeilingHold("no sealed ceiling authority; admission holds")
         try:
-            changed = any(file_binding(b["path"]) != b for b in record["layers"])
+            layers = tuple(Snapshot.read(b["path"]) for b in record["layers"])
         except OSError as error:
             raise CeilingHold(f"sealed ceiling layer unreadable: {error}") from None
-        if changed:
+        if [s.binding for s in layers] != record["layers"]:
             raise CeilingHold("sealed ceiling layer changed; admission holds")
-        return cls(record)
+        return cls(record, layers)
 
     def bound(self, row, measurement):
-        return Bound.resolve(
-            row, [b["path"] for b in self.record["layers"]], measurement,
-            self.record["handoff_reserve"],
-        )
+        # [LAW:single-enforcer] The verified snapshots are parsed; the paths are never reopened.
+        return Bound.resolve(row, self.layers, measurement, self.record["handoff_reserve"])
 
 
 def soft_threshold(layers):
-    """Fold the explicit layer files with the pinned grammar; refusals hold."""
+    """Fold the layer sources (verified Snapshots in every decision) with the pinned grammar."""
     try:
-        written = [w for w in (memento.ceiling_in(Path(p)) for p in layers) if w]
+        written = [w for w in (memento.ceiling_in(layer) for layer in layers) if w]
         if not written:
             raise CeilingHold("no Memento ceiling layer is configured")
         soft = memento.folded(written)

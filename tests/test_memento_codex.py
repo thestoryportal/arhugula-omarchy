@@ -801,10 +801,10 @@ class OneCeilingAuthority(unittest.TestCase):
         self.loop._save(state)
         return record
 
-    def begin(self, *extra, **changes):
+    def begin(self, *extra, task_budget=30000, **changes):
         from ops.orchestration import loop
 
-        row = dict(ROW, task_budget=30000)
+        row = dict(ROW, task_budget=task_budget)
         control = json.loads(self.control.read_text())
         control["sessions"][0].update(row, session_id="old")
         self.control.write_text(json.dumps(control))
@@ -855,6 +855,50 @@ class OneCeilingAuthority(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertIn("ceiling-hold", stderr)
                 self.assertFalse(self.loop._read()["reset_requested"])
+
+    def test_cli_decides_on_the_verified_bytes_when_the_layer_changes_before_parsing(self):
+        from ops.orchestration import ceiling
+
+        self.seal(reserve=15000)
+        real = ceiling.Authority.sealed.__func__
+
+        def verified_then_changed(cls, record):
+            authority = real(cls, record)
+            self.layer.write_text("ceiling = 180_000\n")
+            return authority
+
+        # Reviewer probe: 160000 usage, 10000 task, 15000 reserve. The sealed 150000 is
+        # finish/deny; the reopened 180000 would be under and fit (159000+10000+15000).
+        with mock.patch.object(ceiling.Authority, "sealed", classmethod(verified_then_changed)):
+            code, stderr = self.begin(task_budget=10000, latest_request_input_tokens=159000)
+        self.assertEqual(code, 2)
+        self.assertIn("context-reset-required", stderr)
+        self.assertTrue(self.loop._read()["reset_requested"])
+
+    def test_supervisor_decides_on_the_sealed_bytes_when_the_layer_changes_before_parsing(self):
+        from ops.orchestration import ceiling
+        from ops.orchestration.auto_reset import AutoReset
+
+        layer = Layers(self).write("ceiling = 150_000\n")[0]
+        real = ceiling.Authority.seal.__func__
+
+        def sealed_then_changed(cls, memento_config):
+            authority = real(cls, memento_config)
+            layer.write_text("ceiling = 180_000\n")
+            return authority
+
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(root))
+        window = StubWindow()
+        config = {"cwd": "/w", "memento": {"ceiling_layers": [str(layer)], "handoff_reserve": 0}}
+        controller = AutoReset(StubLoop(), root / "supervisor.json", config, window)
+        with mock.patch.object(ceiling.Authority, "seal", classmethod(sealed_then_changed)), \
+                mock.patch("ops.orchestration.auto_reset.inspect_transcript",
+                           return_value=summary(latest_request_input_tokens=159000)):
+            controller.fold(controller.status())
+        decision = controller.status()["ceiling_decisions"][f"{OUT}:3"]
+        self.assertEqual((decision["band"], decision["bound"]["soft"], decision["admit"]), ("finish", 150000, False))
+        self.assertEqual(len(window.instructions), 1)
 
     def test_supervisor_refuses_a_config_bound_that_differs_from_the_sealed_one(self):
         from ops.orchestration.auto_reset import AutoReset
