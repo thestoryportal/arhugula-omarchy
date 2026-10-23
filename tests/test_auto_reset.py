@@ -156,11 +156,11 @@ class AutoResetTests(unittest.TestCase):
         }
         self.window = WindowSeam(self.root)
         self.clock = 100
-        from ops.orchestration import auto_reset, loop, native_window
+        from ops.orchestration import auto_reset
 
         self.config["source_acceptance"].extend(
-            file_binding(module.__file__)
-            for module in (auto_reset, loop, native_window)
+            file_binding(path)
+            for path in (*auto_reset.source_closure(), *auto_reset.CLOSURE_FILES)
         )
 
     def controller(self):

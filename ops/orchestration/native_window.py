@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, asdict
 import json
+import os
 from pathlib import Path
 import re
 import select
@@ -59,6 +60,123 @@ def require_us_keyboard(rows):
 
 def processes():
     return {proc.pid: (proc.start, proc.parent) for proc in process_stats()}
+
+
+def boot_facts(proc=Path("/proc")):
+    stat = (Path(proc) / "stat").read_text().splitlines()
+    return {
+        "boot_id": (Path(proc) / "sys/kernel/random/boot_id").read_text().strip(),
+        "btime": next(int(line.split()[1]) for line in stat if line.startswith("btime ")),
+    }
+
+
+@dataclass(frozen=True)
+class LockHolder:
+    pid: int
+    fd: str
+    name: str
+    device: int
+    inode: int
+
+
+def _scan(proc):
+    """Map every held FLOCK to a named fd of its holder, reading only holder fd tables."""
+    entries = set()
+    for line in (Path(proc) / "locks").read_text().splitlines():
+        fields = line.split()
+        # Blocked waiters print "->" and hold nothing.
+        if len(fields) < 6 or fields[1] != "FLOCK":
+            continue
+        major, minor, inode = fields[5].split(":")
+        entries.add((int(fields[4]), os.makedev(int(major, 16), int(minor, 16)), int(inode)))
+    holders = []
+    for pid in sorted({entry[0] for entry in entries}):
+        directory = Path(proc) / str(pid) / "fd"
+        try:
+            names = os.listdir(directory)
+        except PermissionError as error:
+            raise ValueError("lock holder fd table is not readable") from error
+        except FileNotFoundError:
+            names = []
+        for fd in names:
+            link = directory / fd
+            try:
+                name, info = os.readlink(link), os.stat(link)
+            except PermissionError as error:
+                raise ValueError("lock holder fd is not readable") from error
+            except FileNotFoundError:
+                # An fd that closed during the scan holds nothing; coverage still decides.
+                continue
+            holders.append(LockHolder(pid, fd, name, info.st_dev, info.st_ino))
+    mapped = set()
+    for pid, device, inode in entries:
+        match = {h for h in holders if (h.pid, h.device, h.inode) == (pid, device, inode)}
+        if not match:
+            raise ValueError("held lock does not map to a holder fd")
+        mapped |= match
+    return sorted(mapped, key=lambda h: (h.pid, int(h.fd))), holders
+
+
+def lock_table(proc=Path("/proc")):
+    return _scan(proc)[0]
+
+
+def _last_record_time(rollout):
+    stamps = [
+        json.loads(line).get("timestamp")
+        for line in Path(rollout).read_text().splitlines()
+        if line.strip()
+    ]
+    stamps = [s for s in stamps if s]
+    if not stamps:
+        raise ValueError("predecessor rollout has no timestamped record")
+    return datetime.fromisoformat(stamps[-1].replace("Z", "+00:00")).timestamp()
+
+
+def seal_predecessor(session, rollout, codex_home, proc=Path("/proc")):
+    """Seal an inherited predecessor at prepare; it must already pass the rule."""
+    info = os.stat(rollout)
+    seal = {
+        "session": str(uuid.UUID(session)),
+        "rollout": str(rollout),
+        "device": info.st_dev,
+        "inode": info.st_ino,
+        "size": info.st_size,
+        "mtime_ns": info.st_mtime_ns,
+        "last_record": _last_record_time(rollout),
+        **boot_facts(proc),
+    }
+    predecessor_absent(seal, codex_home, proc)
+    return seal
+
+
+def predecessor_absent(seal, codex_home, proc=Path("/proc")):
+    """Prove a routed predecessor that differs from the outgoing lane has no owner.
+
+    No process survives a reboot, so a predecessor whose last activity precedes this
+    boot cannot be alive; its old pid is never looked up. Path absence is never
+    evidence: the lock table and the sealed rollout inode decide.
+    """
+    if boot_facts(proc) != {"boot_id": seal["boot_id"], "btime": seal["btime"]}:
+        raise ValueError("boot changed since the predecessor was sealed")
+    try:
+        info = os.stat(seal["rollout"])
+    except FileNotFoundError as error:
+        raise ValueError("sealed predecessor rollout is gone") from error
+    if (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns) != (
+        seal["device"], seal["inode"], seal["size"], seal["mtime_ns"]
+    ):
+        raise ValueError("predecessor rollout changed since it was sealed")
+    if info.st_mtime_ns / 1e9 >= seal["btime"] or seal["last_record"] >= seal["btime"]:
+        raise ValueError("predecessor was active in the current boot")
+    lock = str(Path(codex_home) / "thread-writer-locks" / (seal["session"] + ".lock"))
+    _, holders = _scan(proc)
+    for holder in holders:
+        if holder.name in (lock, lock + " (deleted)") or (holder.device, holder.inode) == (
+            seal["device"], seal["inode"]
+        ):
+            raise ValueError("predecessor lock or rollout is still held")
+    return True
 
 
 def launch_cwd(argv, process_cwd):
@@ -257,6 +375,50 @@ class NativeWindow:
             owned.add(str(uuid.UUID(path.stem)))
         return owned
 
+    def outgoing(self, frontier):
+        """The thread whose writer lock this native process holds, joined to its rollout."""
+        owned = self.owned_threads(frontier)
+        joined = {}
+        for path in self.rollouts():
+            with path.open() as stream:
+                try:
+                    row = json.loads(next(stream))
+                except StopIteration:
+                    continue
+            if row.get("type") == "session_meta":
+                joined.setdefault(row["payload"]["id"], []).append((path, row["payload"]))
+        lanes, children = [], []
+        for thread in owned:
+            rows = joined.get(thread, [])
+            if len(rows) != 1:
+                raise ValueError("thread writer lock is not joined to one open rollout")
+            path, meta = rows[0]
+            (children if "parent_thread_id" in meta else lanes).append((thread, path, meta))
+        if len(lanes) != 1 or any(
+            m.get("source") == "cli" and t != lanes[0][0]
+            for t, rows in joined.items()
+            for _, m in rows
+        ):
+            raise ValueError("outgoing native CLI lane is not unique")
+        thread, path, meta = lanes[0]
+        if {k: meta.get(k) for k in ("cwd", "source", "originator")} != frontier["native_lane"]:
+            raise ValueError("outgoing native rollout provenance changed")
+        for _, _, child in children:
+            if not (
+                isinstance(child.get("source"), dict)
+                and "subagent" in child["source"]
+                and child["parent_thread_id"] == thread
+            ):
+                raise ValueError("extra writer lock is not a subagent of the outgoing lane")
+        info = os.stat(path)
+        return {"thread": thread, "rollout": str(path), "device": info.st_dev, "inode": info.st_ino}
+
+    def log_mark(self):
+        with sqlite3.connect(
+            (self.home / "logs_2.sqlite").as_uri() + "?mode=ro", uri=True
+        ) as db:
+            return db.execute("SELECT COALESCE(MAX(id), 0) FROM logs").fetchone()[0]
+
     def recovery_context(self, frontier, previous, grant):
         if grant is None:
             return self.context(frontier, previous)
@@ -317,19 +479,27 @@ class NativeWindow:
         """Prove native TUI thread creation even before lazy rollout persistence."""
         owned = self.owned_threads(frontier)
         prepared = datetime.fromisoformat(frontier["prepared_at"]).timestamp()
+        mark = frontier.get("log_mark")
+        excluded = {previous, *frontier.get("excluded_sessions", ())}
         # [LAW:parse-dont-validate] A held native writer lock plus the native TUI
         # thread/start event proves creation; title alone never authorizes input.
         with sqlite3.connect(
             (self.home / "logs_2.sqlite").as_uri() + "?mode=ro", uri=True
         ) as db:
+            # A sealed high-water mark binds the proof to rows written after prepare;
+            # a wall-clock floor cannot separate a same-second pid reuse.
             rows = db.execute(
                 "SELECT id,ts,ts_nanos,thread_id,process_uuid,feedback_log_body FROM logs "
-                "WHERE target='codex_core::shell_snapshot' AND ts>=? AND process_uuid LIKE ?",
-                (int(prepared), f"pid:{self.cap.native_pid}:%"),
+                "WHERE target='codex_core::shell_snapshot' AND "
+                + ("id>?" if mark is not None else "ts>=?")
+                + " AND process_uuid LIKE ?",
+                (mark if mark is not None else int(prepared), f"pid:{self.cap.native_pid}:%"),
             ).fetchall()
+            if mark is not None and len({row[4] for row in rows}) > 1:
+                raise ValueError("mixed native process identities after the sealed mark")
             candidates = []
             for log_id, ts, nanos, session, process, body in rows:
-                if session not in owned or session == previous:
+                if mark is None and (session not in owned or session == previous):
                     continue
                 if not all(
                     token in body
@@ -343,6 +513,10 @@ class NativeWindow:
                     )
                 ):
                     continue
+                if session in excluded:
+                    raise ValueError("fresh context reuses an outgoing, inherited or routed UUID")
+                if session not in owned:
+                    raise ValueError("fresh thread writer lock is not held by the native process")
                 identifier = uuid.UUID(session)
                 created = (identifier.int >> 80) / 1000
                 if (
@@ -433,6 +607,18 @@ class NativeWindow:
             session = str(uuid.UUID(context["session_id"]))
         except (ValueError, OSError) as error:
             raise QueueRefused(str(error)) from error
+        return self._queued(session, text)
+
+    def instruct(self, frontier, thread, text):
+        """Queue one ceiling instruction to the proven outgoing lane thread only."""
+        try:
+            if self.outgoing(frontier)["thread"] != thread:
+                raise ValueError("ceiling instruction target is not the outgoing lane")
+        except (ValueError, OSError) as error:
+            raise QueueRefused(str(error)) from error
+        return self._queued(thread, text)
+
+    def _queued(self, session, text):
         answer = self.command(
             ["codex", "queue", "--thread", session, "--message", text]
         )

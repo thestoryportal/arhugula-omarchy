@@ -1,9 +1,11 @@
 """Autonomous same-window native reset; never replay an uncertain input effect."""
 
 import argparse
+import ast
 import ctypes
 from dataclasses import dataclass
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -17,12 +19,61 @@ import uuid
 from datetime import datetime
 
 from .artifacts import DEFAULT_ROOT, file_binding
+from .ceiling import Authority, CeilingHold, Measurement, decide
 from .continuation import Lease
 from .goal_lineage import GoalLineage, goal_observation
-from .loop import Loop, NativeLit, RecoveryTransfer, identity
-from .native_window import NativeWindow, QueueRefused, WindowCapability
+from .loop import Bottle, Loop, NativeLit, RecoveryTransfer, identity
+from .native_window import (
+    NativeWindow,
+    QueueRefused,
+    WindowCapability,
+    predecessor_absent,
+    seal_predecessor,
+)
 from .native_goal import read_goal
 from .records import atomic_json, private_directory
+from .session_context import inspect_transcript
+
+HERE = Path(__file__).resolve().parent
+# Non-module bytes the reset executes under; attested with the modules themselves.
+CLOSURE_FILES = (
+    HERE / "vendor" / "memento" / "LICENSE",
+    HERE / "vendor" / "memento" / "PIN.json",
+    HERE / "units" / "buford-memento-reset.service",
+)
+# The supervisor runs auto_reset; the fresh context runs startup before any workflow.
+ENTRY_POINTS = ("auto_reset", "startup")
+
+
+def source_closure():
+    """Every package module the reset executes, from the entry points' import graph.
+
+    Read from source, lazy in-function imports included, so the set is the same however
+    far execution has got and whichever module happened to load first.
+    """
+    package = __name__.rpartition(".")[0]
+    modules, pending = set(), [f"{package}.{name}" for name in ENTRY_POINTS]
+    while pending:
+        spec = importlib.util.find_spec(pending.pop())
+        origin = Path(spec.origin)
+        if origin in modules:
+            continue
+        modules.add(origin)
+        for node in ast.walk(ast.parse(origin.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ImportFrom) and node.level:
+                anchor = spec.parent.rsplit(".", node.level - 1)[0]
+                target = ".".join(filter(None, (anchor, node.module)))
+                # A name imported from a namespace package is a submodule; from a
+                # module it is an attribute, and the module itself is the source.
+                if importlib.util.find_spec(target).origin is None:
+                    pending.extend(f"{target}.{alias.name}" for alias in node.names)
+                else:
+                    pending.append(target)
+    return sorted(modules)
+
+
+class CompositorAbsent(OSError):
+    """The compositor event socket is gone; the supervisor waits read-only."""
 
 
 def user_frontier(actual):
@@ -402,17 +453,17 @@ class AutoReset:
             if file_binding(bound["path"]) != bound:
                 raise ValueError("autoreset authority/source binding changed")
         # [LAW:one-source-of-truth] Installed files are not proof of the code executing
-        # this controller. Match the actual loaded candidate blobs as well.
+        # this controller or the fresh context's startup. Match every executed blob.
         for path in (
-            __file__,
-            sys.modules[Loop.__module__].__file__,
-            sys.modules[NativeWindow.__module__].__file__,
+            *source_closure(),
+            *CLOSURE_FILES,
+            *self.config.get("memento", {}).get("ceiling_layers", ()),
         ):
             actual = file_binding(path)
             accepted = [
                 b
                 for b in self.config["source_acceptance"]
-                if Path(b["path"]).name == Path(path).name
+                if Path(b["path"]).parts[-2:] == Path(path).parts[-2:]
             ]
             if len(accepted) != 1 or any(
                 actual[k] != accepted[0][k] for k in ("bytes", "sha256")
@@ -437,6 +488,43 @@ class AutoReset:
             return ledger.record_absence(receipt, self.config["deadline"])
         return ledger.record(receipt, self.config["deadline"])
 
+    def release(self, ownership, goal_receipt, bottle=None):
+        """Record the released boundary for the lane that actually ran the goal."""
+        journal = self.loop.status()
+        owned = json.loads(Path(ownership).read_text())["owned_processes"]
+        if any(Path(f"/proc/{int(h['pid'])}").exists() for h in owned):
+            raise ValueError("owned writer still active")
+        transcript = next(
+            s["transcript"] for s in self.loop._control()["sessions"] if s["role"] == "buford"
+        )
+        outgoing, memento = journal["session_id"], {}
+        if self.config.get("memento"):
+            if bottle is None:
+                raise ValueError("Memento release requires the sealed --bottle")
+            lane = self.window.outgoing({"native_lane": self.native_lane()})
+            transcript, outgoing = lane["rollout"], lane["thread"]
+            # [LAW:one-source-of-truth] The proven live lane owns the goal; a differing
+            # routed journal UUID is recorded only as its inherited predecessor.
+            memento = dict(
+                outgoing=outgoing,
+                bottle=Bottle.parse(Path(bottle).absolute()).binding,
+                **({"inherited_session": journal["session_id"]} if outgoing != journal["session_id"] else {}),
+            )
+        self.retain_goal(goal_receipt, outgoing)
+        result = dict(
+            session_id=journal["session_id"],
+            epoch=journal["epoch"],
+            completed=sorted(journal["completed"]),
+            owned_processes=owned,
+            goal_receipt=str(Path(goal_receipt).absolute()),
+            user_frontier=user_frontier(identity(transcript)),
+            **memento,
+        )
+        atomic_json(self.config["release"], result)
+        if self.status()["phase"] == "maintenance_recovered":
+            self.save({"phase": "monitoring", "recovery_authority": self.status()["recovery_authority"]})
+        return result
+
     def prepare(self):
         state = self.loop.status()
         routing = next(
@@ -447,30 +535,50 @@ class AutoReset:
             state["session_id"],
             state["epoch"],
         ) or release.get("completed") != sorted(state["completed"]):
-            waiting = {"phase": "waiting_release"}
+            decided = self.status().get("ceiling_decisions")
+            waiting = {"phase": "waiting_release", **({"ceiling_decisions": decided} if decided else {})}
             self.save(waiting)
             return waiting
-        actual = identity(routing["transcript"])
+        # [LAW:no-mode-explosion] A config without "memento" is the frozen pre-Memento
+        # contract, kept only so its regression suite still runs; Buford deletes it at
+        # the verified Memento cutover. No other variant is admitted.
+        memento = self.config.get("memento")
+        lane = self.window.outgoing({"native_lane": self.native_lane()}) if memento else None
+        if memento and lane["thread"] != release.get("outgoing"):
+            raise ValueError("outgoing lane changed since release")
+        old = lane["rollout"] if memento else routing["transcript"]
+        actual = identity(old)
         if release["user_frontier"] != user_frontier(actual):
             raise ValueError("user input changed since release")
-        self.retain_goal(release["goal_receipt"], state["session_id"])
+        # The goal belongs to the lane that actually ran it; the journal UUID is inherited.
+        self.retain_goal(release["goal_receipt"], lane["thread"] if memento else state["session_id"])
         directory = Path(self.config["packages"]) / str(uuid.uuid4())
+        automatic = {
+            "config": self.config.get("config_path", "fixture-config.json"),
+            "continuation": self.config["continuation"]["path"],
+            "goal_receipt": release["goal_receipt"],
+            "goal_ledger": self.config["goal_ledger"],
+            "deadline": self.config["deadline"],
+            "workflow_unit": self.config.get('workflow_unit'),
+        }
+        if memento:
+            # Sealed before any effect: the clear and queue only ever act on these facts.
+            automatic["memento"] = dict(
+                outgoing=lane,
+                predecessor=None
+                if lane["thread"] == state["session_id"]
+                else seal_predecessor(state["session_id"], routing["transcript"], self.window.home),
+                log_mark=self.window.log_mark(),
+                bottle=Bottle(release["bottle"]).sealed(),
+                ceiling=Authority.seal(memento).record,
+            )
         reset = self.loop.prepare_clear(
-            directory,
-            release["owned_processes"],
-            automatic={
-                "config": self.config.get("config_path", "fixture-config.json"),
-                "continuation": self.config["continuation"]["path"],
-                "goal_receipt": release["goal_receipt"],
-                "goal_ledger": self.config["goal_ledger"],
-                "deadline": self.config["deadline"],
-                "workflow_unit": self.config.get('workflow_unit'),
-            },
+            directory, release["owned_processes"], automatic=automatic
         )
         frontier = json.loads((directory / "frontier.json").read_text())
         prepared = {
             "phase": "waiting_idle",
-            "old_transcript": routing["transcript"],
+            "old_transcript": old,
             "old_user_frontier": release["user_frontier"],
             "routing": file_binding(self.loop.control),
             "control_snapshot": self.loop._control(),
@@ -686,6 +794,9 @@ class AutoReset:
                 "maintenance recovery only; release a later genuine native reset"
             )
         if phase in ("monitoring", "verified", "waiting_release"):
+            if self.config.get("memento"):
+                state = self.fold(state)
+                journal = self.loop.status()
             if (
                 journal["epoch_completed"] < 5
                 and journal["reset"] is None
@@ -711,6 +822,13 @@ class AutoReset:
             if actual["status"] != "complete":
                 return state
             self.loop.ready_clear(state["old_transcript"])
+            frontier = self.loop.clear_package(state["reset"])
+            if frontier.get("outgoing") is not None:
+                # Recomputed immediately before the durable intent; any change holds.
+                if self.window.outgoing({"native_lane": frontier["native_lane"]}) != frontier["outgoing"]:
+                    raise ValueError("outgoing lane changed before clear")
+                if frontier["predecessor"] is not None:
+                    predecessor_absent(frontier["predecessor"], self.window.home)
             self.window.check()
             state.update(phase="clear_intent", started=self.clock())
             self.save(state)
@@ -795,6 +913,60 @@ class AutoReset:
             )
             return self.publish(state, result)
         raise ValueError("unknown autoreset phase")
+
+    def native_lane(self):
+        return {"cwd": str(self.config["cwd"]), "source": "cli", "originator": "codex-tui"}
+
+    def fold(self, state):
+        """One ceiling decision and at most one instruction per completed turn."""
+        lane = self.window.outgoing({"native_lane": self.native_lane()})
+        measurement = Measurement.parse(inspect_transcript("codex", lane["rollout"]))
+        if measurement.status != "complete":
+            # Codex has no Stop hook: a lane is measured only at its turn end.
+            return state
+        row = next(s for s in self.loop._control()["sessions"] if s["role"] == "buford")
+        authority = Authority.seal(self.config["memento"])
+        # [LAW:single-enforcer] Once a reset package sealed the authority that workflow
+        # admission reads, a config that would decide differently is refused, not used.
+        sealed = self.loop.status().get("ceiling")
+        if sealed is not None and sealed != authority.record:
+            raise CeilingHold("config ceiling differs from the sealed ceiling authority")
+        bound = authority.bound(row, measurement)
+        decision = decide(measurement, bound, row["task_budget"])
+        key = "{}:{}".format(*decision.turn)
+        decisions = state.setdefault("ceiling_decisions", {})
+        if key in decisions:
+            if decisions[key]["phase"] == "instruction_intent":
+                raise ValueError(
+                    "uncertain ceiling instruction effect; inspect the lane before recovery"
+                )
+            return state
+        record = {
+            "band": decision.band,
+            "admit": decision.admit,
+            "reasons": list(decision.reasons),
+            "usage": measurement.usage,
+            "bound": {
+                k: getattr(bound, k) for k in ("ceiling", "reserve", "close", "soft", "grace")
+            },
+            "phase": "decided" if decision.instruction is None else "instruction_intent",
+        }
+        decisions[key] = record
+        # [LAW:effects-at-boundaries] Durable intent precedes the queue effect; a crash
+        # leaves an intent that is inspected, never replayed.
+        self.save(state)
+        if decision.instruction is not None:
+            try:
+                record["ack"] = self.window.instruct(
+                    {"native_lane": self.native_lane()}, lane["thread"], decision.instruction
+                )
+                record["phase"] = "instructed"
+            except QueueRefused as error:
+                record.update(phase="refused", refusal=str(error))
+            self.save(state)
+        if decision.band == "close":
+            self.loop.request_reset({"turn": key, "band": "close", "usage": measurement.usage})
+        return state
 
     def title_matches(self, state, title):
         return title in (
@@ -967,14 +1139,10 @@ class Wakeups:
                     ):
                         raise OSError(ctypes.get_errno(), "inotify_add_watch")
             self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.socket.connect(
-                str(
-                    Path(os.environ["XDG_RUNTIME_DIR"])
-                    / "hypr"
-                    / os.environ["HYPRLAND_INSTANCE_SIGNATURE"]
-                    / ".socket2.sock"
-                )
-            )
+            try:
+                self.socket.connect(str(compositor_socket()))
+            except (FileNotFoundError, ConnectionRefusedError) as error:
+                raise CompositorAbsent("compositor event socket is absent") from error
             self.socket.setblocking(False)
         except BaseException:
             self.close()
@@ -985,12 +1153,36 @@ class Wakeups:
             if handle == self.fd:
                 os.read(self.fd, 65536)
             elif not self.socket.recv(65536):
-                raise OSError("compositor event socket closed")
+                raise CompositorAbsent("compositor event socket closed")
 
     def close(self):
         os.close(self.fd)
         if self.socket:
             self.socket.close()
+
+
+def compositor_socket():
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if not runtime or not signature:
+        raise CompositorAbsent("compositor instance is not in this environment")
+    return Path(runtime) / "hypr" / signature / ".socket2.sock"
+
+
+def compositor_wait(sleep=time.sleep):
+    """Wait read-only for the bound compositor instance to return.
+
+    No state write, native input or rebinding happens here; after it returns, every
+    effect path rechecks the sealed config, window and process facts and a changed
+    one holds. A new compositor instance never returns this socket, so it stays held.
+    """
+    while True:
+        try:
+            if compositor_socket().exists():
+                return
+        except CompositorAbsent:
+            pass
+        sleep(5)
 
 
 def configured(path):
@@ -1056,41 +1248,14 @@ def main():
     parser.add_argument("--ownership", type=Path)
     parser.add_argument("--goal-receipt", type=Path)
     parser.add_argument("--recovery-authority", type=Path)
+    parser.add_argument("--bottle", type=Path)
     args = parser.parse_args()
     if args.command == "recover-maintenance" and args.recovery_authority is None:
         parser.error("recover-maintenance requires --recovery-authority")
     controller = configured(args.config)
     try:
         if args.command == "release":
-            journal = controller.loop.status()
-            owned = json.loads(args.ownership.read_text())["owned_processes"]
-            if any(Path(f"/proc/{int(h['pid'])}").exists() for h in owned):
-                raise ValueError("owned writer still active")
-            controller.retain_goal(args.goal_receipt, journal["session_id"])
-            result = dict(
-                session_id=journal["session_id"],
-                epoch=journal["epoch"],
-                completed=sorted(journal["completed"]),
-                owned_processes=owned,
-                goal_receipt=str(args.goal_receipt.absolute()),
-                user_frontier=user_frontier(
-                    identity(
-                        next(
-                            s["transcript"]
-                            for s in controller.loop._control()["sessions"]
-                            if s["role"] == "buford"
-                        )
-                    )
-                ),
-            )
-            atomic_json(controller.config["release"], result)
-            if controller.status()["phase"] == "maintenance_recovered":
-                controller.save(
-                    {
-                        "phase": "monitoring",
-                        "recovery_authority": controller.status()["recovery_authority"],
-                    }
-                )
+            result = controller.release(args.ownership, args.goal_receipt, args.bottle)
         elif args.command == "status":
             result = controller.status()
         elif args.command == "wait-bootstrap":
@@ -1122,21 +1287,26 @@ def main():
                     )
                     roots = Path(controller.config["sessions"])
                     today = time.strftime("%Y/%m/%d", time.gmtime())
-                    wake = Wakeups(
-                        [
-                            controller.path.parent,
-                            controller.loop.path.parent,
-                            controller.loop.control,
-                            routing["transcript"],
-                            Path(routing["transcript"]).parent,
-                            roots / today,
-                            Path(controller.config["release"]).parent,
-                        ]
-                    )
                     try:
-                        wake.wait()
-                    finally:
-                        wake.close()
+                        wake = Wakeups(
+                            [
+                                controller.path.parent,
+                                controller.loop.path.parent,
+                                controller.loop.control,
+                                routing["transcript"],
+                                Path(routing["transcript"]).parent,
+                                roots / today,
+                                Path(controller.config["release"]).parent,
+                            ]
+                        )
+                        try:
+                            wake.wait()
+                        finally:
+                            wake.close()
+                    except CompositorAbsent as absent:
+                        # The 2026-10-08 stop: a closed socket is a wait, not an exit.
+                        print(json.dumps({"waiting": str(absent)}), flush=True)
+                        compositor_wait()
             return 0
         print(json.dumps(result))
         return 0

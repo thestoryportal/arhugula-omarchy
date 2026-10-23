@@ -85,6 +85,22 @@ class StartupBudgetTests(unittest.TestCase):
         self.assertNotIn('current direction', output.getvalue())
         lit.command.assert_called_once_with('quickstart')
 
+    def test_failed_inbox_preflight_emits_no_partial_guidance_to_reread(self):
+        from ops.orchestration.startup import packet
+        root = self.loop.path.parent
+        for name in ('docs/orchestration/context-policy.md', 'docs/orchestration/roles/buford.md', 'docs/governance/laws/chat/SKILL.md'):
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('FULL GUIDANCE ' + name)
+        lit = Mock()
+        lit.command.return_value = ('LIT quickstart', None)
+        controller = SimpleNamespace(config={'cwd': str(root)}, loop=SimpleNamespace(lit=lit))
+        output = io.StringIO()
+        with patch('ops.orchestration.auto_reset.wait_bootstrap', return_value={'session_id':'fresh','epoch':1}), patch('ops.orchestration.artifacts.capture', side_effect=ValueError('Mac share not writable')), redirect_stdout(output):
+            with self.assertRaisesRegex(ValueError, 'Mac share not writable'):
+                packet(controller, Path('manifest'))
+        self.assertEqual(output.getvalue(), '')
+
 
 if __name__ == '__main__':
     unittest.main()
