@@ -158,13 +158,14 @@ class UnitReport:
     activity_seconds: Mapping
     repeated_checks: int
     rework: int
+    # Distinct producer runs with at least one failed stage.
     failed_runs: int
 
 
 @dataclass(frozen=True)
 class MeasurementReport:
     units: tuple
-    # Completed product units in receipt append order, at most the first two.
+    # Closed product units in verified closure order, at most the first two.
     first_substantive: tuple
 
     @property
@@ -179,25 +180,32 @@ class MeasurementReport:
         )
 
 
-def reduce_metrics(events: Sequence[StageEvent]) -> MeasurementReport:
+@dataclass(frozen=True)
+class Closure:
+    """A verified ticket closure: review, CI, main landing, post-main CI and applicable
+    installed acceptance all passed. Stage receipts alone never establish completion."""
+
+    unit: str
+    evidence: str
+
+
+def reduce_metrics(events: Sequence[StageEvent], closures: Sequence[Closure] = ()) -> MeasurementReport:
+    """Report every unit; closures are given in verified closure order."""
     by_unit = {}
     for event in events:
         by_unit.setdefault(event.unit, []).append(event)
-    completed = []
-    for event in events:
-        if _completes(event) and event.behavior is not None and event.unit not in completed:
-            completed.append(event.unit)
-    return MeasurementReport(
-        units=tuple(_unit_report(unit, group) for unit, group in by_unit.items()),
-        first_substantive=tuple(completed[:2]),
-    )
+    closed = [closure.unit for closure in closures]
+    unreported = sorted(set(closed) - set(by_unit))
+    if unreported:
+        raise ValueError("closed units have no stage receipts: " + ", ".join(unreported))
+    # [LAW:one-source-of-truth] Completion comes from closure records, not stage outcomes.
+    units = tuple(_unit_report(unit, group, unit in closed) for unit, group in by_unit.items())
+    behaviors = {report.unit: report.behavior for report in units}
+    substantive = [unit for unit in dict.fromkeys(closed) if behaviors[unit] is not None]
+    return MeasurementReport(units=units, first_substantive=tuple(substantive[:2]))
 
 
-def _completes(event):
-    return event.stage is Stage.INTEGRATION and event.outcome is Outcome.PASSED
-
-
-def _unit_report(unit, events):
+def _unit_report(unit, events, completed):
     behaviors = {event.behavior for event in events}
     if len(behaviors) != 1:
         raise ValueError(f"unit {unit} receipts disagree on delivered behavior")
@@ -207,14 +215,14 @@ def _unit_report(unit, events):
         unit=unit,
         behavior=behaviors.pop(),
         policy_versions=tuple(sorted({event.policy_version for event in events})),
-        completed=any(_completes(event) for event in events),
+        completed=completed,
         elapsed_seconds=elapsed,
         unrecorded_seconds=_difference(elapsed, covered),
         stage_seconds=_grouped(events, lambda event: event.stage),
         activity_seconds=_grouped(events, lambda event: event.activity),
         repeated_checks=_repeated_checks(events),
         rework=sum(event.stage is Stage.CORRECTION for event in events),
-        failed_runs=sum(event.outcome is Outcome.FAILED for event in events),
+        failed_runs=len({event.run for event in events if event.outcome is Outcome.FAILED}),
     )
 
 
@@ -338,8 +346,7 @@ HISTORICAL_BASELINE = CiRun(
     conditions=CiConditions(*(_UNRECORDED for _ in fields(CiConditions))),
 )
 
-# A field is comparable only when both sides recorded the same value; a cache must
-# also be warm, because the target is defined for warm runners.
+# The target is defined for warm runners whose conditions were recorded.
 _REQUIRED = {"cache": WARM}
 
 
@@ -351,7 +358,9 @@ class CiComparison:
     baseline_execution_seconds: "float | Unknown"
     classification_seconds: "float | Unknown"
     runner_queue_seconds: "float | Unknown"
-    # Condition fields that are unknown, changed, or not warm.
+    # Observed condition fields that are unrecorded or not warm; they block the target.
+    unqualified: tuple
+    # Fields also differing from, or unrecorded in, the baseline; they block a speedup claim.
     incomparable: tuple
     target: Target
     speedup_seconds: "float | Unknown"
@@ -368,21 +377,28 @@ class CiComparison:
 def compare_ci(observed: CiRun, baseline: CiRun = HISTORICAL_BASELINE) -> CiComparison:
     execution = observed.execution.critical()
     baseline_execution = baseline.execution.critical()
-    incomparable = tuple(
-        field.name
+    pairs = [
+        (field.name, getattr(observed.conditions, field.name), getattr(baseline.conditions, field.name))
         for field in fields(CiConditions)
-        if not _comparable(
-            getattr(observed.conditions, field.name),
-            getattr(baseline.conditions, field.name),
-            _REQUIRED.get(field.name),
-        )
+    ]
+    unqualified = tuple(name for name, value, _ in pairs if not _qualified(name, value))
+    incomparable = tuple(
+        name for name, value, prior in pairs if not (_qualified(name, value) and value == prior)
     )
-    blockers = [value.reason for value in (execution, baseline_execution) if isinstance(value, Unknown)]
-    blockers += [f"{name} not comparable" for name in incomparable]
-    if blockers:
-        target, speedup = Target.UNKNOWN, Unknown("; ".join(blockers))
+    # [LAW:single-enforcer] The target judges this run alone; baseline comparability
+    # gates only the numeric speedup, so a missed target stays visible without one.
+    target_blockers = [execution.reason] if isinstance(execution, Unknown) else []
+    target_blockers += [f"{name} unrecorded or not warm" for name in unqualified]
+    speedup_blockers = target_blockers + [f"{name} not comparable" for name in incomparable]
+    if isinstance(baseline_execution, Unknown):
+        speedup_blockers.append(baseline_execution.reason)
+    if target_blockers:
+        target = Target.UNKNOWN
     else:
         target = Target.MET if execution <= TARGET_SECONDS else Target.MISSED
+    if speedup_blockers:
+        speedup = Unknown("; ".join(speedup_blockers))
+    else:
         speedup = baseline_execution - execution
     return CiComparison(
         run=observed.run,
@@ -391,11 +407,12 @@ def compare_ci(observed: CiRun, baseline: CiRun = HISTORICAL_BASELINE) -> CiComp
         baseline_execution_seconds=baseline_execution,
         classification_seconds=observed.classification,
         runner_queue_seconds=observed.runner_queue,
+        unqualified=unqualified,
         incomparable=incomparable,
         target=target,
         speedup_seconds=speedup,
     )
 
 
-def _comparable(observed, baseline, required):
-    return isinstance(observed, str) and observed == baseline and required in (None, observed)
+def _qualified(name, value):
+    return isinstance(value, str) and _REQUIRED.get(name, value) == value

@@ -30,8 +30,9 @@ def row(unit, stage, start, seconds, **changes):
     return base
 
 
-def reduce(*rows):
-    return wm.reduce_metrics([wm.parse_event(r) for r in rows])
+def reduce(*rows, closed=()):
+    closures = [wm.Closure(unit, f"lit:{unit}:closed") for unit in closed]
+    return wm.reduce_metrics([wm.parse_event(r) for r in rows], closures)
 
 
 def conditions(**changes):
@@ -133,6 +134,16 @@ class DeliveryTimingTest(unittest.TestCase):
         self.assertEqual(unit.stage_seconds[wm.Stage.CORRECTION], 60)
         self.assertEqual(unit.failed_runs, 1)
 
+    def test_failed_runs_count_distinct_runs(self):
+        report = reduce(
+            row("u1", "review", 0, 10, outcome="failed", run="run-a"),
+            row("u1", "ci_execution", 10, 10, outcome="failed", run="run-a"),
+            row("u1", "ci_execution", 20, 10, outcome="failed", run="run-b"),
+            row("u1", "ci_execution", 30, 10, run="run-c"),
+        )
+        (unit,) = report.units
+        self.assertEqual(unit.failed_runs, 2)
+
     def test_two_reports_require_substantive_deliveries(self):
         events = [
             row("product-1", "implementation", 0, 100),
@@ -140,23 +151,32 @@ class DeliveryTimingTest(unittest.TestCase):
             row("bookkeeping", "implementation", 0, 5, behavior=None),
             row("bookkeeping", "integration", 5, 5, behavior=None),
             row("product-2", "implementation", 0, 100),
-            row("product-2", "integration", 100, 10, outcome="failed"),
+            row("product-2", "integration", 100, 10),
+            row("product-3", "implementation", 0, 100),
+            row("product-3", "integration", 100, 10),
         ]
-        report = reduce(*events)
+        report = reduce(*events, closed=["product-1", "bookkeeping"])
         self.assertEqual(report.first_substantive, ("product-1",))
         self.assertFalse(report.before_after_ready)
         self.assertIn("further samples", report.sample_limit)
 
-        events += [
-            row("product-3", "implementation", 0, 100),
-            row("product-3", "integration", 100, 10),
-            row("product-2", "integration", 200, 10),
-        ]
-        report = reduce(*events)
-        # Completion follows receipt append order, not unit naming or first appearance.
+        report = reduce(*events, closed=["product-1", "bookkeeping", "product-3"])
+        # Closure order decides, not unit naming or receipt order.
         self.assertEqual(report.first_substantive, ("product-1", "product-3"))
         self.assertTrue(report.before_after_ready)
         self.assertIn("further samples", report.sample_limit)
+        completed = {unit.unit: unit.completed for unit in report.units}
+        self.assertFalse(completed["product-2"])
+
+    def test_passed_integration_alone_is_not_completion(self):
+        report = reduce(row("u1", "integration", 0, 10))
+        (unit,) = report.units
+        self.assertFalse(unit.completed)
+        self.assertEqual(report.first_substantive, ())
+
+    def test_closure_without_receipts_fails_loudly(self):
+        with self.assertRaisesRegex(ValueError, "no stage receipts"):
+            reduce(row("u1", "implementation", 0, 10), closed=["u2"])
 
     def test_units_with_conflicting_behavior_fail_loudly(self):
         with self.assertRaisesRegex(ValueError, "behavior"):
@@ -211,10 +231,10 @@ class CiComparisonTest(unittest.TestCase):
 
     def test_runner_change_prevents_speedup_claim(self):
         baseline = ci_run(wm.SequentialJob(636.0))
-        for changed, field in (
-            (conditions(runner_image="ubuntu-24.04-arm@20261101"), "runner_image"),
-            (conditions(suites="package+parity@v2"), "suites"),
-            (conditions(cache="cold"), "cache"),
+        for changed, field, target in (
+            (conditions(runner_image="ubuntu-24.04-arm@20261101"), "runner_image", wm.Target.MET),
+            (conditions(suites="package+parity@v2"), "suites", wm.Target.MET),
+            (conditions(cache="cold"), "cache", wm.Target.UNKNOWN),
         ):
             with self.subTest(field=field):
                 result = wm.compare_ci(
@@ -223,9 +243,22 @@ class CiComparisonTest(unittest.TestCase):
                 )
                 self.assertEqual(result.incomparable, (field,))
                 self.assertEqual(result.execution_seconds, 320)
-                self.assertEqual(result.target, wm.Target.UNKNOWN)
+                # The target judges the run itself; only the speedup needs the baseline.
+                self.assertEqual(result.target, target)
                 self.assertIsInstance(result.speedup_seconds, wm.Unknown)
                 self.assertFalse(result.disposition_required)
+
+    def test_unrecorded_observed_condition_makes_target_unknown(self):
+        result = wm.compare_ci(
+            ci_run(
+                wm.SplitJobs(package=200.0, parity=480.0, aggregate=20.0),
+                conditions(runner_resources=wm.Unknown("not captured")),
+            ),
+            ci_run(wm.SequentialJob(636.0)),
+        )
+        self.assertEqual(result.unqualified, ("runner_resources",))
+        self.assertEqual(result.target, wm.Target.UNKNOWN)
+        self.assertFalse(result.disposition_required)
 
     def test_both_cold_is_still_not_comparable(self):
         cold = conditions(cache="cold")
@@ -233,8 +266,10 @@ class CiComparisonTest(unittest.TestCase):
             ci_run(wm.SplitJobs(package=200.0, parity=300.0, aggregate=20.0), cold),
             ci_run(wm.SequentialJob(636.0), cold),
         )
+        self.assertEqual(result.unqualified, ("cache",))
         self.assertEqual(result.incomparable, ("cache",))
         self.assertEqual(result.target, wm.Target.UNKNOWN)
+        self.assertIsInstance(result.speedup_seconds, wm.Unknown)
 
     def test_missed_target_requires_disposition(self):
         result = wm.compare_ci(
@@ -254,7 +289,15 @@ class CiComparisonTest(unittest.TestCase):
         self.assertEqual(result.baseline_execution_seconds, 636)
         # Its runner, suite and cache conditions were never recorded, so no numeric claim.
         self.assertEqual(set(result.incomparable), set(vars(conditions())))
-        self.assertEqual(result.target, wm.Target.UNKNOWN)
+        self.assertEqual(result.unqualified, ())
+        self.assertEqual(result.target, wm.Target.MET)
+        self.assertIsInstance(result.speedup_seconds, wm.Unknown)
+
+    def test_missed_target_stays_visible_against_historical_sample(self):
+        result = wm.compare_ci(ci_run(wm.SplitJobs(package=200.0, parity=480.0, aggregate=20.0)))
+        self.assertEqual(result.execution_seconds, 500)
+        self.assertEqual(result.target, wm.Target.MISSED)
+        self.assertTrue(result.disposition_required)
         self.assertIsInstance(result.speedup_seconds, wm.Unknown)
         self.assertIn("single sample", result.baseline_limit)
         self.assertIn("37288061295", result.baseline_limit)
