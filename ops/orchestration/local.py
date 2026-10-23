@@ -13,11 +13,12 @@ from .handoff import validate
 from .artifacts import capture, DEFAULT_ROOT
 
 
-def command(argv, cwd, *, timeout=60, input=None):
+def command(argv, cwd, *, timeout=60, input=None, env=None):
     # Own process group so a timeout cannot leave an editing child behind.
     process = subprocess.Popen(
         argv,
         cwd=cwd,
+        env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -51,10 +52,13 @@ class LocalAdapter:
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
         self.artifact_root = artifact_root
+        # LIT derives the claiming session from the environment; pinning it here
+        # keeps every claim and renewal by this adapter under one identity.
+        self.lit_env = dict(os.environ)
         self.claims = {}
 
-    def checked(self, argv, cwd=None):
-        result = command(argv, cwd or self.cwd, timeout=self.timeout)
+    def checked(self, argv, cwd=None, env=None):
+        result = command(argv, cwd or self.cwd, timeout=self.timeout, env=env)
         if result.returncode:
             raise Stop(f"command-failed: {shlex.join(argv)}: {result.stderr.strip()}")
         return result.stdout
@@ -63,10 +67,10 @@ class LocalAdapter:
         return self.checked(["git", *args], cwd=cwd)
 
     def lit(self, *args):
-        return self.checked([*self.lit_argv, *args])
+        return self.checked([*self.lit_argv, *args], env=self.lit_env)
 
     def next(self):
-        result = command([*self.lit_argv, "next"], self.cwd, timeout=self.timeout)
+        result = command([*self.lit_argv, "next"], self.cwd, timeout=self.timeout, env=self.lit_env)
         if result.returncode == 0:
             return result.stdout
         # LIT 0.14 uses exit 1, not an empty successful result, for exhaustion.
@@ -86,8 +90,8 @@ class LocalAdapter:
 
     def claim(self, ticket, holder):
         # [LAW:single-enforcer] Every native claim passes this ownership check.
-        # Native start silently transfers a same-checkout claim to a new session,
-        # so a current holder other than ours refuses before any mutation.
+        # Native start silently transfers a same-checkout claim to another session,
+        # so a current holder other than this adapter's refuses before any mutation.
         if self.assignee(ticket) != holder:
             raise Stop("claim-conflict")
         try:

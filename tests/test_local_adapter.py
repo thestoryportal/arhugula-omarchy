@@ -127,9 +127,6 @@ class NativeClaimTests(unittest.TestCase):
                        cwd=self.trees["lane"], check=True, capture_output=True)
         self.ticket = self.issue()["id"]
 
-    def adapter(self, session, lane="lane"):
-        return LocalAdapter(self.trees[lane], ["true"]), {"CLAUDE_CODE_SESSION_ID": session}
-
     def issue(self):
         exported = subprocess.run(["lit", "export"], cwd=self.trees["lane"], check=True,
                                   capture_output=True, text=True).stdout
@@ -137,9 +134,9 @@ class NativeClaimTests(unittest.TestCase):
         return issue
 
     def claim(self, session, method="start", lane="lane"):
-        adapter, env = self.adapter(session, lane)
-        with mock.patch.dict("os.environ", env):
-            getattr(adapter, method)(self.ticket)
+        with mock.patch.dict("os.environ", {"CLAUDE_CODE_SESSION_ID": session}):
+            adapter = LocalAdapter(self.trees[lane], ["true"])
+        getattr(adapter, method)(self.ticket)
         return adapter
 
     def test_same_checkout_successor_cannot_take_over_native_claim(self):
@@ -156,12 +153,11 @@ class NativeClaimTests(unittest.TestCase):
 
     def test_owner_renews_its_claim_and_detects_a_later_reassignment(self):
         owner = self.claim("owner")
-        with mock.patch.dict("os.environ", {"CLAUDE_CODE_SESSION_ID": "owner"}):
+        owner.assert_claim(self.ticket)
+        subprocess.run(["lit", "update", self.ticket, "--assignee", "claude_reassigned"],
+                       cwd=self.trees["lane"], check=True, capture_output=True)
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
             owner.assert_claim(self.ticket)
-            subprocess.run(["lit", "update", self.ticket, "--assignee", "claude_reassigned"],
-                           cwd=self.trees["lane"], check=True, capture_output=True)
-            with self.assertRaisesRegex(Stop, "claim-conflict"):
-                owner.assert_claim(self.ticket)
         self.assertEqual(self.issue()["assignee"], "claude_reassigned")
 
     def test_asserting_an_unheld_claim_never_claims(self):
@@ -172,9 +168,14 @@ class NativeClaimTests(unittest.TestCase):
         with self.assertRaisesRegex(Stop, "claim-conflict"):
             self.claim("owner", "assert_claim")
 
-    def test_identity_change_inside_one_adapter_is_reported_not_recorded(self):
-        adapter = self.claim("owner")
+    def test_changed_session_identity_never_transfers_a_held_claim(self):
+        owner = self.claim("owner")
         with mock.patch.dict("os.environ", {"CLAUDE_CODE_SESSION_ID": "successor"}):
-            with self.assertRaisesRegex(Stop, "claim-conflict"):
-                adapter.assert_claim(self.ticket)
-        self.assertEqual(adapter.claims[self.ticket], "claude_owner")
+            owner.assert_claim(self.ticket)
+            self.assertEqual(self.issue()["assignee"], "claude_owner")
+            successor = LocalAdapter(self.trees["lane"], ["true"])
+            for method in (successor.assert_claim, successor.start):
+                with self.subTest(method=method.__name__):
+                    with self.assertRaisesRegex(Stop, "claim-conflict"):
+                        method(self.ticket)
+                    self.assertEqual(self.issue()["assignee"], "claude_owner")
