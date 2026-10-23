@@ -8,6 +8,7 @@ pure: it reads immutable receipt rows and gates nothing, so it can run asynchron
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+import re
 from typing import Mapping, Sequence
 
 
@@ -165,7 +166,7 @@ class UnitReport:
 @dataclass(frozen=True)
 class MeasurementReport:
     units: tuple
-    # Closed product units in verified closure order, at most the first two.
+    # Closed product units in LIT closure order, at most the first two.
     first_substantive: tuple
 
     @property
@@ -180,21 +181,58 @@ class MeasurementReport:
         )
 
 
+_GATES = ("review", "ci", "main_commit", "post_main_ci", "acceptance")
+_SHA = re.compile(r"[0-9a-f]{40}")
+
+
 @dataclass(frozen=True)
 class Closure:
-    """A verified ticket closure: review, CI, main landing, post-main CI and applicable
-    installed acceptance all passed. Stage receipts alone never establish completion."""
+    """One ticket's verified closure, normally bound by parse_closure from LIT.
+
+    Each gate names the receipt that passed it: independent review, required CI, the
+    main landing commit, post-main CI, and installed acceptance or its recorded
+    not-applicable disposition. Stage receipts alone never establish completion.
+    """
 
     unit: str
-    evidence: str
+    closed_at: datetime
+    review: str
+    ci: str
+    main_commit: str
+    post_main_ci: str
+    acceptance: str
+
+    def __post_init__(self):
+        # [LAW:single-enforcer] Parsed and direct construction both pass this check.
+        texts = [self.unit] + [getattr(self, gate) for gate in _GATES]
+        if not all(isinstance(text, str) and text.strip() for text in texts):
+            raise ValueError("closure unit and every gate receipt must be non-empty text")
+        if not isinstance(self.closed_at, datetime) or self.closed_at.utcoffset() is None:
+            raise ValueError("closure closed_at must be a UTC-aware time")
+        if not _SHA.fullmatch(self.main_commit):
+            raise ValueError("closure main_commit must be a full commit SHA")
+
+
+def parse_closure(issue: Mapping, gates: Mapping) -> Closure:
+    """Bind one closed `lit export` issue record and the receipts of its closure gates."""
+    if issue.get("status") != "closed":
+        raise ValueError(f"issue {issue.get('id')} is not closed in LIT")
+    closed_at = issue.get("closed_at")
+    if not isinstance(closed_at, str):
+        raise ValueError(f"issue {issue.get('id')} lacks closed_at")
+    return Closure(
+        unit=issue.get("id"),
+        closed_at=datetime.fromisoformat(closed_at),
+        **{gate: gates.get(gate) for gate in _GATES},
+    )
 
 
 def reduce_metrics(events: Sequence[StageEvent], closures: Sequence[Closure] = ()) -> MeasurementReport:
-    """Report every unit; closures are given in verified closure order."""
+    """Report every unit; completion order follows each closure's LIT closed_at."""
     by_unit = {}
     for event in events:
         by_unit.setdefault(event.unit, []).append(event)
-    closed = [closure.unit for closure in closures]
+    closed = [closure.unit for closure in sorted(closures, key=lambda closure: closure.closed_at)]
     unreported = sorted(set(closed) - set(by_unit))
     if unreported:
         raise ValueError("closed units have no stage receipts: " + ", ".join(unreported))
@@ -294,6 +332,25 @@ class CiConditions:
     checkers: "str | Unknown"
     cache: "str | Unknown"
 
+    def __post_init__(self):
+        # An unrecorded condition is Unknown; an empty identifier is a malformed receipt.
+        for field in fields(self):
+            value = getattr(self, field.name)
+            if not isinstance(value, Unknown) and not (isinstance(value, str) and value.strip()):
+                raise ValueError(f"CI condition {field.name} must be non-empty text or Unknown")
+
+
+@dataclass(frozen=True)
+class RequiredChecks:
+    """The suite and checker set the active policy requires, independent of any baseline."""
+
+    suites: str
+    checkers: str
+
+    def __post_init__(self):
+        if not all(isinstance(value, str) and value.strip() for value in (self.suites, self.checkers)):
+            raise ValueError("required suites and checkers must be non-empty text")
+
 
 @dataclass(frozen=True)
 class SplitJobs:
@@ -346,10 +403,6 @@ HISTORICAL_BASELINE = CiRun(
     conditions=CiConditions(*(_UNRECORDED for _ in fields(CiConditions))),
 )
 
-# The target is defined for warm runners whose conditions were recorded.
-_REQUIRED = {"cache": WARM}
-
-
 @dataclass(frozen=True)
 class CiComparison:
     run: str
@@ -358,7 +411,8 @@ class CiComparison:
     baseline_execution_seconds: "float | Unknown"
     classification_seconds: "float | Unknown"
     runner_queue_seconds: "float | Unknown"
-    # Observed condition fields that are unrecorded or not warm; they block the target.
+    # Observed condition fields that are unrecorded, not warm, or not the required
+    # suite/checker set; they block the target.
     unqualified: tuple
     # Fields also differing from, or unrecorded in, the baseline; they block a speedup claim.
     incomparable: tuple
@@ -374,21 +428,24 @@ class CiComparison:
         return f"single sample: run {self.baseline_run}; not a distribution or delivery forecast"
 
 
-def compare_ci(observed: CiRun, baseline: CiRun = HISTORICAL_BASELINE) -> CiComparison:
+def compare_ci(
+    observed: CiRun, required: RequiredChecks, baseline: CiRun = HISTORICAL_BASELINE
+) -> CiComparison:
     execution = observed.execution.critical()
     baseline_execution = baseline.execution.critical()
     pairs = [
         (field.name, getattr(observed.conditions, field.name), getattr(baseline.conditions, field.name))
         for field in fields(CiConditions)
     ]
-    unqualified = tuple(name for name, value, _ in pairs if not _qualified(name, value))
-    incomparable = tuple(
-        name for name, value, prior in pairs if not (_qualified(name, value) and value == prior)
-    )
+    # The target holds only for warm runners executing the policy's required set.
+    expected = {"cache": WARM, "suites": required.suites, "checkers": required.checkers}
+    qualified = {name: isinstance(value, str) and expected.get(name, value) == value for name, value, _ in pairs}
+    unqualified = tuple(name for name, _, _ in pairs if not qualified[name])
+    incomparable = tuple(name for name, value, prior in pairs if not (qualified[name] and value == prior))
     # [LAW:single-enforcer] The target judges this run alone; baseline comparability
     # gates only the numeric speedup, so a missed target stays visible without one.
     target_blockers = [execution.reason] if isinstance(execution, Unknown) else []
-    target_blockers += [f"{name} unrecorded or not warm" for name in unqualified]
+    target_blockers += [f"{name} unrecorded or not as required" for name in unqualified]
     speedup_blockers = target_blockers + [f"{name} not comparable" for name in incomparable]
     if isinstance(baseline_execution, Unknown):
         speedup_blockers.append(baseline_execution.reason)
@@ -413,6 +470,3 @@ def compare_ci(observed: CiRun, baseline: CiRun = HISTORICAL_BASELINE) -> CiComp
         speedup_seconds=speedup,
     )
 
-
-def _qualified(name, value):
-    return isinstance(value, str) and _REQUIRED.get(name, value) == value

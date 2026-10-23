@@ -30,8 +30,30 @@ def row(unit, stage, start, seconds, **changes):
     return base
 
 
+SHA = "0123456789abcdef0123456789abcdef01234567"
+
+
+def lit_issue(unit, minute, status="closed"):
+    """A `lit export` issue record; LIT writes closed_at with a Z suffix and nanoseconds."""
+    closed_at = (T0 + timedelta(minutes=minute)).strftime("%Y-%m-%dT%H:%M:%S.123456789Z")
+    return {"id": unit, "status": status, "closed_at": closed_at}
+
+
+def gates(unit, **changes):
+    base = dict(
+        review=f"lit:{unit}:review-green",
+        ci="ci-run-101",
+        main_commit=SHA,
+        post_main_ci="ci-run-102",
+        acceptance=f"lit:{unit}:installed-acceptance-not-applicable",
+    )
+    base.update(changes)
+    return base
+
+
 def reduce(*rows, closed=()):
-    closures = [wm.Closure(unit, f"lit:{unit}:closed") for unit in closed]
+    """closed: (unit, minute-of-closure) pairs bound through the LIT closure boundary."""
+    closures = [wm.parse_closure(lit_issue(unit, minute), gates(unit)) for unit, minute in closed]
     return wm.reduce_metrics([wm.parse_event(r) for r in rows], closures)
 
 
@@ -46,6 +68,13 @@ def conditions(**changes):
     )
     base.update(changes)
     return wm.CiConditions(**base)
+
+
+REQUIRED = wm.RequiredChecks(suites="package+parity@v1", checkers="pytest8/pyright1")
+
+
+def compare(run, baseline=wm.HISTORICAL_BASELINE):
+    return wm.compare_ci(run, REQUIRED, baseline)
 
 
 def ci_run(execution, cond=None, classification=15.0, queue=40.0):
@@ -155,13 +184,13 @@ class DeliveryTimingTest(unittest.TestCase):
             row("product-3", "implementation", 0, 100),
             row("product-3", "integration", 100, 10),
         ]
-        report = reduce(*events, closed=["product-1", "bookkeeping"])
+        report = reduce(*events, closed=[("product-1", 1), ("bookkeeping", 2)])
         self.assertEqual(report.first_substantive, ("product-1",))
         self.assertFalse(report.before_after_ready)
         self.assertIn("further samples", report.sample_limit)
 
-        report = reduce(*events, closed=["product-1", "bookkeeping", "product-3"])
-        # Closure order decides, not unit naming or receipt order.
+        report = reduce(*events, closed=[("product-3", 9), ("bookkeeping", 2), ("product-1", 1)])
+        # LIT closed_at decides, not argument, unit naming or receipt order.
         self.assertEqual(report.first_substantive, ("product-1", "product-3"))
         self.assertTrue(report.before_after_ready)
         self.assertIn("further samples", report.sample_limit)
@@ -176,7 +205,24 @@ class DeliveryTimingTest(unittest.TestCase):
 
     def test_closure_without_receipts_fails_loudly(self):
         with self.assertRaisesRegex(ValueError, "no stage receipts"):
-            reduce(row("u1", "implementation", 0, 10), closed=["u2"])
+            reduce(row("u1", "implementation", 0, 10), closed=[("u2", 1)])
+
+    def test_closure_requires_closed_lit_record_and_every_gate(self):
+        bad = [
+            (lit_issue("u1", 1, status="in_progress"), gates("u1")),
+            ({"id": "u1", "status": "closed"}, gates("u1")),
+            (lit_issue("u1", 1), gates("u1", review="")),
+            (lit_issue("u1", 1), gates("u1", post_main_ci=None)),
+            (lit_issue("u1", 1), gates("u1", main_commit="abc123")),
+        ]
+        for issue, receipts in bad:
+            with self.subTest(issue=issue, receipts=receipts), self.assertRaises(ValueError):
+                wm.parse_closure(issue, receipts)
+        # The pass-2 probe: a bare caller assertion cannot stand in for a closure.
+        with self.assertRaises(TypeError):
+            wm.Closure("u", "")
+        with self.assertRaises(ValueError):
+            wm.Closure("u", T0, "", "ci", SHA, "ci2", "acceptance")
 
     def test_units_with_conflicting_behavior_fail_loudly(self):
         with self.assertRaisesRegex(ValueError, "behavior"):
@@ -214,7 +260,7 @@ class CiComparisonTest(unittest.TestCase):
     def test_queue_and_classification_are_separate(self):
         run = ci_run(wm.SplitJobs(package=200.0, parity=300.0, aggregate=20.0))
         baseline = ci_run(wm.SequentialJob(636.0))
-        result = wm.compare_ci(run, baseline)
+        result = compare(run, baseline)
         # max(package, parity) + aggregate; queue (40) and classification (15) excluded.
         self.assertEqual(result.execution_seconds, 320)
         self.assertEqual(result.classification_seconds, 15)
@@ -224,7 +270,7 @@ class CiComparisonTest(unittest.TestCase):
 
     def test_inseparable_components_make_target_unknown(self):
         run = ci_run(wm.SplitJobs(package=200.0, parity=wm.Unknown("no job end"), aggregate=20.0))
-        result = wm.compare_ci(run, ci_run(wm.SequentialJob(636.0)))
+        result = compare(run, ci_run(wm.SequentialJob(636.0)))
         self.assertIsInstance(result.execution_seconds, wm.Unknown)
         self.assertEqual(result.target, wm.Target.UNKNOWN)
         self.assertIsInstance(result.speedup_seconds, wm.Unknown)
@@ -233,11 +279,11 @@ class CiComparisonTest(unittest.TestCase):
         baseline = ci_run(wm.SequentialJob(636.0))
         for changed, field, target in (
             (conditions(runner_image="ubuntu-24.04-arm@20261101"), "runner_image", wm.Target.MET),
-            (conditions(suites="package+parity@v2"), "suites", wm.Target.MET),
+            (conditions(suites="package+parity@v2"), "suites", wm.Target.UNKNOWN),
             (conditions(cache="cold"), "cache", wm.Target.UNKNOWN),
         ):
             with self.subTest(field=field):
-                result = wm.compare_ci(
+                result = compare(
                     ci_run(wm.SplitJobs(package=200.0, parity=300.0, aggregate=20.0), changed),
                     baseline,
                 )
@@ -248,8 +294,27 @@ class CiComparisonTest(unittest.TestCase):
                 self.assertIsInstance(result.speedup_seconds, wm.Unknown)
                 self.assertFalse(result.disposition_required)
 
+    def test_target_requires_the_policy_suite_and_checker_set(self):
+        # The pass-2 probe: a 2-second smoke-only run must not meet the target.
+        for changed, field in (
+            (conditions(suites="smoke-only"), "suites"),
+            (conditions(checkers="ruff-only"), "checkers"),
+        ):
+            with self.subTest(field=field):
+                result = compare(ci_run(wm.SplitJobs(package=1.0, parity=1.0, aggregate=1.0), changed))
+                self.assertEqual(result.unqualified, (field,))
+                self.assertEqual(result.target, wm.Target.UNKNOWN)
+
+    def test_empty_identifiers_are_malformed(self):
+        with self.assertRaises(ValueError):
+            wm.CiConditions("", "", "", "", "", "warm")
+        with self.assertRaises(ValueError):
+            conditions(runner_image="  ")
+        with self.assertRaises(ValueError):
+            wm.RequiredChecks(suites="", checkers="pytest8")
+
     def test_unrecorded_observed_condition_makes_target_unknown(self):
-        result = wm.compare_ci(
+        result = compare(
             ci_run(
                 wm.SplitJobs(package=200.0, parity=480.0, aggregate=20.0),
                 conditions(runner_resources=wm.Unknown("not captured")),
@@ -262,7 +327,7 @@ class CiComparisonTest(unittest.TestCase):
 
     def test_both_cold_is_still_not_comparable(self):
         cold = conditions(cache="cold")
-        result = wm.compare_ci(
+        result = compare(
             ci_run(wm.SplitJobs(package=200.0, parity=300.0, aggregate=20.0), cold),
             ci_run(wm.SequentialJob(636.0), cold),
         )
@@ -272,7 +337,7 @@ class CiComparisonTest(unittest.TestCase):
         self.assertIsInstance(result.speedup_seconds, wm.Unknown)
 
     def test_missed_target_requires_disposition(self):
-        result = wm.compare_ci(
+        result = compare(
             ci_run(wm.SplitJobs(package=200.0, parity=480.0, aggregate=20.0)),
             ci_run(wm.SequentialJob(636.0)),
         )
@@ -284,7 +349,7 @@ class CiComparisonTest(unittest.TestCase):
         baseline = wm.HISTORICAL_BASELINE
         self.assertEqual(baseline.run, "37288061295")
         self.assertEqual(baseline.execution.critical(), 636)
-        result = wm.compare_ci(ci_run(wm.SplitJobs(package=200.0, parity=300.0, aggregate=20.0)))
+        result = compare(ci_run(wm.SplitJobs(package=200.0, parity=300.0, aggregate=20.0)))
         self.assertEqual(result.baseline_run, "37288061295")
         self.assertEqual(result.baseline_execution_seconds, 636)
         # Its runner, suite and cache conditions were never recorded, so no numeric claim.
@@ -294,7 +359,7 @@ class CiComparisonTest(unittest.TestCase):
         self.assertIsInstance(result.speedup_seconds, wm.Unknown)
 
     def test_missed_target_stays_visible_against_historical_sample(self):
-        result = wm.compare_ci(ci_run(wm.SplitJobs(package=200.0, parity=480.0, aggregate=20.0)))
+        result = compare(ci_run(wm.SplitJobs(package=200.0, parity=480.0, aggregate=20.0)))
         self.assertEqual(result.execution_seconds, 500)
         self.assertEqual(result.target, wm.Target.MISSED)
         self.assertTrue(result.disposition_required)
