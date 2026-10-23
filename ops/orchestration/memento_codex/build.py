@@ -12,7 +12,8 @@ HERE = Path(__file__).parent
 PATCHES = {"context-ceiling.codex.patch": "hooks/scripts/context-ceiling.py",
            "ceiling.codex.patch": "skills/ceiling/bin/ceiling",
            "clear-session-ceiling.codex.patch": "hooks/scripts/clear-session-ceiling.py",
-           "finalize-session.codex.patch": "skills/message-in-a-bottle/bin/finalize-session"}
+           "finalize-session.codex.patch": "skills/message-in-a-bottle/bin/finalize-session",
+           "message-in-a-bottle-skill.codex.patch": "skills/message-in-a-bottle/SKILL.md"}
 HELPER = "skills/message-in-a-bottle/bin/codex-foot-helper"
 
 

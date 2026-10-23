@@ -14,7 +14,7 @@ Codex lanes never reach a Claude transport.
        TARGET=$(_pane_target "${TMUX_PANE:-}") \
          || TARGET=$(_pane_target "$(_discover_tmux_pane || true)") \
          || TARGET=""
-@@ -773,6 +775,32 @@
+@@ -773,6 +775,35 @@
        trap - EXIT
        echo "handoff scheduled → tmux $TARGET in ${HANDOFF_DELAY_SECONDS}s (log: $LOGFILE)"
  
@@ -33,7 +33,10 @@ Codex lanes never reach a Claude transport.
 +      done
 +      [[ "$(ps -o comm= -p "$CODEX_PID")" == codex ]] \
 +        || _refuse "codex transport: cannot bind the owning codex process"
-+      ps -o comm= -p "$(ps -o ppid= -p "$CODEX_PID" | tr -d ' ')" | grep -qx foot \
++      # Foot runs codex directly, or through the one login shell it started for it.
++      TERM_PID=$(ps -o ppid= -p "$CODEX_PID" | tr -d ' ')
++      [[ "$(ps -o comm= -p "$TERM_PID")" != bash ]] || TERM_PID=$(ps -o ppid= -p "$TERM_PID" | tr -d ' ')
++      [[ "$(ps -o comm= -p "$TERM_PID")" == foot ]] \
 +        || _refuse "codex transport: owning codex is not under Foot"
 +      if [[ -n "${FINALIZE_DRY_RUN:-}" ]]; then
 +        echo "[dry-run] transport=foot-codex codex_pid=$CODEX_PID thread=$CODEX_THREAD_ID msgfile=$MSGFILE"
