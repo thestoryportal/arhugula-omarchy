@@ -685,6 +685,8 @@ class Loop:
                     f"Retain {state['model']}/{state['effort']} in this same visible lane. Root user-provided AGENTS.md governs. "
                     f"Startup only: run {sys.executable} -m ops.orchestration.startup packet "
                     f"--config {automatic['config']} --manifest {directory}/manifest.json. "
+                    "Packet and finish write retained receipts outside the sandbox; request normal sandbox/service approval on the first call when needed. "
+                    "A sandbox write refusal does not prove the Mac share is absent. If preflight fails, retain one concise hold; do not read implementation or replay guidance to diagnose startup. "
                     "Read the packet's full current role, context policy and Chat Law. The external supervisor alone bootstraps. "
                     "Do not read history, full handoffs, Code or Prompt Laws, or search directories during startup. "
                     f"Then run {sys.executable} -m ops.orchestration.startup finish --config {automatic['config']}. "

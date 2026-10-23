@@ -36,23 +36,23 @@ def packet(controller, manifest):
     from .artifacts import capture, file_binding
     accepted = wait_bootstrap(controller, manifest)
     quickstart, _ = controller.loop.lit.command('quickstart')
-    print(quickstart)
     root = Path(controller.config['cwd'])
-    # [LAW:effects-at-boundaries] One packet supplies full current startup guidance.
-    for name in ('docs/orchestration/context-policy.md', 'docs/orchestration/roles/buford.md', 'docs/governance/laws/chat/SKILL.md'):
-        print(f'\nSOURCE: {root / name}\n{(root / name).read_text()}')
+    guidance = [f'\nSOURCE: {root / name}\n{(root / name).read_text()}'
+                for name in ('docs/orchestration/context-policy.md', 'docs/orchestration/roles/buford.md', 'docs/governance/laws/chat/SKILL.md')]
     inbox = capture([sys.executable, '/home/robbo/Work/arhugula-trial/evaluation/production-readiness-arch/dashboard/inbox.py', 'pending'], root)
     if inbox['exit'] != 0 or inbox['terminal'] != 'exited':
         raise ValueError('startup inbox check failed: ' + inbox['receipt'])
     pending = json.loads(Path(inbox['stdout']['path']).read_text())
     data, _ = controller.loop.lit.read(controller.loop.status()['goal_ticket'])
     issue = next(i for i in data['issues'] if i['id'] == controller.loop.status()['goal_ticket'])
-    print(json.dumps(dict(session_id=accepted['session_id'], epoch=accepted['epoch'],
+    summary = json.dumps(dict(session_id=accepted['session_id'], epoch=accepted['epoch'],
                          ticket=issue['id'], status=issue['status'], title=issue['title'],
                          production_paused=controller.loop._control()['repair_paused'],
                          inbox_pending=[item['id'] for item in pending], inbox=file_binding(inbox['receipt']),
                          inbox_messages=inbox['stdout'], workflow_pointer=controller.config['continuation'],
-                         deadline=controller.config['deadline'], startup_limit_percent=15)))
+                         deadline=controller.config['deadline'], startup_limit_percent=15))
+    # [LAW:effects-at-boundaries] Failed preflight must not spend context on a partial packet.
+    print('\n'.join([quickstart, *guidance, summary]))
 
 
 def main():
