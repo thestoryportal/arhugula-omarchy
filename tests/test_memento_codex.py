@@ -498,8 +498,11 @@ class MementoPackage(unittest.TestCase):
         return path
 
     def prepare(self, bottle=None):
+        from ops.orchestration.ceiling import Authority
         from ops.orchestration.loop import Bottle
 
+        layer = Layers(self).write("ceiling = 150_000\n")[0]
+        self.authority = Authority.seal({"ceiling_layers": [str(layer)], "handoff_reserve": 40000}).record
         self.bottle = self.root / "bottle.json"
         self.bottle.write_text(json.dumps(bottle or bottle_data()))
         continuation, goal = self.root / "continuation.txt", self.root / "goal.json"
@@ -511,7 +514,7 @@ class MementoPackage(unittest.TestCase):
             "predecessor": {"session": "old"},
             "log_mark": 41,
             "bottle": Bottle.parse(self.bottle).binding,
-            "ceiling_layers": ["/o/.local/memento/codex.conf"],
+            "ceiling": self.authority,
         }
         automatic = {"config": "/c.json", "continuation": str(continuation), "goal_receipt": str(goal), "memento": memento}
         return self.loop.prepare_clear(self.root / "package", [], automatic=automatic), rollout
@@ -524,7 +527,10 @@ class MementoPackage(unittest.TestCase):
         self.assertEqual(set(frontier["excluded_sessions"]), {"live", "old", "protected"})
         prompt = (self.root / "package/resume-prompt.txt").read_text()
         self.assertIn(f"sealed bottle {self.bottle}", prompt)
-        self.assertIn("--ceiling-layer /o/.local/memento/codex.conf", prompt)
+        self.assertIn("FROM: Outgoing Buford live, lead orchestrator (inherited routed predecessor old)", prompt)
+        # Admission takes the sealed authority from the journal, never from prompt arguments.
+        self.assertNotIn("--ceiling-layer", prompt)
+        self.assertEqual((frontier["ceiling"], self.loop._read()["ceiling"]), (self.authority, self.authority))
 
     def test_bottle_is_sealed_before_clear_and_a_changed_bottle_refuses(self):
         reset, _ = self.prepare()
@@ -576,6 +582,9 @@ class StubLoop:
     def _control(self):
         return {"sessions": [dict(ROW, session_id=OUT, transcript="/dead.jsonl")]}
 
+    def status(self):
+        return {}
+
     def request_reset(self, evidence):
         self.requests.append(evidence)
 
@@ -603,7 +612,7 @@ class CeilingFold(unittest.TestCase):
         self.addCleanup(lambda: __import__("shutil").rmtree(self.root))
         layers = Layers(self).write("ceiling = 150_000\n")
         self.loop, self.window = StubLoop(), StubWindow()
-        config = {"cwd": "/w", "memento": {"ceiling_layers": [str(p) for p in layers]}}
+        config = {"cwd": "/w", "memento": {"ceiling_layers": [str(p) for p in layers], "handoff_reserve": 0}}
         self.controller = AutoReset(self.loop, self.root / "supervisor.json", config, self.window)
 
     def fold(self, **changes):
@@ -669,27 +678,199 @@ class SupervisorService(unittest.TestCase):
         self.assertEqual(start[1:4], ["-m", "ops.orchestration.auto_reset", "run"])
         self.assertTrue(start[0].startswith("/") and start[-1].startswith("/"))
 
-    def test_executing_source_closure_must_cover_ceiling_vendor_unit_and_layers(self):
+    def test_executing_source_closure_covers_every_imported_module_and_startup(self):
         from ops.orchestration import auto_reset, loop, native_window
         from ops.orchestration.artifacts import file_binding
 
+        closure = {path.name for path in auto_reset.source_closure()}
+        # The fresh context runs startup; the supervisor runs auto_reset and what both import.
+        for name in ("startup.py", "auto_reset.py", "loop.py", "native_window.py", "ceiling.py",
+                     "ceiling_config.py", "artifacts.py", "records.py", "session_context.py"):
+            self.assertIn(name, closure)
         root = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(root))
         authority, continuation, layer = root / "a", root / "c", root / "codex.conf"
         for path in (authority, continuation, layer):
             path.write_text("ceiling = 150_000\n")
+        full = [file_binding(p) for p in (*auto_reset.source_closure(), *auto_reset.CLOSURE_FILES, layer)]
+        startup = next(b for b in full if b["path"].endswith("orchestration/startup.py"))
         base = [file_binding(m.__file__) for m in (auto_reset, loop, native_window)]
-        full = base + [
-            file_binding(auto_reset.ceiling.__file__),
-            file_binding(auto_reset.ceiling_config.__file__),
-            *(file_binding(p) for p in auto_reset.CLOSURE_FILES),
-        ]
-        for acceptance, memento in ((base, {}), (full, {"ceiling_layers": [str(layer)]})):
-            config = {"authority": file_binding(authority), "continuation": file_binding(continuation), "source_acceptance": acceptance, "memento": memento}
-            with self.subTest(size=len(acceptance)), self.assertRaisesRegex(ValueError, "not attested"):
+        for name, acceptance in (
+            ("selected modules only", base),
+            ("startup omitted", [b for b in full if b is not startup]),
+            ("startup mutated", [b if b is not startup else {**b, "sha256": "0" * 64} for b in full]),
+        ):
+            config = {"authority": file_binding(authority), "continuation": file_binding(continuation),
+                      "source_acceptance": acceptance, "memento": {"ceiling_layers": [str(layer)]}}
+            with self.subTest(case=name), self.assertRaisesRegex(ValueError, "not attested|binding changed"):
                 auto_reset.AutoReset(None, root / "s.json", config, None).bindings()
-        config["source_acceptance"] = full + [file_binding(layer)]
+        config["source_acceptance"] = full
         auto_reset.AutoReset(None, root / "s.json", config, None).bindings()
+
+
+import test_auto_reset  # noqa: E402  (the shared supervisor fixture)
+
+
+class LiveWindow:
+    """The proven live lane differs from the journal's routed identity."""
+
+    def __init__(self, root, rollout):
+        self.home, self.rollout = root, rollout
+
+    def outgoing(self, frontier):
+        return {"thread": "live", "rollout": str(self.rollout), "device": 1, "inode": 2}
+
+    def log_mark(self):
+        return 41
+
+
+class OutgoingGoalRelease(unittest.TestCase):
+    """F1: release and prepare bind the live outgoing goal; the journal UUID is inherited."""
+
+    def setUp(self):
+        import sqlite3
+
+        fixture = test_auto_reset.AutoResetTests()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        self.f, self.root = fixture, fixture.root
+        rollout = self.root / "live.jsonl"
+        rollout.write_text("".join(json.dumps(r) + "\n" for r in (
+            {"type": "session_meta", "payload": {"id": "live", "cwd": str(self.root), "source": "cli", "originator": "codex-tui"}},
+            {"type": "turn_context", "payload": {"model": "gpt-6.1-sol", "effort": "high"}},
+            {"type": "event_msg", "payload": {"type": "task_complete"}})))
+        self.goals = {}
+        for thread, used in (("live", 50), ("old", 100)):
+            path = self.root / f"goal-{thread}.json"
+            path.write_text(json.dumps({"goal": {"threadId": thread, "objective": "full scope", "tokensUsed": used,
+                                                 "timeUsedSeconds": 5, "status": "paused"}, "remainingTokens": None}))
+            self.goals[thread] = path
+        with sqlite3.connect(fixture.database) as connection:
+            connection.execute("INSERT INTO thread_goals VALUES (?,?,?,?,?,?,?,?,?)",
+                               ("live", "goal", "full scope", "paused", None, 50, 5, 1000, 1000))
+        self.bottle = self.root / "bottle.json"
+        self.bottle.write_text(json.dumps(bottle_data(outgoing={**bottle_data()["outgoing"], "session_id": "live"})))
+        self.ownership = self.root / "ownership.json"
+        self.ownership.write_text(json.dumps({"owned_processes": []}))
+        layer = Layers(self).write("ceiling = 150_000\n")[0]
+        fixture.config["memento"] = {"ceiling_layers": [str(layer)], "handoff_reserve": 0}
+        fixture.window = LiveWindow(self.root, rollout)
+        self.controller = fixture.controller()
+
+    def release(self, thread):
+        return self.controller.release(self.ownership, self.goals[thread], self.bottle)
+
+    def test_release_then_prepare_binds_the_live_goal_and_inherits_the_journal_uuid(self):
+        from ops.orchestration.artifacts import file_binding
+
+        self.assertEqual(self.f.loop.status()["session_id"], "old")
+        record = self.release("live")
+        self.assertEqual((record["outgoing"], record["inherited_session"]), ("live", "old"))
+        self.assertEqual(record["goal_receipt"], str(self.goals["live"].absolute()))
+        ledger = json.loads(Path(self.f.config["goal_ledger"]).read_text())
+        self.assertIn("live", ledger["threads"])
+        self.assertNotIn("old", ledger["threads"])
+        with mock.patch("ops.orchestration.auto_reset.seal_predecessor", return_value={"session": "old"}):
+            prepared = self.controller.prepare()
+        self.assertEqual(prepared["phase"], "waiting_idle")
+        self.assertEqual(prepared["goal_receipt"], file_binding(self.goals["live"]))
+        reset = self.f.loop.status()["reset"]
+        self.assertEqual((reset["previous_session"], reset["inherited_session"]), ("live", "old"))
+        prompt = (Path(reset["directory"]) / "resume-prompt.txt").read_text()
+        self.assertIn("FROM: Outgoing Buford live", prompt)
+        self.assertNotIn("FROM: Outgoing Buford old", prompt)
+
+    def test_a_goal_observed_on_the_stale_journal_uuid_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "actual current goal observation required"):
+            self.release("old")
+        self.assertFalse(Path(self.f.config["release"]).read_text().count('"outgoing"'))
+
+
+class OneCeilingAuthority(unittest.TestCase):
+    """F2: workflow admission and the supervisor consume one sealed ceiling authority."""
+
+    setUp = test_loop.LoopTests.setUp
+
+    def seal(self, reserve=40000, text="ceiling = 150_000\n"):
+        from ops.orchestration.ceiling import Authority
+
+        self.layer = Layers(self).write(text)[0]
+        record = Authority.seal({"ceiling_layers": [str(self.layer)], "handoff_reserve": reserve}).record
+        state = self.loop._read()
+        state["ceiling"] = record
+        self.loop._save(state)
+        return record
+
+    def begin(self, *extra, **changes):
+        from ops.orchestration import loop
+
+        row = dict(ROW, task_budget=30000)
+        control = json.loads(self.control.read_text())
+        control["sessions"][0].update(row, session_id="old")
+        self.control.write_text(json.dumps(control))
+        actual = {"session_id": "old", "model": "gpt-6.1-sol", "effort": "high"}
+        measured = summary(**{"session_id": "old", "latest_request_input_tokens": 140000, **changes})
+        argv = ["loop", "--state", str(self.loop.path), "--control", str(self.control), "begin", "u1", *extra]
+        with mock.patch.object(loop, "identity", return_value=actual), \
+                mock.patch.object(loop, "NativeLit", return_value=self.lit), \
+                mock.patch("ops.orchestration.session_context.inspect_transcript", return_value=measured), \
+                mock.patch("sys.argv", argv), mock.patch("sys.stdout", new_callable=__import__("io").StringIO), \
+                mock.patch("sys.stderr", new_callable=__import__("io").StringIO) as stderr:
+            code = loop.main()
+        return code, stderr.getvalue()
+
+    def test_cli_admission_applies_the_sealed_handoff_reserve(self):
+        # 140000 + 30000 + max(15000 row, 40000 sealed) = 210000 > 200000.
+        self.seal(reserve=40000)
+        code, stderr = self.begin()
+        self.assertEqual(code, 2)
+        self.assertIn("context-reset-required", stderr)
+        self.assertTrue(self.loop._read()["reset_requested"])
+
+    def test_cli_admits_when_the_same_authority_fits(self):
+        self.seal(reserve=15000)
+        code, stderr = self.begin(latest_request_input_tokens=100000)
+        self.assertEqual((code, stderr), (0, ""))
+
+    def test_caller_supplied_ceiling_layer_is_refused(self):
+        self.seal(reserve=15000)
+        other = Layers(self).write("ceiling = 180_000\n", name="other.conf")[0]
+        with self.assertRaises(SystemExit):
+            self.begin("--ceiling-layer", str(other))
+
+    def test_missing_changed_or_unknown_inputs_hold_without_requesting_reset(self):
+        for name, prepare, changes in (
+            ("no sealed authority", lambda: None, {}),
+            ("layer changed after seal", lambda: (self.seal(), self.layer.write_text("ceiling = 190_000\n")), {}),
+            ("unknown window", self.seal, {"reported_context_window_tokens": None}),
+            ("changed model", self.seal, {"model": "gpt-6-sol"}),
+        ):
+            with self.subTest(case=name):
+                state = self.loop._read()
+                state.pop("ceiling", None)
+                state["reset_requested"] = False
+                self.loop._save(state)
+                prepare()
+                code, stderr = self.begin(**changes)
+                self.assertEqual(code, 2)
+                self.assertIn("ceiling-hold", stderr)
+                self.assertFalse(self.loop._read()["reset_requested"])
+
+    def test_supervisor_refuses_a_config_bound_that_differs_from_the_sealed_one(self):
+        from ops.orchestration.auto_reset import AutoReset
+        from ops.orchestration.ceiling import Authority, CeilingHold
+
+        layer = Layers(self).write("ceiling = 150_000\n")[0]
+        sealed = Authority.seal({"ceiling_layers": [str(layer)], "handoff_reserve": 40000}).record
+        stub = StubLoop()
+        stub.status = lambda: {"ceiling": sealed}
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(root))
+        config = {"cwd": "/w", "memento": {"ceiling_layers": [str(layer)], "handoff_reserve": 15000}}
+        controller = AutoReset(stub, root / "supervisor.json", config, StubWindow())
+        with mock.patch("ops.orchestration.auto_reset.inspect_transcript", return_value=summary()), \
+                self.assertRaisesRegex(CeilingHold, "sealed ceiling authority"):
+            controller.fold(controller.status())
 
 
 if __name__ == "__main__":

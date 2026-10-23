@@ -719,6 +719,7 @@ class Loop:
                             inherited_session=inherited,
                             predecessor=memento["predecessor"],
                             log_mark=memento["log_mark"],
+                            ceiling=memento["ceiling"],
                             excluded_sessions=sorted(
                                 {previous, *([inherited] if inherited else [])}
                                 | {s["session_id"] for s in control["sessions"]}
@@ -756,7 +757,9 @@ class Loop:
             if automatic is not None:
                 # [DEVICE:negative-examples] Startup is a bounded phase, not a handoff/history audit.
                 prompt = (
-                    f"TO: Fresh Buford, lead orchestrator. FROM: Outgoing Buford {state['session_id']}, lead orchestrator. "
+                    f"TO: Fresh Buford, lead orchestrator. FROM: Outgoing Buford {previous}, lead orchestrator"
+                    + (f" (inherited routed predecessor {inherited})" if inherited else "")
+                    + ". "
                     f"BUFORD_CONTEXT_HANDOFF {nonce} {file_binding(directory / 'frontier.json')['sha256']}. "
                     f"Retain {state['model']}/{state['effort']} in this same visible lane. Root user-provided AGENTS.md governs. "
                     f"Startup only: run {sys.executable} -m ops.orchestration.startup packet "
@@ -770,7 +773,6 @@ class Loop:
                     "Report role, UUID and pause in at most three lines. "
                     f"Actual workflow begins by running {sys.executable} -m ops.orchestration.loop --state {self.path} --control {self.control} begin {state['goal_ticket']}"
                     + (f" --unit {automatic['workflow_unit']}" if automatic.get('workflow_unit') is not None else '')
-                    + "".join(f" --ceiling-layer {p}" for p in (memento or {}).get("ceiling_layers", ()))
                     + (
                         f". Then read and follow the sealed bottle {bottle['path']} sha256 {bottle['sha256']}; "
                         "a changed bottle holds"
@@ -804,6 +806,9 @@ class Loop:
                 "previous_session": previous,
                 **({"inherited_session": inherited} if memento else {}),
             }
+            if memento:
+                # [LAW:single-enforcer] Workflow admission reads this same sealed bound.
+                state["ceiling"] = memento["ceiling"]
             state["admission"] = None
             self._save(state)
             return state["reset"]
@@ -1105,7 +1110,6 @@ def main():
     begin.add_argument("ticket")
     begin.add_argument("--maintenance", action="store_true")
     begin.add_argument("--headroom-hold", action="store_true")
-    begin.add_argument("--ceiling-layer", type=Path, action="append", default=[])
     begin.add_argument(
         "--unit", help="stable shipping-unit ID under a multi-unit LIT ticket"
     )
@@ -1164,11 +1168,12 @@ def main():
                 state["effort"],
             ):
                 raise ValueError("actual Buford identity/model/effort mismatch")
-            from .ceiling import Bound, CeilingHold, Measurement, decide
+            from .ceiling import Authority, CeilingHold, Measurement, decide
             from .session_context import inspect_transcript
 
             # [LAW:single-enforcer] Admission headroom is the per-decision Memento bound
-            # of this measured lane; a missing layer or metric holds instead of fitting.
+            # of this measured lane under the journal's sealed authority, the same one
+            # the supervisor enforces; no caller input can move it, and any gap holds.
             try:
                 measurement = Measurement.parse(
                     inspect_transcript("codex", buford["transcript"])
@@ -1180,7 +1185,7 @@ def main():
                     raise CeilingHold("measured lane is not the journal's Buford")
                 decision = decide(
                     measurement,
-                    Bound.resolve(buford, args.ceiling_layer, measurement),
+                    Authority.sealed(state.get("ceiling")).bound(buford, measurement),
                     buford["task_budget"],
                 )
             except CeilingHold as error:

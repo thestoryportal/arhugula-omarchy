@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import math
 from pathlib import Path
 
+from .artifacts import file_binding
 from .vendor.memento import ceiling_config as memento
 
 
@@ -90,6 +91,45 @@ class Bound:
         # it is a maximum, capped so the finish band never crosses the hard close.
         grace = min(memento.GRACE, close - soft)
         return cls(measurement.identity, ceiling, reserve, close, soft, grace)
+
+
+@dataclass(frozen=True)
+class Authority:
+    """The one ceiling authority: sealed layer bytes plus the handoff reserve.
+
+    The supervisor seals it from its attested config into the reset package, and
+    workflow admission reads it back from the journal, so both decide on one bound.
+    """
+
+    record: dict
+
+    @classmethod
+    def seal(cls, memento_config):
+        reserve = memento_config["handoff_reserve"]
+        if type(reserve) is not int or reserve < 0:
+            raise CeilingHold("handoff reserve must be a non-negative integer")
+        layers = [file_binding(p) for p in memento_config["ceiling_layers"]]
+        return cls({"layers": layers, "handoff_reserve": reserve})
+
+    @classmethod
+    def sealed(cls, record):
+        """The journal's sealed authority, refused if absent or its layers changed."""
+        # [LAW:parse-dont-validate] Only an unchanged sealed record reaches a decision.
+        if record is None:
+            raise CeilingHold("no sealed ceiling authority; admission holds")
+        try:
+            changed = any(file_binding(b["path"]) != b for b in record["layers"])
+        except OSError as error:
+            raise CeilingHold(f"sealed ceiling layer unreadable: {error}") from None
+        if changed:
+            raise CeilingHold("sealed ceiling layer changed; admission holds")
+        return cls(record)
+
+    def bound(self, row, measurement):
+        return Bound.resolve(
+            row, [b["path"] for b in self.record["layers"]], measurement,
+            self.record["handoff_reserve"],
+        )
 
 
 def soft_threshold(layers):
