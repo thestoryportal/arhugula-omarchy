@@ -118,8 +118,9 @@ def product_file(revision, path):
                           check=True, capture_output=True, text=True).stdout
 
 
-def holds(citation, revision):
-    content = product_file(revision, citation.path)
+def holds(citation, content):
+    # [LAW:effects-at-boundaries] The checker judges file text it is handed, so its
+    # semantics are testable anywhere; only the pinned-H witness reads the product repo.
     if citation.line is None:
         return citation.literal not in content
     lines = content.splitlines()
@@ -135,7 +136,12 @@ class OperatorSurfaceRecoveryDecisionTest(unittest.TestCase):
         self.assertEqual(tuple(row.name for row in self.decision.behaviors), BEHAVIORS)
 
     def test_every_citation_holds_at_the_pinned_product_revision(self):
-        failed = [c.id for c in self.decision.citations if not holds(c, self.decision.revision)]
+        # [LAW:no-silent-failure] The required suite checks out only this repo, so without
+        # H the witness reports as skipped, never passed; with H a missing revision errors.
+        if not PRODUCT.is_dir():
+            self.skipTest(f"pinned-H citation witness needs the product repo at {PRODUCT}")
+        failed = [c.id for c in self.decision.citations
+                  if not holds(c, product_file(self.decision.revision, c.path))]
         self.assertEqual(failed, [])
 
     def test_every_cited_id_is_defined_and_every_defined_id_is_cited(self):
@@ -158,11 +164,16 @@ class OperatorSurfaceRecoveryDecisionTest(unittest.TestCase):
     def test_a_moved_or_reworded_citation_fails(self):
         line = next(c for c in self.decision.citations if c.line is not None)
         absent = next(c for c in self.decision.citations if c.line is None)
+        # The cited literal on exactly its cited line between blank lines, so the moved
+        # citation lands on a real line rather than past the end of the file.
+        content = "\n" * (line.line - 1) + line.literal + "\n\n"
         moved = Citation(line.id, line.path, line.line + 1, line.literal)
-        opening = product_file(self.decision.revision, absent.path)[:20]
-        present = Citation(absent.id, absent.path, None, opening)
-        self.assertFalse(holds(moved, self.decision.revision))
-        self.assertFalse(holds(present, self.decision.revision))
+        reworded = Citation(line.id, line.path, line.line, line.literal + "!")
+        self.assertTrue(holds(line, content))
+        self.assertFalse(holds(moved, content))
+        self.assertFalse(holds(reworded, content))
+        self.assertTrue(holds(absent, content))
+        self.assertFalse(holds(absent, content + absent.literal))
 
     def test_a_row_without_evidence_does_not_parse(self):
         broken = re.sub(r"(\| Typed refusal \|[^|]*\|)[^|]*\|", r"\1  |", self.text, count=1)
