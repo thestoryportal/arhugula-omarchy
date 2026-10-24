@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -258,36 +259,37 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(self.loop.bootstrap(transcript)["epoch"], 1)
 
     def closeout(self, ticket, obligations, disposition="retained"):
-        path = self.root / f"closeout-{ticket}.json"
-        path.write_text(
-            json.dumps(
-                {
-                    "record_type": "closeout",
-                    "schema_version": 1,
-                    "ticket": ticket,
-                    "worktrees": [
-                        {
-                            "disposition": disposition,
-                            "owner": "facade-coder",
-                            "path": "/w/u1",
-                            "branch": "feat/u1",
-                            "head": "a" * 40,
-                            "protected": ["evidence/u1"],
-                            "reason": "retained for reviewer readback",
-                        }
-                    ],
-                    "obligations": [
-                        {
-                            "name": name,
-                            "state": state,
-                            "owner": "buford",
-                            "next_action": "cmt-next",
-                        }
-                        for name, state in obligations
-                    ],
-                }
-            )
+        """Write one closeout record to its own content-addressed file, so records built
+        together (a table of refusals) never overwrite each other before use."""
+        body = json.dumps(
+            {
+                "record_type": "closeout",
+                "schema_version": 1,
+                "ticket": ticket,
+                "worktrees": [
+                    {
+                        "disposition": disposition,
+                        "owner": "facade-coder",
+                        "path": "/w/u1",
+                        "branch": "feat/u1",
+                        "head": "a" * 40,
+                        "protected": ["evidence/u1"],
+                        "reason": "retained for reviewer readback",
+                    }
+                ],
+                "obligations": [
+                    {
+                        "name": name,
+                        "state": state,
+                        "owner": "buford",
+                        "next_action": "cmt-next",
+                    }
+                    for name, state in obligations
+                ],
+            }
         )
+        path = self.root / f"closeout-{hashlib.sha256(body.encode()).hexdigest()}.json"
+        path.write_text(body)
         return path
 
     def closure(self, **states):
@@ -318,7 +320,7 @@ class LoopTests(unittest.TestCase):
         self.closed("u1")
         closeout = self.closeout(
             "u1",
-            self.closure(installed_acceptance="not_applicable", metrics="open", archive="open"),
+            self.closure(metrics="open", archive="open"),
         )
         result = self.trial_loop().complete("u1", self.evidence, closeout=closeout)
         self.assertEqual(result["epoch_completed"], 1)
@@ -345,6 +347,8 @@ class LoopTests(unittest.TestCase):
             self.closeout("u1", self.closure(own_main="deferred")),
             self.closeout("u1", self.closure(own_main="not_applicable")),
             self.closeout("u1", self.closure(metrics="not_applicable")),
+            # pass-2 F5 repro: a closeout alone cannot waive installed acceptance
+            self.closeout("u1", self.closure(installed_acceptance="not_applicable")),
             self.closeout("u1", self.closure() + [("review", "met")]),  # duplicate name
             self.closeout("u1", self.closure(), disposition="pending"),
             self.closeout("u1", []),
@@ -376,6 +380,24 @@ class LoopTests(unittest.TestCase):
         for closeout in (None, self.closeout("u1", self.closure())):
             with self.assertRaisesRegex(ValueError, "authority_unavailable"):
                 self.loop.complete("u1", self.evidence, closeout=closeout)
+        self.assertEqual(self.loop.status()["epoch_completed"], 0)
+
+    def test_only_trial_or_legacy_membership_counts(self):
+        """pass-2 F4 repro: a held or unknown membership from the adapter seam holds
+        completion with or without a closeout; it is never counted as legacy."""
+        from ops.orchestration.loop import Loop
+
+        self.closed("u1")
+        for profile in ("held", "unknown", None):
+            loop = Loop(
+                self.root / "state.json",
+                self.control,
+                self.lit,
+                membership=lambda journal, ticket, profile=profile: profile,
+            )
+            for closeout in (None, self.closeout("u1", self.closure())):
+                with self.assertRaisesRegex(ValueError, "holds completion"):
+                    loop.complete("u1", self.evidence, closeout=closeout)
         self.assertEqual(self.loop.status()["epoch_completed"], 0)
 
     def test_workflow_closeout_cannot_close_a_production_parent(self):

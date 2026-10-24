@@ -339,21 +339,22 @@ class Closeout:
 
 _WORKTREE_FIELDS = ("disposition", "owner", "path", "branch", "head", "protected", "reason")
 _OBLIGATION_FIELDS = ("name", "state", "owner", "next_action")
-# [LAW:one-source-of-truth] WS-11 task closure, each with its legal states: the code names
-# what is required, so a closeout can neither omit one nor relabel it asynchronous.
-# Installed acceptance binds only where the task requires it; that one alone may be
-# declared not applicable, explicitly on the record. Any other name is asynchronous
+# [LAW:one-source-of-truth] WS-11 task closure: the code names what is required, so a
+# closeout can neither omit one nor relabel it asynchronous. Any other name is asynchronous
 # housekeeping (metrics, reflection, archive) that may stay open with its owner.
-TRIAL_CLOSURE = {
-    "deliverables": ("met", "open"),
-    "review": ("met", "open"),
-    "own_main": ("met", "open"),
-    "installed_acceptance": ("met", "open", "not_applicable"),
-    "ownership": ("met", "open"),
-    "evidence": ("met", "open"),
-    "lit_state": ("met", "open"),
-}
-_ASYNCHRONOUS = ("met", "open")
+# [LAW:single-enforcer] Every obligation is `met` or `open`. Only authoritative task
+# applicability could waive installed acceptance, and this loop has no such binding, so
+# no closeout can declare it not applicable; the obligation holds until it is met.
+TRIAL_CLOSURE = (
+    "deliverables",
+    "review",
+    "own_main",
+    "installed_acceptance",
+    "ownership",
+    "evidence",
+    "lit_state",
+)
+_STATES = ("met", "open")
 ACTIVATION_RECEIPT = "workflow-activation.json"
 
 
@@ -405,7 +406,7 @@ def parse_closeout(raw, ticket):
             type(item) is not dict
             or set(item) != set(_OBLIGATION_FIELDS)
             or not all(type(item[k]) is str and item[k] for k in _OBLIGATION_FIELDS)
-            or item["state"] not in TRIAL_CLOSURE.get(item["name"], _ASYNCHRONOUS)
+            or item["state"] not in _STATES
             or item["name"] in states
         ):
             raise ValueError(f"invalid closeout obligation: {item!r}")
@@ -635,7 +636,7 @@ class Loop:
         trial work also needs its `closeout` record, where an open required obligation
         holds the count while retained worktrees and pending asynchronous housekeeping
         do not and stay visible on the completion record. Legacy work keeps its
-        evidence-only contract and refuses a trial closeout."""
+        evidence-only contract and refuses a trial closeout. Any other membership holds."""
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             data, receipts = self.lit.read(ticket)
@@ -676,6 +677,10 @@ class Loop:
                         worktrees=parsed.worktrees,
                         pending=list(parsed.pending),
                     )
+                elif profile != "legacy":
+                    # [LAW:parse-dont-validate] trial and legacy are the only countable
+                    # memberships; a held or unknown one cannot become evidence-only.
+                    raise ValueError(f"membership {profile!r} for {ticket} holds completion")
                 elif closeout is not None:
                     raise ValueError("a closeout record is trial bookkeeping; ticket is legacy")
                 state["completed"][ticket] = record
