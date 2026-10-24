@@ -303,7 +303,11 @@ Every candidate must observe the same mandatory facts, on both the accepted side
 and the current side: at least one distribution hash and one installed package,
 the site-packages path, the import origins, the interpreter path, the OS, kernel
 and architecture, and the resource pins. A missing one makes the disposition
-`unknown`, even when both sides are missing it.
+`unknown`, even when both sides are missing it. A blank or free-text value is not
+an observation either. Each fact has a fixed shape: a distribution hash is a
+SHA-256 digest, the paths are absolute, the import origins name a nonzero module
+count or the failures, and the resource pins are the SHA-256 digest of the
+accepted resource-pin record.
 
 Only `valid` permits reuse. A new session, a reopened discussion or a status
 comment is not an input and cannot change the disposition.
@@ -313,7 +317,7 @@ comment is not an input and cannot change the disposition.
 (SHA-256 `802fe077968b116480f05f4571bbd8a3b1ba9fce7801b3eeb6b44147d970123d`), which
 pins its execution result and accepted product head `91e76a4e`. It was read in its
 own schema, not rewritten. Its status must be exactly
-`BUILD_INSTALL_EVIDENCE_ACCEPTED_ONLY`. At 2026-10-24T06:03:27Z profile-coder
+`BUILD_INSTALL_EVIDENCE_ACCEPTED_ONLY`. At 2026-10-24T06:19:13Z profile-coder
 (Claude session `e6220df3-af01-48e9-a390-6c7e71709e19`) re-read the existing install in
 `.local/production-source09-01a10968/installed-a3-exec-01a10bd5` by hashing files:
 
@@ -326,10 +330,10 @@ own schema, not rewritten. Its status must be exactly
   `pyproject.toml` and `uv.lock`) are byte-identical at `91e76a4e` and `46a3b74e`.
   The eight commits between them change only `tools/`, `.github/` and `.harness/`.
   The equivalence record that proves this is
-  `/mnt/mac/arhugula-artifacts/wo-u19-installed-reuse-c1-20261024T0603Z/install-equivalence.json`
-  (SHA-256 `37cc9b667912a057568cbd5eb5f2ec67ea632c1325a16c13b732deb94456eef1`).
+  `/mnt/mac/arhugula-artifacts/wo-u19-installed-reuse-c2-20261024T0619Z/install-equivalence.json`
+  (SHA-256 `1ea6abb40664fe6adea72854addf1fe0f0f5856277c464c1b2cb9c4eed3d40e6`).
 
-The run's raw output is `run-zbycpze0` in the Mac store. With the equivalence
+The run's raw output is `run-jdya3tfe` in the Mac store. With the equivalence
 record, the disposition is `unknown` for five reasons: the import origins, the
 architecture, the kernel, the OS and the resource pins.
 
@@ -370,8 +374,8 @@ contract that is missing, or leaves empty, any of these:
 - its literal argv, an absolute working directory and its environment allowlist;
 - the prerequisites it requires, by their register names;
 - its accepted workload, as an immutable reference;
-- its expected outcome: the scenario either behaves, or it is refused with one
-  named code;
+- its expected outcome: the scenario behaves, it is refused with one named code,
+  or the product fails in one named way;
 - each threshold with the immutable source it comes from (a behaving scenario
   needs at least one), and its timeout with its source;
 - for every process, container, service or durable state it touches, an owner and
@@ -389,9 +393,13 @@ adding one or changing a value all refuse. A 30-minute soak cannot stand in for
 the 60-minute soak.
 
 `judge_scenario` passes only the expected outcome. A refusal with a different code
-fails. An infrastructure failure, such as a stopped Docker daemon or a lost mount,
-is an `error` and never a product pass. A pass without a post-cleanup observation
-is held, but cleanup cannot turn a failure into anything else.
+fails. An expected product failure, such as a recovery scenario's injected crash,
+passes only when the product's structured result names that failure. A bare
+nonzero exit proves nothing, and a refusal or a different failure fails. An
+infrastructure failure, such as a stopped Docker daemon or a lost mount, is an
+`error`. It is never product behavior, so it cannot satisfy an expected failure
+either. A pass without a post-cleanup observation is held, but cleanup cannot turn
+a failure into anything else.
 
 | Obligation | Accepted source | Contract state |
 | --- | --- | --- |
