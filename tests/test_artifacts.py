@@ -263,6 +263,24 @@ class BoundedReceiptTests(unittest.TestCase):
         lines = self.retrieve(result["findings"]).decode().splitlines()
         self.assertEqual(lines, [f"ERROR failure {n}" for n in range(3000)])
 
+    def test_a_long_finding_line_is_kept_whole(self):
+        # The diagnostic lies past the first 1 KiB read and outside the 16 KiB tail.
+        line = "ERROR " + "A" * 40000 + " MATERIAL_DIAGNOSTIC " + "B" * 40000 + " END"
+        result = self.capture(
+            [sys.executable, "-c", f"import sys; sys.stderr.write({line!r})"]
+        )
+        self.assertEqual(result["findings_count"], 1)
+        self.assertEqual(self.retrieve(result["findings"]).decode(), line + "\n")
+        self.assertTrue(result["summary_truncated"])
+
+    def test_a_keyword_split_across_reads_is_still_a_finding(self):
+        line = "x" * 1022 + "ERROR split\n"
+        result = self.capture(
+            [sys.executable, "-c", f"import sys; sys.stdout.write({line!r})"]
+        )
+        self.assertEqual(result["findings_count"], 1)
+        self.assertEqual(self.retrieve(result["findings"]).decode(), line)
+
     def test_small_finding_set_is_shown_whole(self):
         result = self.capture(
             [sys.executable, "-c", "print('noise'); print('Ran 3 tests'); print('OK')"]
