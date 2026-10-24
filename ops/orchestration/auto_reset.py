@@ -22,7 +22,7 @@ from .artifacts import DEFAULT_ROOT, file_binding
 from .ceiling import Authority, CeilingHold, Measurement, decide
 from .continuation import Lease
 from .goal_lineage import GoalLineage, goal_observation
-from .loop import Bottle, Loop, NativeLit, RecoveryTransfer, identity
+from .loop import Bottle, CapabilityHold, Loop, NativeLit, RecoveryTransfer, identity
 from .native_window import (
     NativeWindow,
     QueueRefused,
@@ -82,6 +82,33 @@ def user_frontier(actual):
 
 # Step failures the supervisor reports as a durable hold instead of exiting.
 HOLDS = (OSError, ValueError, KeyError, sqlite3.Error)
+
+
+def live(probe, *args):
+    """Run one live native probe; its failure is a capability hold."""
+    try:
+        return probe(*args)
+    except HOLDS as error:
+        raise CapabilityHold(f"{probe.__name__}: {error}") from error
+
+
+class LiveWindow:
+    """The native window seam, whose every probe is a live fact the condition cannot see.
+
+    Native inputs pass through unchanged: their durable intent phase already refuses a
+    replay, and their refusals keep their own types.
+    """
+
+    INPUTS = ("clear", "queue", "instruct")
+
+    def __init__(self, window):
+        self.native = window
+
+    def __getattr__(self, name):
+        value = getattr(self.native, name)
+        if name in self.INPUTS or not callable(value):
+            return value
+        return lambda *args: live(value, *args)
 
 
 @dataclass(frozen=True)
@@ -443,7 +470,7 @@ class AutoReset:
         self.loop = loop
         self.path = Path(path)
         self.config = config
-        self.window = window
+        self.window = LiveWindow(window)
         self.clock = clock
 
     def status(self):
@@ -463,8 +490,8 @@ class AutoReset:
     def held(self):
         if not self.hold_path.exists():
             return None
-        # A hold recorded before read-only classification keeps its condition gate.
-        return {"read_only": False, **json.loads(self.hold_path.read_text())}
+        # A hold recorded before capability classification keeps its condition gate.
+        return {"capability": False, **json.loads(self.hold_path.read_text())}
 
     def condition(self):
         """Digest of every durable input a step consults, plus the lanes' user frontier.
@@ -498,32 +525,19 @@ class AutoReset:
             json.dumps(value, sort_keys=True, default=str).encode()
         ).hexdigest()
 
-    def records(self):
-        """The durable records a step changes before any effect it must not repeat.
-
-        Every native input follows a supervisor-state intent and every reset package
-        is recorded in the journal; goal ledger and receipt writes are idempotent.
-        """
-        return (
-            [file_binding(p) if p.exists() else str(p) for p in (self.path, self.loop.path)],
-            sorted(map(str, Path(self.config["packages"]).glob("*"))),
-        )
-
     def attempt(self):
         """Step once per changed condition; an unchanged hold is never rediscovered.
 
-        A read-only hold changed no record, so it made no native input; it steps
-        again each pass, because only a fresh live probe can see the window or a
-        process recover, but is reported once while it stays unchanged.
+        A capability hold steps again each pass, because only a fresh live probe can
+        see the window or a process recover, but is reported once while unchanged.
         """
         recorded = self.held()
         if (
             recorded is not None
-            and not recorded["read_only"]
+            and not recorded["capability"]
             and recorded["condition"] == self.condition()
         ):
             return Held(recorded, new=False)
-        before = self.records()
         try:
             state = self.step()
         except HOLDS as error:
@@ -532,12 +546,12 @@ class AutoReset:
             event = {
                 "held": str(error),
                 "supervisor": str(self.path),
-                "read_only": self.records() == before,
+                "capability": isinstance(error, CapabilityHold),
                 "condition": self.condition(),
             }
             # Probe messages carry per-run receipt paths, so identity excludes "held".
             if recorded is not None and all(
-                recorded[k] == event[k] for k in ("read_only", "condition")
+                recorded[k] == event[k] for k in ("capability", "condition")
             ):
                 return Held(recorded, new=False)
             atomic_json(self.hold_path, event)
@@ -668,7 +682,7 @@ class AutoReset:
                 outgoing=lane,
                 predecessor=None
                 if lane["thread"] == state["session_id"]
-                else seal_predecessor(state["session_id"], routing["transcript"], self.window.home),
+                else live(seal_predecessor, state["session_id"], routing["transcript"], self.window.home),
                 log_mark=self.window.log_mark(),
                 bottle=Bottle(release["bottle"]).sealed(),
                 ceiling=Authority.seal(memento).record,
@@ -929,7 +943,7 @@ class AutoReset:
                 if self.window.outgoing({"native_lane": frontier["native_lane"]}) != frontier["outgoing"]:
                     raise ValueError("outgoing lane changed before clear")
                 if frontier["predecessor"] is not None:
-                    predecessor_absent(frontier["predecessor"], self.window.home)
+                    live(predecessor_absent, frontier["predecessor"], self.window.home)
             self.window.check()
             state.update(phase="clear_intent", started=self.clock())
             self.save(state)

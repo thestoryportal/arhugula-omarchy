@@ -2002,7 +2002,7 @@ class AutoResetTests(unittest.TestCase):
         self.assertRegex(first.event["held"], "owned writer remains active")
         self.assertEqual(controller.attempt()["phase"], "waiting_fresh")
 
-    def test_hold_recorded_before_read_only_classification_stays_held(self):
+    def test_hold_recorded_before_capability_classification_stays_held(self):
         # Pass-2 F2: a 7ee540f8 hold file has no classification; it keeps its
         # condition gate instead of failing the supervisor with KeyError.
         controller, _ = self.routing_hold()
@@ -2055,3 +2055,14 @@ class AutoResetTests(unittest.TestCase):
             results = [controller.attempt() for _ in range(3)]
         self.assertEqual([r.new for r in results], [True, False, False])
         self.assertEqual(len(list(packages.iterdir())), 1)
+
+    def test_unchanged_durable_hold_is_not_rediscovered(self):
+        # Pass-3 F3: a routing/pause mismatch is a durable fact the condition covers;
+        # only a changed condition may step again, not every wake-up.
+        from unittest.mock import patch
+
+        controller, _ = self.routing_hold()
+        with patch.object(controller, "step", wraps=controller.step) as step:
+            results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(step.call_count, 1)
