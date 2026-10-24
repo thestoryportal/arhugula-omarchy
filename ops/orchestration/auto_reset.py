@@ -22,7 +22,7 @@ from .artifacts import DEFAULT_ROOT, file_binding
 from .ceiling import Authority, CeilingHold, Measurement, decide
 from .continuation import Lease
 from .goal_lineage import GoalLineage, goal_observation
-from .loop import Bottle, Loop, NativeLit, RecoveryTransfer, identity
+from .loop import Bottle, CapabilityHold, Loop, NativeLit, RecoveryTransfer, identity
 from .native_window import (
     NativeWindow,
     QueueRefused,
@@ -78,6 +78,45 @@ class CompositorAbsent(OSError):
 
 def user_frontier(actual):
     return {"count": actual["user_count"], "hash": actual["last_user_hash"]}
+
+
+# Step failures the supervisor reports as a durable hold instead of exiting.
+HOLDS = (OSError, ValueError, KeyError, sqlite3.Error)
+
+
+def live(probe, *args):
+    """Run one live native probe; its failure is a capability hold."""
+    try:
+        return probe(*args)
+    except HOLDS as error:
+        raise CapabilityHold(probe.__name__, error) from error
+
+
+class LiveWindow:
+    """The native window seam, whose every probe is a live fact the condition cannot see.
+
+    Native inputs pass through unchanged: their durable intent phase already refuses a
+    replay, and their refusals keep their own types.
+    """
+
+    INPUTS = ("clear", "queue", "instruct")
+
+    def __init__(self, window):
+        self.native = window
+
+    def __getattr__(self, name):
+        value = getattr(self.native, name)
+        if name in self.INPUTS or not callable(value):
+            return value
+        return lambda *args: live(value, *args)
+
+
+@dataclass(frozen=True)
+class Held:
+    """A recorded hold; `new` marks only the first report of its unchanged condition."""
+
+    event: dict
+    new: bool
 
 
 def bound_json(binding):
@@ -431,7 +470,7 @@ class AutoReset:
         self.loop = loop
         self.path = Path(path)
         self.config = config
-        self.window = window
+        self.window = LiveWindow(window)
         self.clock = clock
 
     def status(self):
@@ -444,21 +483,106 @@ class AutoReset:
     def save(self, state):
         atomic_json(self.path, state)
 
-    def bindings(self):
-        for bound in [
+    @property
+    def hold_path(self):
+        return self.path.with_suffix(".hold.json")
+
+    def held(self):
+        if not self.hold_path.exists():
+            return None
+        # A hold recorded before probe identity keeps its condition gate.
+        return {"probe": None, **json.loads(self.hold_path.read_text())}
+
+    def condition(self):
+        """Digest of every durable input a step consults, plus the lanes' user frontier.
+
+        Model turns that add no user input leave it unchanged, so they cannot turn
+        one hold into another rediscovery; a step reports any unreadable input itself.
+        """
+        state = self.status()
+        # [LAW:one-source-of-truth] The files bindings() checks, so repairing one
+        # changes the condition and the next attempt re-evaluates it.
+        files = (
+            self.path,
+            self.loop.path,
+            self.loop.control,
+            self.config["release"],
+            *self.executed(),
+            *(bound["path"] for bound in self.bound()),
+        )
+        try:
+            control = json.loads(self.loop.control.read_text())
+            lanes = [s["transcript"] for s in control["sessions"] if s["role"] == "buford"]
+            lanes += [state["old_transcript"]] if "old_transcript" in state else []
+            frontiers = [user_frontier(identity(path)) for path in lanes]
+        except HOLDS as error:
+            frontiers = [{"unreadable": str(error)}]
+        value = {
+            "config": self.config,
+            "files": [file_binding(p) if Path(p).exists() else str(p) for p in files],
+            "user_frontiers": frontiers,
+        }
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True, default=str).encode()
+        ).hexdigest()
+
+    def attempt(self):
+        """Step once per changed condition; an unchanged hold is never rediscovered.
+
+        A capability hold steps again each pass, because only a fresh live probe can
+        see the window or a process recover, but is reported once while unchanged.
+        """
+        recorded = self.held()
+        if (
+            recorded is not None
+            and recorded["probe"] is None
+            and recorded["condition"] == self.condition()
+        ):
+            return Held(recorded, new=False)
+        try:
+            state = self.step()
+        except HOLDS as error:
+            # [LAW:no-silent-failure] The hold is durable and reported once; the
+            # condition is taken after the failure so its own effects are included.
+            event = {
+                "held": str(error),
+                "supervisor": str(self.path),
+                "probe": error.probe if isinstance(error, CapabilityHold) else None,
+                "condition": self.condition(),
+            }
+            # Probe messages carry per-run receipt paths, so identity excludes "held".
+            if recorded is not None and all(
+                recorded[k] == event[k] for k in ("probe", "condition")
+            ):
+                return Held(recorded, new=False)
+            atomic_json(self.hold_path, event)
+            return Held(event, new=True)
+        self.hold_path.unlink(missing_ok=True)
+        return state
+
+    def bound(self):
+        """The accepted authority, continuation and source bindings."""
+        return [
             self.config["authority"],
             self.config["continuation"],
             *self.config["source_acceptance"],
-        ]:
+        ]
+
+    def executed(self):
+        """Every blob this controller or the fresh context's startup executes."""
+        return (
+            *source_closure(),
+            *CLOSURE_FILES,
+            *self.config.get("memento", {}).get("ceiling_layers", ()),
+        )
+
+    def bindings(self):
+        for bound in self.bound():
             if file_binding(bound["path"]) != bound:
                 raise ValueError("autoreset authority/source binding changed")
         # [LAW:one-source-of-truth] Installed files are not proof of the code executing
         # this controller or the fresh context's startup. Match every executed blob.
-        for path in (
-            *source_closure(),
-            *CLOSURE_FILES,
-            *self.config.get("memento", {}).get("ceiling_layers", ()),
-        ):
+        for path in self.executed():
             actual = file_binding(path)
             accepted = [
                 b
@@ -567,7 +691,7 @@ class AutoReset:
                 outgoing=lane,
                 predecessor=None
                 if lane["thread"] == state["session_id"]
-                else seal_predecessor(state["session_id"], routing["transcript"], self.window.home),
+                else live(seal_predecessor, state["session_id"], routing["transcript"], self.window.home),
                 log_mark=self.window.log_mark(),
                 bottle=Bottle(release["bottle"]).sealed(),
                 ceiling=Authority.seal(memento).record,
@@ -828,7 +952,7 @@ class AutoReset:
                 if self.window.outgoing({"native_lane": frontier["native_lane"]}) != frontier["outgoing"]:
                     raise ValueError("outgoing lane changed before clear")
                 if frontier["predecessor"] is not None:
-                    predecessor_absent(frontier["predecessor"], self.window.home)
+                    live(predecessor_absent, frontier["predecessor"], self.window.home)
             self.window.check()
             state.update(phase="clear_intent", started=self.clock())
             self.save(state)
@@ -1257,7 +1381,7 @@ def main():
         if args.command == "release":
             result = controller.release(args.ownership, args.goal_receipt, args.bottle)
         elif args.command == "status":
-            result = controller.status()
+            result = {**controller.status(), "hold": controller.held()}
         elif args.command == "wait-bootstrap":
             result = wait_bootstrap(controller, args.manifest)
         elif args.command == "recover-maintenance":
@@ -1267,8 +1391,11 @@ def main():
             with Lease(controller.path.with_suffix(".runtime.lock")):
                 while True:
                     old = controller.status()
-                    result = controller.step()
-                    if result != old:
+                    result = controller.attempt()
+                    if isinstance(result, Held):
+                        if result.new:
+                            print(json.dumps(result.event), file=sys.stderr, flush=True)
+                    elif result != old:
                         print(
                             json.dumps(
                                 {
@@ -1310,7 +1437,7 @@ def main():
             return 0
         print(json.dumps(result))
         return 0
-    except (OSError, ValueError, KeyError, sqlite3.Error) as error:
+    except HOLDS as error:
         print(
             json.dumps({"held": str(error), "supervisor": str(controller.path)}),
             file=sys.stderr,

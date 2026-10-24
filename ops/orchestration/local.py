@@ -1,5 +1,6 @@
 """Explicit subprocess adapters; never interpret ticket text as shell commands."""
 
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import tempfile
 from .continuation import Stop
 from .handoff import validate
 from .artifacts import capture, DEFAULT_ROOT
+from .ownership import undeclared
 
 
 def command(argv, cwd, *, timeout=60, input=None, env=None):
@@ -46,8 +48,21 @@ class LocalAdapter:
         timeout=60,
         lit_argv=("lit",),
         artifact_root=DEFAULT_ROOT,
+        ownership=lambda: nullcontext(()),
+        clearance=lambda operation: None,
+        transition=lambda operation, write: write(),
     ):
         self.cwd = Path(cwd).resolve()
+        # Clears each effect's named admission operation as it runs; without a loop
+        # journal there is no grant, and the repository lease alone serializes runs.
+        self.clearance = clearance
+        # Performs this run's own LIT write under that grant, which then stands on
+        # the write's result; without a journal the write simply runs.
+        self.transition = transition
+        # Opens the active reservations, held unchanged for one whole inspection,
+        # so a released owner stops covering its checkout; with none, every other
+        # dirty checkout is unowned.
+        self.ownership = ownership
         self.verify_argv = verify_argv
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
@@ -101,12 +116,13 @@ class LocalAdapter:
         # [LAW:single-enforcer] Every native claim passes this ownership check.
         # Native start silently transfers a same-checkout claim to another session,
         # so a current holder other than this adapter's refuses before any mutation.
+        self.clearance("implementation")
         if self.owner_args is None:
             raise Stop("claim-owner-unknown")
         if self.assignee(ticket) != holder:
             raise Stop("claim-conflict")
         try:
-            self.lit("start", ticket, *self.owner_args)
+            self.transition("implementation", lambda: self.lit("start", ticket, *self.owner_args))
         except Stop as error:
             raise Stop("claim-conflict") from error
         owner = self.assignee(ticket)
@@ -121,10 +137,10 @@ class LocalAdapter:
         return self.lit("show", ticket)
 
     def comment(self, ticket, body):
-        self.lit("comment", "add", ticket, "--body", body)
+        self.transition("implementation", lambda: self.lit("comment", "add", ticket, "--body", body))
 
     def done(self, ticket):
-        self.lit("done", ticket)
+        self.transition("implementation", lambda: self.lit("done", ticket))
 
     def assert_claim(self, ticket):
         # LIT has no read-only exported claims API. Renew only the claim this
@@ -136,25 +152,39 @@ class LocalAdapter:
             self.git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
         )
 
+    def dirty(self, worktree):
+        # -z keeps names verbatim and terminates every record with NUL; a rename's
+        # following record is its source path.
+        records = iter(self.git(
+            "status", "--porcelain=v1", "-z", "--untracked-files=all", cwd=worktree
+        ).split("\0")[:-1])
+        paths = set()
+        for record in records:
+            paths.add(record[3:])
+            if {"R", "C"} & set(record[:2]):
+                paths.add(next(records))
+        return paths
+
     def inspect(self, expected_head=None, allowed=()):
+        self.clearance("artifact-inspection")
         branch = self.git("branch", "--show-current").strip()
         if not branch or branch in {"main", "master"}:
             raise Stop("isolated-branch-required")
         head = self.git("rev-parse", "HEAD").strip()
         if expected_head and head != expected_head:
             raise Stop("git-head-changed")
-        # Inspect every linked checkout. Uncooperative external writers remain a
-        # residual race; the shared lease serializes this supervisor's sessions.
-        for item in self.git("worktree", "list", "--porcelain", "-z").split("\0"):
-            if item.startswith("worktree "):
-                other = Path(item[9:]).resolve()
-                if (
-                    other != self.cwd
-                    and self.git(
-                        "status", "--porcelain=v1", "--untracked-files=all", cwd=other
-                    ).strip()
-                ):
-                    raise Stop("dirty-tree-conflict")
+        # Inspect every linked checkout. Dirty work another active reservation
+        # declares is not this assignment's conflict; anything undeclared is.
+        # Uncooperative external writers remain a residual race; the shared lease
+        # serializes this supervisor's sessions.
+        with self.ownership() as ownership:
+            for item in self.git("worktree", "list", "--porcelain", "-z").split("\0"):
+                if item.startswith("worktree "):
+                    other = Path(item[9:]).resolve()
+                    if other != self.cwd and undeclared(
+                        ownership, other, self.dirty(other)
+                    ):
+                        raise Stop("dirty-tree-conflict")
         changed = set(
             filter(None, self.git("diff", "--name-only", "-z", "HEAD").split("\0"))
         )
@@ -186,6 +216,7 @@ class LocalAdapter:
         return dict(branch=branch, head=head, worktree=str(self.cwd))
 
     def verify(self):
+        self.clearance("test-preparation")
         result = capture(
             self.verify_argv, self.cwd, root=self.artifact_root, timeout=self.timeout
         )
@@ -194,6 +225,7 @@ class LocalAdapter:
 
     def commit(self, ticket, files):
         self.inspect(allowed=files)
+        self.clearance("implementation")
         self.git("diff", "--check")
         # Literal pathspecs prevent a worker receipt from staging arbitrary globs.
         self.git("--literal-pathspecs", "add", "--", *files)
