@@ -326,11 +326,13 @@ conformance of H's actual sync route is not established, and two gaps stay open
 outside this unit's paths. First, the local and CI setup commands permit lock
 mutation where WS-10 §12.4 requires `uv sync --locked`. Second, uv accepts an
 environment without `pyvenv.cfg` as intact. Behavior under a different uv version
-is untested; every probe ran uv 0.13.5. Both gaps are filed as
-`arhugula-harness-trial-193.9kh.2rn.8a2`, routed by Buford and not yet released for
-implementation. It scopes the local `just codex-sync` and `codex-test` route; the CI
-setup steps' unlocked sync is reported to Buford on the WO-U21 ticket for routing.
-The rejected cache and reuse alternatives produced no implementation scope.
+is untested; every probe ran uv 0.13.5. The gaps are filed as two tickets, both
+routed by Buford and not yet released for implementation:
+`arhugula-harness-trial-193.9kh.2rn.8a2` covers the local `just codex-sync` and
+`codex-test` route and the missing `pyvenv.cfg` case, and
+`arhugula-harness-trial-193.9kh.2rn.lh9` covers the setup steps in `ci.yml` and
+`pr-metadata.yml`. The rejected cache and reuse alternatives produced no
+implementation scope.
 
 ## Re-verifying this inventory
 
