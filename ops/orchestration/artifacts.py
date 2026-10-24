@@ -30,6 +30,9 @@ SUMMARY_BUDGET = 4096
 # Published numbers are wider than the zeros measured before launch; this covers them.
 NUMERIC_SLACK = 256
 FINDING = re.compile(rb"error|fail|traceback|passed|ran \d+|^OK$", re.I)
+# Longer than any FINDING keyword.
+KEYWORD_OVERLAP = 16
+COPY_BLOCK = 64 * 1024
 TAIL_HEADER = "\n[bounded tail]\n"
 
 
@@ -74,21 +77,57 @@ def file_binding(path):
     }
 
 
+def finding_spans(source):
+    """(start, end) byte range of each whole logical line in `source` that FINDING
+    matches, its newline excluded."""
+    start, matched, carry = 0, False, b""
+    # [LAW:carrying-cost] Even one compiler line is read in bounded chunks; the carried
+    # overlap finds a keyword split between two reads of the same line.
+    for chunk in iter(lambda: source.readline(1024), b""):
+        matched = matched or FINDING.search(carry + chunk) is not None
+        carry = chunk[-KEYWORD_OVERLAP:]
+        if chunk.endswith(b"\n"):
+            if matched:
+                yield start, source.tell() - 1
+            start, matched, carry = source.tell(), False, b""
+    if matched:
+        yield start, source.tell()
+
+
+def copy_span(source, start, end, target):
+    source.seek(start)
+    for offset in range(start, end, COPY_BLOCK):
+        size = min(COPY_BLOCK, end - offset)
+        block = source.read(size)
+        if len(block) != size:
+            raise ValueError(f"{source.name} changed while its findings were copied")
+        target.write(block)
+
+
 def write_findings(paths, findings):
-    """Copy every finding line of `paths` into `findings`; return (count, output tail)."""
-    count, tail = 0, b""
+    """Copy every matched logical line of `paths`, whole, into `findings`; return
+    how many."""
+    count = 0
     with private_file(findings) as stream:
         for path in paths:
-            with path.open("rb") as source:
-                # [LAW:carrying-cost] Even one compiler line is read in bounded chunks.
-                for chunk in iter(lambda: source.readline(1024), b""):
-                    if FINDING.search(chunk):
-                        stream.write(chunk if chunk.endswith(b"\n") else chunk + b"\n")
-                        count += 1
-                    tail = (tail + chunk)[-MODEL_RECEIPT_LIMIT:]
+            with path.open("rb") as scan, path.open("rb") as source:
+                for start, end in finding_spans(scan):
+                    copy_span(source, start, end, stream)
+                    stream.write(b"\n")
+                    count += 1
         stream.flush()
         os.fsync(stream.fileno())
-    return count, tail
+    return count
+
+
+def output_tail(paths, size):
+    """The last `size` bytes of the streams taken in order, read from their ends."""
+    tail = b""
+    for path in paths:
+        with path.open("rb") as stream:
+            stream.seek(max(0, os.fstat(stream.fileno()).st_size - size))
+            tail = (tail + stream.read())[-size:]
+    return tail
 
 
 def encoded(text):
@@ -230,7 +269,8 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
         for stream in (stdout, stderr):
             stream.flush()
             os.fsync(stream.fileno())
-    count, tail = write_findings(paths, findings_path)
+    count = write_findings(paths, findings_path)
+    tail = output_tail(paths, MODEL_RECEIPT_LIMIT)
     sync_directory(directory)
     bindings = {name: file_binding(path) for name, path in bound.items()}
     elapsed = round(time.monotonic() - began, 3)
