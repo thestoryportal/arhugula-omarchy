@@ -14,21 +14,26 @@ from .loop import Loop, NativeLit, journal_ownership
 
 def adapter_for(config, cwd, seconds):
     # The loop journal owns active reservations, held under its lease per inspection,
-    # and the admission every effect of this run must clear through Loop.check, which
-    # rereads LIT and control each time; a run's own LIT transition therefore stales
-    # its grant until Buford begins again. Without a journal nothing is declared, so
-    # every other dirty checkout holds this run.
+    # and the admission every effect of this run must clear through Loop, which
+    # rereads LIT and control each time; the run's own LIT writes go through
+    # Loop.transition, so only they move the grant's LIT basis. Without a journal
+    # nothing is declared, so every other dirty checkout holds this run.
     journal = config.get("loop_state")
     if journal and not all(
         type(config.get(key)) is str for key in ("admission", "loop_control")
     ):
         raise ValueError("loop_state requires the admission and loop_control it clears against")
     store = config.get("artifact_root", DEFAULT_ROOT)
+
+    def loop():
+        return Loop(journal, config["loop_control"], NativeLit(cwd, store))
+
     scoped = dict(
         ownership=lambda: journal_ownership(journal),
-        clearance=lambda operation: Loop(
-            journal, config["loop_control"], NativeLit(cwd, store)
-        ).check(config["admission"], operation),
+        clearance=lambda operation: loop().check(config["admission"], operation),
+        transition=lambda operation, write: loop().transition(
+            config["admission"], operation, write
+        ),
     ) if journal else {}
     return LocalAdapter(
         cwd,

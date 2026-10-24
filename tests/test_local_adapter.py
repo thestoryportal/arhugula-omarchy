@@ -381,3 +381,68 @@ class NativeClaimTests(unittest.TestCase):
                     with self.assertRaisesRegex(Stop, "claim-conflict"):
                         method(self.ticket)
                     self.assertEqual(self.issue()["assignee"], "claude_owner")
+
+    def granted(self):
+        """A runner config holding a real Buford grant whose Loop reads this LIT store."""
+        from ops.orchestration.loop import Loop, NativeLit
+        from ops.orchestration.runner import adapter_for
+
+        base, tree = self.root.parent, self.trees["lane"]
+        control = base / "control.json"
+        control.write_text(json.dumps({"repair_paused": False, "notification_thread": "buford",
+            "sessions": [{"role": "buford", "session_id": "buford", "transcript": "unused"}]}))
+        (base / "handoff.md").write_text("goal")
+        journal, artifacts = base / "loop" / "state.json", str(base / "artifacts")
+        loop = Loop(journal, control, NativeLit(tree, artifacts))
+        loop.initialize("buford", "gpt-6.1-sol", "high", base / "handoff.md", "goal")
+        loop.reserve({"kind": "writer", "key": self.ticket, "owner": "coder",
+                      "reviewer": "reviewer", "worktree": str(tree),
+                      "paths": ["own.txt"], "resources": []})
+        config = {"verify_argv": ["true"], "loop_state": str(journal),
+                  "loop_control": str(control), "artifact_root": artifacts,
+                  "admission": loop.begin(self.ticket)["admission"]}
+        with self.native(CODEX_THREAD_ID="thread-1"):
+            return adapter_for(config, tree, 60)
+
+    def test_one_grant_carries_the_run_through_its_own_ticket_transitions(self):
+        # Every effect continue_work performs, in its order, under one grant.
+        run, tree = self.granted(), self.trees["lane"]
+        head = run.inspect()["head"]
+        run.start(self.ticket)
+        run.inspect(expected_head=head)
+        (tree / "own.txt").write_text("owned\n")
+        run.inspect(expected_head=head, allowed=["own.txt"])
+        self.assertTrue(run.verify()[0])
+        run.comment(self.ticket, "Verified")
+        commit = run.commit(self.ticket, ["own.txt"])
+        run.inspect(expected_head=commit)
+        run.done(self.ticket)
+        run.comment(self.ticket, "Committed")
+        self.assertEqual(self.issue()["status"], "closed")
+
+    def test_a_prerequisite_opened_after_the_claim_still_stales_the_grant(self):
+        run, tree = self.granted(), self.trees["lane"]
+        head = run.inspect()["head"]
+        run.start(self.ticket)
+        subprocess.run(["lit", "new", "--title", "Late prerequisite", "--topic", "claims"],
+                       cwd=tree, check=True, capture_output=True)
+        exported = json.loads(subprocess.run(["lit", "export"], cwd=tree, check=True,
+                                             capture_output=True, text=True).stdout)
+        (late,) = [i["id"] for i in exported["issues"] if i["id"] != self.ticket]
+        subprocess.run(["lit", "dep", "add", "--from", late, "--to", self.ticket],
+                       cwd=tree, check=True, capture_output=True)
+        (tree / "own.txt").write_text("owned\n")
+        with self.assertRaisesRegex(ValueError, "LIT changed"):
+            run.commit(self.ticket, ["own.txt"])
+        self.assertEqual(git(tree, "rev-parse", "HEAD"), head)
+
+    def test_a_foreign_comment_after_the_claim_still_stales_the_grant(self):
+        run, tree = self.granted(), self.trees["lane"]
+        head = run.inspect()["head"]
+        run.start(self.ticket)
+        subprocess.run(["lit", "comment", "add", self.ticket, "--body", "hold"],
+                       cwd=tree, check=True, capture_output=True)
+        (tree / "own.txt").write_text("owned\n")
+        with self.assertRaisesRegex(ValueError, "LIT changed"):
+            run.commit(self.ticket, ["own.txt"])
+        self.assertEqual(git(tree, "rev-parse", "HEAD"), head)

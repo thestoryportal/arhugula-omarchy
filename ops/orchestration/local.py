@@ -50,11 +50,15 @@ class LocalAdapter:
         artifact_root=DEFAULT_ROOT,
         ownership=lambda: nullcontext(()),
         clearance=lambda operation: None,
+        transition=lambda operation, write: write(),
     ):
         self.cwd = Path(cwd).resolve()
         # Clears each effect's named admission operation as it runs; without a loop
         # journal there is no grant, and the repository lease alone serializes runs.
         self.clearance = clearance
+        # Performs this run's own LIT write under that grant, which then stands on
+        # the write's result; without a journal the write simply runs.
+        self.transition = transition
         # Opens the active reservations, held unchanged for one whole inspection,
         # so a released owner stops covering its checkout; with none, every other
         # dirty checkout is unowned.
@@ -118,7 +122,7 @@ class LocalAdapter:
         if self.assignee(ticket) != holder:
             raise Stop("claim-conflict")
         try:
-            self.lit("start", ticket, *self.owner_args)
+            self.transition("implementation", lambda: self.lit("start", ticket, *self.owner_args))
         except Stop as error:
             raise Stop("claim-conflict") from error
         owner = self.assignee(ticket)
@@ -133,12 +137,10 @@ class LocalAdapter:
         return self.lit("show", ticket)
 
     def comment(self, ticket, body):
-        self.clearance("implementation")
-        self.lit("comment", "add", ticket, "--body", body)
+        self.transition("implementation", lambda: self.lit("comment", "add", ticket, "--body", body))
 
     def done(self, ticket):
-        self.clearance("implementation")
-        self.lit("done", ticket)
+        self.transition("implementation", lambda: self.lit("done", ticket))
 
     def assert_claim(self, ticket):
         # LIT has no read-only exported claims API. Renew only the claim this

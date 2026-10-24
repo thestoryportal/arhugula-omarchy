@@ -54,6 +54,25 @@ def fingerprint(data, ticket, goal):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
+# What native start, comment add and done change on the ticket they act on.
+PROGRESS = frozenset({"status", "assignee", "updated_at", "closed_at"})
+
+
+def beside(data, ticket, known):
+    """`data` without the ticket's own progress: its PROGRESS fields and any comment
+    on it not in `known`. A run's own transition changes nothing else."""
+    return {
+        "relations": data["relations"],
+        "issues": [
+            {k: v for k, v in i.items() if i["id"] != ticket or k not in PROGRESS}
+            for i in data["issues"]
+        ],
+        "comments": [
+            c for c in data["comments"] if c["issue_id"] != ticket or c["id"] in known
+        ],
+    }
+
+
 def excluded_scope(data, quarantined):
     excluded = set(quarantined)
     while True:
@@ -704,24 +723,44 @@ class Loop:
             self._save(state)
             return report
 
-    def check(self, admission, operation):
+    def _current(self, state, admission, operation):
         # [LAW:single-enforcer] Every use of a grant, at the CLI or at a runner
         # effect, clears here against the current journal, LIT scope and control.
+        grant = clear(state, admission, operation)
+        data, receipts = self.lit.read(grant["ticket"])
+        if (
+            fingerprint(data, grant["ticket"], state["goal_ticket"])
+            != grant["fingerprint"]
+            or file_binding(self.control)["sha256"] != grant["control"]
+        ):
+            raise ValueError("LIT changed or pause/routing changed; begin again")
+        return grant, data, receipts
+
+    def check(self, admission, operation):
         with Lease(self.path.with_suffix(".lock")):
-            state = self._read()
-            grant = clear(state, admission, operation)
-            data, receipts = self.lit.read(grant["ticket"])
-            if (
-                fingerprint(data, grant["ticket"], state["goal_ticket"])
-                != grant["fingerprint"]
-                or file_binding(self.control)["sha256"] != grant["control"]
-            ):
-                raise ValueError("LIT changed or pause/routing changed; begin again")
+            grant, _, receipts = self._current(self._read(), admission, operation)
             return {
                 "ticket": grant["ticket"],
                 "reads": receipts,
                 "admission": admission,
             }
+
+    def transition(self, admission, operation, write):
+        """Performs the run's own LIT `write` under its current grant, then stands
+        the grant on the result if nothing changed beside the ticket's own progress."""
+        with Lease(self.path.with_suffix(".lock")):
+            state = self._read()
+            grant, before, _ = self._current(state, admission, operation)
+            write()
+            after, _ = self.lit.read(grant["ticket"])
+            ticket, goal = grant["ticket"], state["goal_ticket"]
+            known = {c["id"] for c in before["comments"]}
+            if fingerprint(beside(after, ticket, known), ticket, goal) != fingerprint(
+                beside(before, ticket, known), ticket, goal
+            ):
+                raise ValueError("LIT changed beside this run's transition; begin again")
+            grant["fingerprint"] = fingerprint(after, ticket, goal)
+            self._save(state)
 
     def complete(self, ticket, evidence):
         with Lease(self.path.with_suffix(".lock")):

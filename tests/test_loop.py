@@ -746,3 +746,36 @@ class LoopTests(unittest.TestCase):
             with self.subTest(change=change.__name__):
                 with self.assertRaisesRegex(Exception, error):
                     self.loop.check(admission, "implementation")
+
+    def test_only_the_runs_own_transition_moves_its_grant(self):
+        original = copy.deepcopy(self.lit.data)
+
+        def claim():
+            self.lit.data["issues"][0].update(status="in_progress", assignee="claude_coder")
+            self.lit.data["comments"].append({"id": "own", "issue_id": "u1", "body": "claimed"})
+
+        def comment():
+            self.lit.data["comments"].append({"id": "foreign", "issue_id": "u1", "body": "hold"})
+
+        def reassign():
+            self.lit.data["issues"][0]["assignee"] = "claude_successor"
+
+        def block():
+            self.lit.data["relations"].append({"type": "blocks", "src_id": "u1", "dst_id": "u2"})
+
+        for change in (comment, reassign, block):
+            with self.subTest(change=change.__name__):
+                self.lit.data = copy.deepcopy(original)
+                admission = self.loop.begin("u1")["admission"]
+                self.loop.transition(admission, "implementation", claim)
+                self.loop.check(admission, "implementation")
+                change()
+                with self.assertRaisesRegex(ValueError, "LIT changed"):
+                    self.loop.check(admission, "implementation")
+        # A write that moves anything beside its own ticket's progress stands nothing.
+        self.lit.data = copy.deepcopy(original)
+        admission = self.loop.begin("u1")["admission"]
+        with self.assertRaisesRegex(ValueError, "beside this run's transition"):
+            self.loop.transition(admission, "implementation", lambda: (claim(), block()))
+        with self.assertRaisesRegex(ValueError, "LIT changed"):
+            self.loop.check(admission, "implementation")
