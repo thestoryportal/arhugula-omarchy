@@ -192,9 +192,11 @@ that depend on it stay held and independent work continues.
   recorder, refused the same way. A separate 2026-10-05 failure was an OS socket
   permission error, not a classifier denial, and it is history (`cmt-62c520a3`).
 - **Resolution:** Request approval for each exact action as recorded. Do not retry
-  through another wrapper, flag, session, interpreter or host.
+  through another wrapper, flag, session, interpreter or host. A systemd transient
+  unit is another wrapper; see the supervision boundary decision below.
 - **Dependent scenarios:** Full48 membership, the kernel/interpreter provenance
-  witness, W0 installed help sampling and supervision death/ownership proof.
+  witness, W0 installed help sampling and supervision death/ownership proof,
+  which holds the WO-U22 boundary at `held_capability`.
 - **Revalidate when:** A recorded approval for one of these exact actions exists.
 
 ### Host storage/restore
@@ -247,9 +249,39 @@ record was altered and must be investigated, not re-recorded.
 | D3 | `.local/24h-acceptance/w0-runtime-denial.md` | `726a10989d6cd8e8544f9a5192d83221b8200dfcb1820850818cdf8da87a25c2` | W0 installed `harness --help` recorder |
 | D4 | `.local/24h-acceptance/a7-author-report.md` | `99e30e9eb27eba1b71f278bc04f7c4e9f1b7b1b325452df0084d5cac0f0dd41f` | A7 offline venv setup with pinned uv (line 31) |
 
+## Supervision boundary decision
+
+WO-U22 (plan WP-15) proposes `held_capability` for a smaller acceptance-driver
+boundary: one systemd transient user service per scenario with
+`KillMode=control-group`. The host has the parts. systemd 261 runs a user
+manager on cgroup2 with `cpu memory pids` delegated (`run-_psnbo6q`). Proving the
+boundary needs the supervision death/ownership witness, which is held on D1–D3,
+so no transient unit was started. The process-group capture in
+`ops/orchestration/artifacts.py` stays the current path. It is not accepted as an
+acceptance driver. The independent disposition is profile-reviewer's verdict on
+LIT `arhugula-harness-trial-193.c4s.sq1`.
+
+`tests/test_supervision_boundary.py` shows what that capture already does. An
+owned survivor fails the receipt even though cleanup then removes it. A dead
+driver leaves no receipt, so there is no product GO. Cleanup leaves an unrelated
+sentinel alone. Four obligations stay open on the current path:
+
+- **O1:** a descendant that starts its own session escapes the process group, and
+  the receipt reports a clean exit.
+- **O2:** if the driver dies, nothing reclaims the product group.
+- **O3:** each external resource a scenario starts (container, service, remote job)
+  needs its own owner handle and cleanup action before acceptance.
+- **O4:** the death/ownership witness waits for approval of the exact D1–D3 actions.
+
+The transient service would close O1 and O2 if the witness proves it. Selecting it
+then needs a bounded plan amendment before any implementation. The full decision,
+with the comparison and active time, is the immutable record
+`/mnt/mac/arhugula-artifacts/wo-u22-supervision-decision-20261024T0036Z/decision.md`
+(SHA-256 `8d65c251f76f15ee5903bf5d7062b5420262e8f0c51482a8f8e9331b53bcb1c8`).
+
 ## Re-verifying this register
 
-The three scripts in `docs/orchestration/readiness/` repeat every read above. Run
+The scripts in `docs/orchestration/readiness/` repeat every read above. Run
 them from the canonical root checkout `/home/robbo/Work/arhugula-omarchy`. They
 only read state, and they use this host's absolute paths: the product checkout,
 the root `session-control.json`, the specification and the retained `.local`
@@ -261,6 +293,8 @@ python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy -
   bash docs/orchestration/readiness/observe.sh
 python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy --timeout 120 -- \
   python3 docs/orchestration/readiness/measure_roster.py
+python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy --timeout 60 -- \
+  bash docs/orchestration/readiness/observe-supervision.sh
 ```
 
 The structural check confirms that every 15.1 prerequisite has one entry with all
