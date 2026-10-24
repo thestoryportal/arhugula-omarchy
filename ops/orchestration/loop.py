@@ -26,7 +26,7 @@ from .review_budget import evaluate, load_gate
 def fingerprint(data, ticket, goal):
     # [LAW:one-source-of-truth] Comment bodies/IDs participate even without updated_at.
     scope = {ticket, goal}
-    relations = data.get("relations", [])
+    relations = data["relations"]
     while True:
         expanded = scope | {
             r["dst_id"]
@@ -41,7 +41,7 @@ def fingerprint(data, ticket, goal):
             (i for i in data["issues"] if i["id"] in scope), key=lambda i: i["id"]
         ),
         "comments": sorted(
-            (c for c in data.get("comments", []) if c["issue_id"] in scope),
+            (c for c in data["comments"] if c["issue_id"] in scope),
             key=lambda c: c["id"],
         ),
         "relations": sorted(
@@ -274,8 +274,10 @@ class NativeLit:
     def read(self, ticket):
         text, export = self.command("export")
         data = json.loads(text)
+        # [LAW:no-silent-failure] A partial export cannot stand in for zero comments.
         if (
             data.get("version") != 2
+            or any(type(data.get(k)) is not list for k in ("issues", "comments", "relations"))
             or sum(i["id"] == ticket for i in data["issues"]) != 1
         ):
             raise ValueError("invalid LIT ticket/export")

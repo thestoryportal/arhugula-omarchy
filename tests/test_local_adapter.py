@@ -1,7 +1,11 @@
+import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from ops.orchestration.local import LocalAdapter, ProcessWorker
 from ops.orchestration.continuation import Stop
@@ -97,3 +101,110 @@ class LocalAdapterTests(unittest.TestCase):
         result=json.loads(receipts[0].read_text())
         self.assertEqual(result['stderr']['bytes'],2000001)
         self.assertLess(len(result['summary']),5000)
+
+
+@unittest.skipUnless(shutil.which("lit"), "native claim behavior requires lit")
+class NativeClaimTests(unittest.TestCase):
+    """Claims through real LIT; each adapter runs under one native session identity."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name) / "repo"
+        self.root.mkdir()
+        git(self.root, "init", "-b", "main")
+        git(self.root, "config", "user.name", "Test")
+        git(self.root, "config", "user.email", "test@example.invalid")
+        (self.root / "base.txt").write_text("base\n")
+        git(self.root, "add", "base.txt")
+        git(self.root, "commit", "-m", "baseline")
+        subprocess.run(["lit", "init", "--skip-agents", "--skip-hooks"], cwd=self.root,
+                       check=True, capture_output=True)
+        self.trees = {}
+        for lane in ("lane", "other"):
+            self.trees[lane] = Path(directory.name) / lane
+            git(self.root, "worktree", "add", "-b", lane, str(self.trees[lane]))
+        subprocess.run(["lit", "new", "--title", "Claimed unit", "--topic", "claims"],
+                       cwd=self.trees["lane"], check=True, capture_output=True)
+        self.ticket = self.issue()["id"]
+
+    def issue(self):
+        exported = subprocess.run(["lit", "export"], cwd=self.trees["lane"], check=True,
+                                  capture_output=True, text=True).stdout
+        (issue,) = json.loads(exported)["issues"]
+        return issue
+
+    def claim(self, session, method="start", lane="lane"):
+        with mock.patch.dict("os.environ", {"CLAUDE_CODE_SESSION_ID": session}):
+            adapter = LocalAdapter(self.trees[lane], ["true"])
+        getattr(adapter, method)(self.ticket)
+        return adapter
+
+    def native(self, **identity):
+        # Exactly the given native session variables, whatever runs the suite.
+        environment = {k: v for k, v in os.environ.items()
+                       if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID")}
+        return mock.patch.dict("os.environ", {**environment, **identity}, clear=True)
+
+    def test_codex_session_claims_and_renews_as_its_native_thread(self):
+        with self.native(CODEX_THREAD_ID="thread-1"):
+            owner = LocalAdapter(self.trees["lane"], ["true"])
+            owner.start(self.ticket)
+            owner.assert_claim(self.ticket)
+            self.assertEqual(self.issue()["assignee"], "codex_thread-1")
+        with self.native(CODEX_THREAD_ID="thread-2"):
+            successor = LocalAdapter(self.trees["lane"], ["true"])
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            successor.start(self.ticket)
+        self.assertEqual(self.issue()["assignee"], "codex_thread-1")
+
+    def test_claim_without_a_native_session_refuses_before_any_mutation(self):
+        with self.native():
+            anonymous = LocalAdapter(self.trees["lane"], ["true"])
+        for method in (anonymous.start, anonymous.assert_claim):
+            with self.subTest(method=method.__name__):
+                with self.assertRaisesRegex(Stop, "claim-owner-unknown"):
+                    method(self.ticket)
+                self.assertEqual(self.issue()["status"], "open")
+                self.assertNotIn("assignee", self.issue())
+
+    def test_same_checkout_successor_cannot_take_over_native_claim(self):
+        self.claim("owner")
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("successor")
+        self.assertEqual(self.issue()["assignee"], "claude_owner")
+
+    def test_other_checkout_claim_refuses_without_take(self):
+        self.claim("owner")
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("other", lane="other")
+        self.assertEqual(self.issue()["assignee"], "claude_owner")
+
+    def test_owner_renews_its_claim_and_detects_a_later_reassignment(self):
+        owner = self.claim("owner")
+        owner.assert_claim(self.ticket)
+        subprocess.run(["lit", "update", self.ticket, "--assignee", "claude_reassigned"],
+                       cwd=self.trees["lane"], check=True, capture_output=True)
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            owner.assert_claim(self.ticket)
+        self.assertEqual(self.issue()["assignee"], "claude_reassigned")
+
+    def test_asserting_an_unheld_claim_never_claims(self):
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("owner", "assert_claim")
+        self.assertEqual(self.issue()["status"], "open")
+        self.claim("owner")
+        with self.assertRaisesRegex(Stop, "claim-conflict"):
+            self.claim("owner", "assert_claim")
+
+    def test_changed_session_identity_never_transfers_a_held_claim(self):
+        owner = self.claim("owner")
+        with mock.patch.dict("os.environ", {"CLAUDE_CODE_SESSION_ID": "successor"}):
+            owner.assert_claim(self.ticket)
+            self.assertEqual(self.issue()["assignee"], "claude_owner")
+            successor = LocalAdapter(self.trees["lane"], ["true"])
+            for method in (successor.assert_claim, successor.start):
+                with self.subTest(method=method.__name__):
+                    with self.assertRaisesRegex(Stop, "claim-conflict"):
+                        method(self.ticket)
+                    self.assertEqual(self.issue()["assignee"], "claude_owner")

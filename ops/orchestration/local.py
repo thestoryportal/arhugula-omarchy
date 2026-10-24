@@ -13,11 +13,12 @@ from .handoff import validate
 from .artifacts import capture, DEFAULT_ROOT
 
 
-def command(argv, cwd, *, timeout=60, input=None):
+def command(argv, cwd, *, timeout=60, input=None, env=None):
     # Own process group so a timeout cannot leave an editing child behind.
     process = subprocess.Popen(
         argv,
         cwd=cwd,
+        env=env,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -51,9 +52,22 @@ class LocalAdapter:
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
         self.artifact_root = artifact_root
+        # LIT derives the claiming session from the environment; pinning it here
+        # keeps every claim and renewal by this adapter under one identity.
+        self.lit_env = dict(os.environ)
+        # LIT records CLAUDE_CODE_SESSION_ID itself and prefers it over --assignee;
+        # a Codex session names its native thread through that fallback. With
+        # neither, LIT would leave the claim anonymous: there is no owner to claim as.
+        thread = self.lit_env.get("CODEX_THREAD_ID")
+        self.owner_args = (
+            ["--assignee", f"codex_{thread}"] if thread
+            else [] if self.lit_env.get("CLAUDE_CODE_SESSION_ID")
+            else None
+        )
+        self.claims = {}
 
-    def checked(self, argv, cwd=None):
-        result = command(argv, cwd or self.cwd, timeout=self.timeout)
+    def checked(self, argv, cwd=None, env=None):
+        result = command(argv, cwd or self.cwd, timeout=self.timeout, env=env)
         if result.returncode:
             raise Stop(f"command-failed: {shlex.join(argv)}: {result.stderr.strip()}")
         return result.stdout
@@ -62,10 +76,10 @@ class LocalAdapter:
         return self.checked(["git", *args], cwd=cwd)
 
     def lit(self, *args):
-        return self.checked([*self.lit_argv, *args])
+        return self.checked([*self.lit_argv, *args], env=self.lit_env)
 
     def next(self):
-        result = command([*self.lit_argv, "next"], self.cwd, timeout=self.timeout)
+        result = command([*self.lit_argv, "next"], self.cwd, timeout=self.timeout, env=self.lit_env)
         if result.returncode == 0:
             return result.stdout
         # LIT 0.14 uses exit 1, not an empty successful result, for exhaustion.
@@ -78,11 +92,30 @@ class LocalAdapter:
     def export(self):
         return json.loads(self.lit("export"))
 
-    def start(self, ticket):
+    def assignee(self, ticket):
+        (issue,) = [i for i in self.export()["issues"] if i["id"] == ticket]
+        # LIT export omits the field for an issue nobody holds.
+        return issue.get("assignee", "")
+
+    def claim(self, ticket, holder):
+        # [LAW:single-enforcer] Every native claim passes this ownership check.
+        # Native start silently transfers a same-checkout claim to another session,
+        # so a current holder other than this adapter's refuses before any mutation.
+        if self.owner_args is None:
+            raise Stop("claim-owner-unknown")
+        if self.assignee(ticket) != holder:
+            raise Stop("claim-conflict")
         try:
-            self.lit("start", ticket)
+            self.lit("start", ticket, *self.owner_args)
         except Stop as error:
             raise Stop("claim-conflict") from error
+        owner = self.assignee(ticket)
+        if not owner or holder not in ("", owner):
+            raise Stop("claim-conflict")
+        self.claims[ticket] = owner
+
+    def start(self, ticket):
+        self.claim(ticket, self.claims.get(ticket, ""))
 
     def show(self, ticket):
         return self.lit("show", ticket)
@@ -94,9 +127,9 @@ class LocalAdapter:
         self.lit("done", ticket)
 
     def assert_claim(self, ticket):
-        # LIT has no read-only exported claims API. Renew using its native
-        # conflict check; never pass --take. Revalidation checked in_progress.
-        self.start(ticket)
+        # LIT has no read-only exported claims API. Renew only the claim this
+        # adapter made, through the native conflict check; never pass --take.
+        self.claim(ticket, self.claims.get(ticket))
 
     def common_dir(self):
         return Path(
