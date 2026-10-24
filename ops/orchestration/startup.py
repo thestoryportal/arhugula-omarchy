@@ -39,13 +39,13 @@ def budget(transcript, session):
                    observed['reported_context_window_tokens'], known)
 
 
-def receipt(report, session):
-    """Accept a recorded startup report only if the same rule re-derives every field."""
-    decided = _decide(session, report.get('consumed_tokens'), report.get('context_window_tokens'),
-                      report.get('session_id') == session)
-    if {key: report.get(key) for key in decided} != decided:
-        raise StartupBudgetRejected({**decided, 'reason': UNAVAILABLE})
-    return report
+def first_turn(summary, session):
+    """The rule applied where ``session``'s inspected transcript completed its first turn."""
+    first = summary['startup']
+    known = (summary['session_id'] == session and not summary['identity_conflict']
+             and first['metric_error'] is None)
+    return _decide(session, first['estimated_consumed_context_tokens'],
+                   first['reported_context_window_tokens'], known)
 
 
 def packet(controller, manifest):

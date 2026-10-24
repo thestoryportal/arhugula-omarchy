@@ -14,7 +14,7 @@ import re
 
 from .communication import Hold, Reason, Recipient, VerifiedComment, routed, stored
 from .session_context import admit, inspect_transcript
-from .startup import EXCEEDED, UNAVAILABLE, StartupBudgetRejected, receipt
+from .startup import EXCEEDED, UNAVAILABLE, StartupBudgetRejected, first_turn
 
 
 SLICE_LIMIT = 16 * 1024
@@ -219,12 +219,11 @@ def _selected(profiles, name):
         raise Hold(Reason.AUTHORITY_UNAVAILABLE, f"launch profile {name} in {profiles}: {error!r}") from error
 
 
-def admit_recipient(recipient, *, routing, profiles, ceiling, startup, adoption, lit):
+def admit_recipient(recipient, *, routing, profiles, ceiling, adoption, lit):
     """Admit the routed session only from its own measured native facts.
 
-    ``ceiling`` is the effective Memento setting. ``startup`` is the report
-    recorded once when this session finished startup.budget(). ``adoption`` is
-    the session's published adoption_body() comment, or None if it has none.
+    ``ceiling`` is the effective Memento setting. ``adoption`` is the session's
+    published adoption_body() comment, or None if it has none.
     """
     row = routed(routing, recipient)
     selected = _selected(profiles, recipient.name)
@@ -243,15 +242,12 @@ def admit_recipient(recipient, *, routing, profiles, ceiling, startup, adoption,
     actual = (row["kind"], summary["model"], summary["effort"])
     if actual != selected:
         raise Hold(Reason.IDENTITY_MISMATCH, f"{recipient.session_id} runs {actual}, not the selected {selected}")
-    if startup.get("session_id") != recipient.session_id:
-        raise Hold(Reason.IDENTITY_MISMATCH, f"startup receipt is not of {recipient.session_id}")
     try:
-        # [LAW:single-enforcer] startup.py owns the 15-percent rule for recorded reports too.
-        receipt(startup, recipient.session_id)
+        # [LAW:single-enforcer] startup.py owns the 15-percent rule; the native
+        # transcript, never a caller, supplies the startup measurement.
+        startup = first_turn(summary, recipient.session_id)
     except StartupBudgetRejected as error:
-        raise Hold(STARTUP[error.report["reason"]], f"startup receipt: {error.report}") from error
-    if startup["context_window_tokens"] != summary["reported_context_window_tokens"]:
-        raise Hold(Reason.HEADROOM_UNKNOWN, f"startup window {startup['context_window_tokens']} is not the native window")
+        raise Hold(STARTUP[error.report["reason"]], f"startup: {error.report}") from error
     loaded = _loaded(lit, adoption, recipient.session_id, summary["compaction_count"])
     return Admitted(recipient, summary["model"], summary["effort"], capacity, startup, adoption, loaded)
 

@@ -21,6 +21,14 @@ from typing import Any
 from uuid import UUID
 
 
+# The measurement a session's first completed turn leaves: its native startup cost.
+STARTUP_FIELDS = (
+    "estimated_consumed_context_tokens",
+    "reported_context_window_tokens",
+    "metric_error",
+)
+
+
 def _fresh(kind: str) -> dict[str, Any]:
     if kind not in {"codex", "claude"}:
         raise ValueError("kind must be codex or claude")
@@ -43,6 +51,7 @@ def _fresh(kind: str) -> dict[str, Any]:
         "completion_count": 0,
         "observed_responses": 0,
         "partial_tail": False,
+        "startup": dict.fromkeys(STARTUP_FIELDS),
         "_seen_response_hashes": [],
         "_completed_response_hashes": [],
         "_last_response_hash": None,
@@ -279,10 +288,15 @@ def _feed(state: dict[str, Any], record: Any) -> None:
     if not isinstance(record, dict):
         raise ValueError("invalid JSONL record type")
     _activity(state, record.get("timestamp"))
+    starting = state["completion_count"] == 0
     if state["kind"] == "codex":
         _feed_codex(state, record)
     else:
         _feed_claude(state, record)
+    if starting and state["completion_count"] == 1:
+        # [LAW:one-source-of-truth] The transcript, not a later report, records what
+        # startup cost; later turns and compactions cannot rewrite it.
+        state["startup"] = {key: state[key] for key in STARTUP_FIELDS}
 
 
 def _scan(
@@ -291,6 +305,8 @@ def _scan(
     state = _fresh(kind) if prior is None else prior
     state.setdefault("latest_response_output_tokens", None)
     state.setdefault("estimated_consumed_context_tokens", None)
+    # A state saved before this field existed may have passed its first turn unseen.
+    state.setdefault("startup", dict.fromkeys(STARTUP_FIELDS))
     state["partial_tail"] = False
     with transcript.open("rb") as stream:
         stream.seek(offset)

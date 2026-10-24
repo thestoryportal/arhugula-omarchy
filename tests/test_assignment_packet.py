@@ -21,7 +21,8 @@ from ops.orchestration.assignment_packet import (
     read_slice,
 )
 from ops.orchestration.communication import Hold, Reason, Recipient, VerifiedComment, ensure_comment
-from ops.orchestration.startup import StartupBudgetRejected, budget
+from ops.orchestration.session_context import inspect_transcript
+from ops.orchestration.startup import UNAVAILABLE, StartupBudgetRejected, first_turn
 
 
 UNIT = "trial-193.u9f.p1s"
@@ -47,9 +48,20 @@ def _record(kind, payload):
     return {"timestamp": "2026-10-24T00:00:00Z", "type": kind, "payload": payload}
 
 
+def _turn(turn, inputs, output):
+    usage = {"input_tokens": inputs, "cached_input_tokens": 0, "output_tokens": output}
+    return [_record("event_msg", {"type": "task_started", "turn_id": turn, "model_context_window": 1000}),
+            _record("event_msg", {"type": "token_count", "info": {
+                "last_token_usage": usage, "model_context_window": 1000}}),
+            _record("event_msg", {"type": "task_complete", "turn_id": turn})]
+
+
 def transcript(session=WORKER, *, model="gpt-test", effort="medium", inputs=100,
-               output=10, measured=True, complete=True, compacted=False):
-    """One native Codex turn; each keyword is a single native fact a case can break."""
+               output=10, measured=True, complete=True, compacted=False, later=()):
+    """A native Codex startup turn, then ``later`` completed (inputs, output) turns.
+
+    Each keyword is a single native fact a case can break.
+    """
     records = [
         _record("session_meta", {"id": session}),
         _record("turn_context", {"model": model, "effort": effort}),
@@ -63,6 +75,8 @@ def transcript(session=WORKER, *, model="gpt-test", effort="medium", inputs=100,
         records.append(_record("event_msg", {"type": "context_compacted"}))
     if complete:
         records.append(_record("event_msg", {"type": "task_complete", "turn_id": "t1"}))
+    for number, (turn_inputs, turn_output) in enumerate(later, 2):
+        records.extend(_turn(f"t{number}", turn_inputs, turn_output))
     return "".join(json.dumps(record) + "\n" for record in records)
 
 
@@ -82,8 +96,6 @@ class Fixture(unittest.TestCase):
         self.profiles.write_text(json.dumps({"version": 1, "roles": {"implementer": {
             "client": "codex", "model": "gpt-test", "effort": "medium", "role_file": "implementer.md"}}}))
         self.recipient = Recipient("implementer", "independent reviewer", WORKER)
-        # The startup receipt is measured once, when the session finishes startup.
-        self.startup = budget(self.transcript, WORKER)
         self.lit = FakeLit()
         self.role = self.root / "implementer.md"
         self.role.write_text("reviewer role\n")
@@ -103,7 +115,7 @@ class Fixture(unittest.TestCase):
     def admitted(self, *, ceiling=1000, adoption=None, **changes):
         return admit_recipient(
             changes.get("recipient", self.recipient), routing=self.routing, profiles=self.profiles,
-            ceiling=ceiling, startup=changes.get("startup", self.startup), adoption=adoption, lit=self.lit)
+            ceiling=ceiling, adoption=adoption, lit=self.lit)
 
     def artifact(self, name, data, *supersedes, purpose="design"):
         path = self.root / name
@@ -133,13 +145,38 @@ class AdmissionTests(Fixture):
         self.assertEqual((admitted.model, admitted.effort), ("gpt-test", "medium"))
         self.assertEqual(admitted.capacity["decision"], "allow")
         self.assertEqual(admitted.capacity["remaining_tokens"], 900)
-        self.assertEqual(admitted.startup["limit_percent"], 15)
+        self.assertEqual((admitted.startup["consumed_tokens"], admitted.startup["limit_tokens"]), (110, 150))
+
+    def test_startup_cap_is_measured_at_the_native_first_turn(self):
+        # The reviewer's probe: the first turn is over the 150-token cap.
+        cases = [
+            ("first turn over the cap", transcript(inputs=200, output=10), Reason.REFRESH_REQUIRED),
+            ("later small turn cannot hide an over-cap startup", transcript(inputs=200, output=10, later=((50, 5),)), Reason.REFRESH_REQUIRED),
+            ("first turn without a measurement", transcript(measured=False, later=((50, 5),)), Reason.HEADROOM_UNKNOWN),
+        ]
+        for name, native, reason in cases:
+            with self.subTest(name):
+                self.transcript.write_text(native)
+                with self.assertRaises(Hold) as held:
+                    self.admitted()
+                self.assertEqual(held.exception.reason, reason)
+        # Work after startup is headroom, not startup: an under-cap first turn admits.
+        self.transcript.write_text(transcript(later=((400, 50),)))
+        self.assertEqual(self.admitted().startup["consumed_tokens"], 110)
+        # No caller-supplied report can stand in for the native measurement.
+        forged = dict(session_id=WORKER, consumed_tokens=0, context_window_tokens=1000, limit_tokens=150,
+                      limit_percent=15, measurement_basis="latest-native-request-input-plus-response-output")
+        self.transcript.write_text(transcript(inputs=200, output=10))
+        with self.assertRaises(TypeError):
+            admit_recipient(self.recipient, routing=self.routing, profiles=self.profiles, ceiling=1000,
+                            startup=forged, adoption=None, lit=self.lit)
+        # Another session's first turn never measures this session's startup.
+        self.transcript.write_text(transcript(session=STALE))
+        with self.assertRaises(StartupBudgetRejected) as rejected:
+            first_turn(inspect_transcript("codex", self.transcript), WORKER)
+        self.assertEqual(rejected.exception.report["reason"], UNAVAILABLE)
 
     def test_only_a_measured_eligible_session_is_admitted(self):
-        over_cap = self.root / "over-cap.jsonl"
-        over_cap.write_text(transcript(inputs=150, output=1))
-        with self.assertRaises(StartupBudgetRejected) as rejected:
-            budget(over_cap, WORKER)
         cases = [
             ("wrong uuid", dict(recipient=Recipient("implementer", "reviewer", STALE)), None, Reason.IDENTITY_MISMATCH),
             ("transcript of another session", {}, transcript(session=STALE), Reason.IDENTITY_MISMATCH),
@@ -149,11 +186,7 @@ class AdmissionTests(Fixture):
             ("missing native capacity", {}, transcript(measured=False), Reason.HEADROOM_UNKNOWN),
             ("insufficient headroom", {}, transcript(inputs=800), Reason.REFRESH_REQUIRED),
             ("ceiling differs from effective", dict(ceiling=900), None, Reason.POLICY_MISMATCH),
-            ("startup over the 15-percent cap", dict(startup=rejected.exception.report), None, Reason.REFRESH_REQUIRED),
-            ("startup receipt of another session", dict(startup={**self.startup, "session_id": STALE}), None, Reason.IDENTITY_MISMATCH),
-            ("startup receipt without measurements", dict(startup={"session_id": WORKER}), None, Reason.HEADROOM_UNKNOWN),
-            ("startup receipt with an inconsistent limit", dict(startup={**self.startup, "limit_tokens": 999}), None, Reason.HEADROOM_UNKNOWN),
-            ("startup receipt from another window", dict(startup={**self.startup, "context_window_tokens": 2000, "limit_tokens": 300}), None, Reason.HEADROOM_UNKNOWN),
+            ("startup over the 15-percent cap", {}, transcript(inputs=150, output=1), Reason.REFRESH_REQUIRED),
             ("adoption of another session", dict(adoption=self.adopt(self.role, session=STALE)), None, Reason.IDENTITY_MISMATCH),
             ("adoption never stored in LIT", dict(adoption=VerifiedComment(UNIT, "cmt-none", "f" * 64, "wo-u13-adopt-none")), None, Reason.INVALID_INPUT),
         ]
