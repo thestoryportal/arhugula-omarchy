@@ -47,11 +47,13 @@ class LocalAdapter:
         timeout=60,
         lit_argv=("lit",),
         artifact_root=DEFAULT_ROOT,
-        ownership=(),
+        ownership=lambda: (),
     ):
         self.cwd = Path(cwd).resolve()
-        # Active reservations; with none, every other dirty checkout is unowned.
-        self.ownership = tuple(ownership)
+        # Source of the active reservations, read again at every inspection so a
+        # released owner stops covering its checkout; with none, every other
+        # dirty checkout is unowned.
+        self.ownership = ownership
         self.verify_argv = verify_argv
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
@@ -160,6 +162,7 @@ class LocalAdapter:
         head = self.git("rev-parse", "HEAD").strip()
         if expected_head and head != expected_head:
             raise Stop("git-head-changed")
+        ownership = tuple(self.ownership())
         # Inspect every linked checkout. Dirty work another active reservation
         # declares is not this assignment's conflict; anything undeclared is.
         # Uncooperative external writers remain a residual race; the shared lease
@@ -168,7 +171,7 @@ class LocalAdapter:
             if item.startswith("worktree "):
                 other = Path(item[9:]).resolve()
                 if other != self.cwd and undeclared(
-                    self.ownership, other, self.dirty(other)
+                    ownership, other, self.dirty(other)
                 ):
                     raise Stop("dirty-tree-conflict")
         changed = set(

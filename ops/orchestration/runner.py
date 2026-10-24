@@ -13,9 +13,10 @@ from .loop import journal_ownership
 
 
 def adapter_for(config, cwd, seconds):
-    # The loop journal owns active reservations; without one nothing is declared,
-    # so every other dirty checkout still holds this run.
-    ownership = journal_ownership(config["loop_state"]) if "loop_state" in config else ()
+    # The loop journal owns active reservations and is re-read at each inspection;
+    # without one nothing is declared, so every other dirty checkout holds this run.
+    journal = config.get("loop_state")
+    ownership = (lambda: journal_ownership(journal)) if journal else (lambda: ())
     return LocalAdapter(
         cwd,
         config.get("verify_argv", ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]),

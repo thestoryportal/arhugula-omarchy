@@ -288,24 +288,72 @@ def implementation_clearance(data, ticket, authorization):
     blocked = open_dependencies(data, ticket)
     if blocked:
         raise ValueError("dependency-open: " + ",".join(blocked))
+    return {}
 
 
-def preparation_clearance(data, ticket, authorization):
-    # The ticket's own LIT record authorizes the slice and names each blocker it
-    # retains for implementation and landing; a purpose alone releases nothing.
+PREPARATION_MARKER = "PREPARATION-AUTHORIZATION "
+# The preparation WS-05 permits beside a held prerequisite; never landing.
+PREPARATION_OPERATIONS = frozenset({"inspect", "test", "review-context", "environment"})
+
+
+@dataclass(frozen=True)
+class PreparationAuthorization:
+    record: str  # the ticket comment carrying this authorization
+    authority: str  # the controlling release comment it derives from
+    operations: frozenset
+    retains: frozenset  # blockers kept for implementation and landing
+
+
+def parse_preparation(data, ticket, authorization):
+    # [LAW:parse-dont-validate] One typed record per ticket comment, e.g.
+    # PREPARATION-AUTHORIZATION {"authority": "cmt-...", "operations": ["test"],
+    # "retains": ["<blocker id>"]}; a mention of a blocker grants nothing.
     records = [
         c for c in data["comments"]
         if c["id"] == authorization and c["issue_id"] == ticket
     ]
-    if len(records) != 1:
+    lines = [
+        line[len(PREPARATION_MARKER):]
+        for c in records
+        for line in c["body"].splitlines()
+        if line.startswith(PREPARATION_MARKER)
+    ]
+    if len(records) != 1 or len(lines) != 1:
         raise ValueError("preparation-authorization-required")
-    # Whole IDs only: an epic ID must not match inside one of its children's IDs.
-    named = {t.rstrip(".") for t in re.findall(r"[\w.-]+", records[0]["body"])}
-    omitted = [d for d in open_dependencies(data, ticket) if d not in named]
+    try:
+        fields = json.loads(lines[0])
+    except ValueError:
+        raise ValueError("invalid preparation authorization: not JSON") from None
+    if not isinstance(fields, dict):
+        raise ValueError("invalid preparation authorization: not an object")
+    authority, operations, retains = (
+        fields.get(k) for k in ("authority", "operations", "retains")
+    )
+    comments = {c["id"] for c in data["comments"]}
+    if type(authority) is not str or authority == authorization or authority not in comments:
+        raise ValueError("invalid preparation authorization: authority")
+    if (
+        type(operations) is not list
+        or not operations
+        or not set(operations) <= PREPARATION_OPERATIONS
+    ):
+        raise ValueError("invalid preparation authorization: operations")
+    if type(retains) is not list or any(type(x) is not str for x in retains):
+        raise ValueError("invalid preparation authorization: retains")
+    return PreparationAuthorization(
+        authorization, authority, frozenset(operations), frozenset(retains)
+    )
+
+
+def preparation_clearance(data, ticket, authorization):
+    grant = parse_preparation(data, ticket, authorization)
+    omitted = [d for d in open_dependencies(data, ticket) if d not in grant.retains]
     if omitted:
         raise ValueError("authorization-omits-retained-gate: " + ",".join(omitted))
+    return {"authority": grant.authority, "operations": sorted(grant.operations)}
 
 
+# Each clearance raises its hold or returns the admission facts it established.
 # Only an implementation admission is landing clearance, so only it can complete.
 CLEARANCE = {
     "implementation": implementation_clearance,
@@ -328,7 +376,9 @@ def read_journal(path):
 
 def journal_ownership(path):
     """Active reservations recorded in a loop journal, for checkout inspection."""
-    return [parse_reservation(r) for r in read_journal(path)["reservations"]]
+    # Under the journal lease, so the read never sees a half-applied reservation.
+    with Lease(Path(path).with_suffix(".lock")):
+        return [parse_reservation(r) for r in read_journal(path)["reservations"]]
 
 
 class NativeLit:
@@ -512,7 +562,7 @@ class Loop:
                 and any(x.startswith(ticket + "::") for x in state["unit_quarantine"])
             ):
                 raise ValueError("review unit quarantined; choose an independent unit")
-            CLEARANCE[purpose](data, ticket, authorization)
+            cleared = CLEARANCE[purpose](data, ticket, authorization)
             reservation = self._writer(state, ticket)
             issue = next(i for i in data["issues"] if i["id"] == ticket)
             if (
@@ -534,6 +584,7 @@ class Loop:
                 purpose=purpose,
                 authorization=authorization,
                 reservation=reservation,
+                **cleared,
             )
             state["admissions"][ticket] = state["admission"]
             state['startup_required'] = False

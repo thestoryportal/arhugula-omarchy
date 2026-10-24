@@ -54,7 +54,7 @@ class LocalAdapterTests(unittest.TestCase):
         (self.root / "notes" / "draft.md").write_text("preserved draft")
         preserved = parse({"kind": "preserved", "key": "cmt-protected",
                            "worktree": str(self.root), "paths": ["foreign.txt", "notes/"]})
-        owned = LocalAdapter(self.tree, ["git", "diff", "--check"], ownership=[preserved])
+        owned = LocalAdapter(self.tree, ["git", "diff", "--check"], ownership=lambda: [preserved])
         (self.tree / "own.txt").write_text("owned\n")
         self.assertEqual(owned.inspect(allowed=["own.txt"])["branch"], "isolated")
         self.assertTrue(owned.commit("unit-1", ["own.txt"]))
@@ -83,6 +83,12 @@ class LocalAdapterTests(unittest.TestCase):
             adapter_for(config, self.tree, 60).inspect()
         owned = adapter_for({**config, "loop_state": str(journal)}, self.tree, 60)
         self.assertEqual(owned.inspect()["branch"], "isolated")
+        # Releasing the declaration after construction stops it covering the checkout.
+        state = json.loads(journal.read_text())
+        state["reservations"] = []
+        journal.write_text(json.dumps(state))
+        with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
+            owned.inspect()
 
     def test_unexpected_file_or_head_stops(self):
         (self.tree / "foreign.txt").write_text("another agent")
