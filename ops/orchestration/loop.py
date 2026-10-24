@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 from .artifacts import capture, DEFAULT_ROOT, file_binding
 from .continuation import Lease, Stop, select_ticket
+from .ownership import conflicts, parse as parse_reservation
 from .records import atomic_json, private_directory
 from .review_budget import evaluate, load_gate
 
@@ -261,6 +262,34 @@ class RecoveryTransfer:
         return cls(binding, grant, failed)
 
 
+def open_dependencies(data, ticket):
+    # A child inherits its epic's native blockers, as LIT readiness does.
+    relations = data["relations"]
+    scope = {ticket}
+    while True:
+        expanded = scope | {
+            r["dst_id"]
+            for r in relations
+            if r["src_id"] in scope and r["type"] == "parent-child"
+        }
+        if expanded == scope:
+            break
+        scope = expanded
+    closed = {i["id"] for i in data["issues"] if i.get("status") == "closed"}
+    return sorted(
+        {r["dst_id"] for r in relations if r["src_id"] in scope and r["type"] == "blocks"}
+        - closed
+    )
+
+
+# Preparation may inspect, test and stage beside an open prerequisite; only an
+# implementation admission is landing clearance, so only it can complete.
+CLEARANCE = {
+    "implementation": open_dependencies,
+    "preparation": lambda data, ticket: [],
+}
+
+
 class NativeLit:
     def __init__(self, cwd, artifact_root=DEFAULT_ROOT, argv=("lit",)):
         self.cwd, self.root, self.argv = Path(cwd), artifact_root, list(argv)
@@ -332,6 +361,8 @@ class Loop:
             or not isinstance(state["reviews"], dict)
         ):
             raise ValueError("invalid loop journal")
+        # Journals written before reservations existed recorded none.
+        state.setdefault("reservations", [])
         return state
 
     def _save(self, state):
@@ -374,6 +405,7 @@ class Loop:
                     admissions={},
                     arc_units={},
                     admission=None,
+                    reservations=[],
                     iteration=0,
                     goal_ticket=goal,
                     handoff=file_binding(handoff),
@@ -390,7 +422,12 @@ class Loop:
             "production_paused": self._control()["repair_paused"],
         }
 
-    def begin(self, ticket, *, maintenance=False, headroom=True, unit=None):
+    def begin(
+        self, ticket, *, maintenance=False, headroom=True, unit=None,
+        purpose="implementation",
+    ):
+        if purpose not in CLEARANCE:
+            raise ValueError(f"invalid admission purpose: {purpose!r}")
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             control = self._control()
@@ -443,6 +480,9 @@ class Loop:
                 and any(x.startswith(ticket + "::") for x in state["unit_quarantine"])
             ):
                 raise ValueError("review unit quarantined; choose an independent unit")
+            blocked = CLEARANCE[purpose](data, ticket)
+            if blocked:
+                raise ValueError("dependency-open: " + ",".join(blocked))
             issue = next(i for i in data["issues"] if i["id"] == ticket)
             if (
                 issue["status"] == "closed"
@@ -460,6 +500,7 @@ class Loop:
                 reads=receipts,
                 iteration=state["iteration"],
                 unit=unit,
+                purpose=purpose,
             )
             state["admissions"][ticket] = state["admission"]
             state['startup_required'] = False
@@ -545,6 +586,8 @@ class Loop:
                 grant = state["admissions"].get(ticket)
                 if grant is None or grant["ticket"] != ticket:
                     raise ValueError("completion requires this ticket admission")
+                if grant.get("purpose") == "preparation":
+                    raise ValueError("preparation admission cannot complete")
                 if ticket in excluded_scope(data, set(state["quarantine"])):
                     raise ValueError("quarantined work cannot complete")
                 state["completed"][ticket] = {
@@ -554,6 +597,10 @@ class Loop:
                 }
                 if state["admission"] and state["admission"]["ticket"] == ticket:
                     state["admission"] = None
+                # A completed writer no longer owns its checkout, paths or resources.
+                state["reservations"] = [
+                    r for r in state["reservations"] if r["key"] != ticket
+                ]
                 self._save(state)
             return {
                 "completed": ticket,
@@ -654,6 +701,34 @@ class Loop:
                     "binding",
                 )
             }
+
+    def reserve(self, record):
+        candidate = parse_reservation(record)
+        with Lease(self.path.with_suffix(".lock")):
+            state = self._read()
+            reasons = conflicts(self._reservations(state), candidate)
+            if reasons:
+                raise ValueError("reservation-held: " + ",".join(reasons))
+            state["reservations"].append(record)
+            self._save(state)
+            return {"reserved": candidate.key}
+
+    def release(self, key):
+        with Lease(self.path.with_suffix(".lock")):
+            state = self._read()
+            kept = [r for r in state["reservations"] if r["key"] != key]
+            if len(kept) == len(state["reservations"]):
+                raise ValueError(f"no reservation {key!r} to release")
+            state["reservations"] = kept
+            self._save(state)
+            return {"released": key}
+
+    @staticmethod
+    def _reservations(state):
+        return [parse_reservation(r) for r in state["reservations"]]
+
+    def ownership(self):
+        return self._reservations(self._read())
 
     def next(self):
         state = self._read()
@@ -1115,6 +1190,14 @@ def main():
     begin.add_argument(
         "--unit", help="stable shipping-unit ID under a multi-unit LIT ticket"
     )
+    begin.add_argument("--purpose", choices=sorted(CLEARANCE), default="implementation")
+    reserve = sub.add_parser("reserve")
+    reserve.add_argument(
+        "--record", type=Path, required=True,
+        help="writer, hold or preserved reservation JSON",
+    )
+    release = sub.add_parser("release")
+    release.add_argument("key")
     check = sub.add_parser("check")
     check.add_argument("admission")
     complete = sub.add_parser("complete")
@@ -1199,7 +1282,12 @@ def main():
                 maintenance=args.maintenance,
                 headroom=fits and not args.headroom_hold,
                 unit=args.unit,
+                purpose=args.purpose,
             )
+        elif args.command == "reserve":
+            result = loop.reserve(json.loads(args.record.read_text()))
+        elif args.command == "release":
+            result = loop.release(args.key)
         elif args.command == "check":
             result = loop.check(args.admission)
         elif args.command == 'finish-startup':

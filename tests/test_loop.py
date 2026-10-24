@@ -391,6 +391,96 @@ class LoopTests(unittest.TestCase):
         with patch.object(native, "command", side_effect=outputs):
             self.assertEqual(native.next(data, {"bad"}), ("ready", "backlog-receipt"))
 
+    def writer(self, key, owner, paths, *, tree=None, reviewer="reviewer", resources=()):
+        return {"kind": "writer", "key": key, "owner": owner, "reviewer": reviewer,
+                "worktree": str(self.root / (tree or key)), "paths": list(paths),
+                "resources": list(resources)}
+
+    def test_overlapping_resources_hold_second_writer(self):
+        self.loop.reserve(self.writer("u1", "coder-a", ["ops/orchestration/loop.py"]))
+        for record, reason in (
+            (self.writer("u2", "coder-b", ["ops/"]), "path-conflict"),
+            (self.writer("u2", "coder-b", ["docs/x.md"], tree="u1"), "worktree-conflict"),
+            (self.writer("u2", "coder-b", ["docs/x.md"], reviewer="coder-b"),
+             "reviewer-not-independent"),
+            (self.writer("u2", "coder-b", ["docs/x.md"], reviewer="coder-a"),
+             "reviewer-is-active-author"),
+            (self.writer("u2", "reviewer", ["docs/x.md"], reviewer="coder-b"),
+             "author-reserved-as-reviewer"),
+            (self.writer("u1", "coder-b", ["docs/x.md"]), "duplicate-reservation"),
+        ):
+            with self.assertRaisesRegex(ValueError, "reservation-held: .*" + reason):
+                self.loop.reserve(record)
+        # Disjoint independent work proceeds beside the first writer.
+        self.loop.reserve(self.writer("u3", "coder-b", ["ops/orchestration/local.py"]))
+        self.assertEqual(sorted(r.key for r in self.loop.ownership()), ["u1", "u3"])
+        self.loop.begin("u1")
+        self.close("u1")
+        # Completion releases the writer's paths; the overlap with u3 still holds.
+        with self.assertRaisesRegex(ValueError, "path-conflict"):
+            self.loop.reserve(self.writer("u2", "coder-c", ["ops/"], reviewer="other"))
+        self.loop.reserve(self.writer("u2", "coder-c", ["ops/orchestration/loop.py"],
+                                      reviewer="other"))
+        self.assertEqual(sorted(r.key for r in self.loop.ownership()), ["u2", "u3"])
+        with self.assertRaisesRegex(ValueError, "no reservation"):
+            self.loop.release("u1")
+
+    def test_quiet_window_holds_heavy_conflict(self):
+        quiet = {"kind": "hold", "key": "quiet:soak", "owner": "runtime",
+                 "resources": ["host-load"]}
+        self.loop.reserve(quiet)
+        heavy = self.writer("u1", "coder-a", ["a.py"], resources=["host-load"])
+        with self.assertRaisesRegex(ValueError, "reservation-held: resource-conflict"):
+            self.loop.reserve(heavy)
+        self.loop.reserve(self.writer("u2", "coder-b", ["b.py"]))
+        self.assertEqual(self.loop.release("quiet:soak"), {"released": "quiet:soak"})
+        self.loop.reserve(heavy)
+        with self.assertRaisesRegex(ValueError, "resource-conflict"):
+            self.loop.reserve(quiet)
+        for malformed in (
+            {**quiet, "kind": "lease"},
+            {**quiet, "resources": "host-load"},
+            self.writer("u4", "coder-d", ["../escape.py"]),
+            self.writer("u4", "coder-d", ["/abs.py"]),
+            {**self.writer("u4", "coder-d", ["d.py"]), "reviewer": ""},
+        ):
+            with self.assertRaisesRegex(ValueError, "invalid reservation"):
+                self.loop.reserve(malformed)
+
+    def test_quarantined_unit_preserves_true_dependencies(self):
+        # dependent -> bad -> base; sibling is independent of all of them.
+        self.lit.data["relations"] = [
+            {"type": "blocks", "src_id": "u2", "dst_id": "u1"},
+            {"type": "blocks", "src_id": "u3", "dst_id": "u2"},
+            {"type": "parent-child", "src_id": "u5", "dst_id": "u4"},
+            {"type": "blocks", "src_id": "u4", "dst_id": "u1"},
+        ]
+        state = json.loads((self.root / "state.json").read_text())
+        state["quarantine"] = ["u2"]
+        (self.root / "state.json").write_text(json.dumps(state))
+        with self.assertRaisesRegex(ValueError, "quarantine"):
+            self.loop.begin("u3", purpose="preparation")
+        # The quarantined unit's own open dependency is real; it is not lost or hidden.
+        with self.assertRaisesRegex(ValueError, "dependency-open: u1"):
+            self.loop.begin("u4")
+        with self.assertRaisesRegex(ValueError, "dependency-open: u1"):
+            self.loop.begin("u5")
+        # Permitted preparation proceeds without implying landing clearance.
+        self.loop.begin("u5", purpose="preparation")
+        u5 = next(x for x in self.lit.data["issues"] if x["id"] == "u5")
+        u5["status"] = "closed"
+        with self.assertRaisesRegex(ValueError, "preparation admission cannot complete"):
+            self.loop.complete("u5", self.evidence)
+        u5["status"] = "open"
+        self.loop.begin("u6")
+        self.loop.begin("u1")
+        self.close("u1")
+        self.loop.begin("u5")
+        self.close("u5")
+        with self.assertRaisesRegex(ValueError, "invalid admission purpose"):
+            self.loop.begin("u6", purpose="landing")
+        self.assertEqual(self.loop.status()["quarantine"], ["u2"])
+
     def test_export_without_comment_or_relation_records_holds_admission(self):
         from unittest.mock import patch
         from ops.orchestration.loop import Loop, NativeLit

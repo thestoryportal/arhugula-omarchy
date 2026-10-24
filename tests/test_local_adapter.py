@@ -46,6 +46,30 @@ class LocalAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
             self.adapter.inspect()
 
+    def test_unrelated_dirty_tree_does_not_block_owned_work(self):
+        from ops.orchestration.ownership import parse
+
+        (self.root / "foreign.txt").write_text("preserved residue")
+        (self.root / "notes").mkdir()
+        (self.root / "notes" / "draft.md").write_text("preserved draft")
+        preserved = parse({"kind": "preserved", "key": "cmt-protected",
+                           "worktree": str(self.root), "paths": ["foreign.txt", "notes/"]})
+        owned = LocalAdapter(self.tree, ["git", "diff", "--check"], ownership=[preserved])
+        (self.tree / "own.txt").write_text("owned\n")
+        self.assertEqual(owned.inspect(allowed=["own.txt"])["branch"], "isolated")
+        self.assertTrue(owned.commit("unit-1", ["own.txt"]))
+        # The declaration covers exactly what it names; a new write there is unowned.
+        (self.root / "late.txt").write_text("unknown writer")
+        with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
+            owned.inspect()
+        # Ownership of one checkout says nothing about another dirty checkout.
+        (self.root / "late.txt").unlink()
+        other = Path(self.directory.name) / "other"
+        git(self.root, "worktree", "add", "-b", "other", str(other))
+        (other / "foreign.txt").write_text("undeclared")
+        with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
+            owned.inspect()
+
     def test_unexpected_file_or_head_stops(self):
         (self.tree / "foreign.txt").write_text("another agent")
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):

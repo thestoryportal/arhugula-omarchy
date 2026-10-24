@@ -11,6 +11,7 @@ import tempfile
 from .continuation import Stop
 from .handoff import validate
 from .artifacts import capture, DEFAULT_ROOT
+from .ownership import undeclared
 
 
 def command(argv, cwd, *, timeout=60, input=None, env=None):
@@ -46,8 +47,11 @@ class LocalAdapter:
         timeout=60,
         lit_argv=("lit",),
         artifact_root=DEFAULT_ROOT,
+        ownership=(),
     ):
         self.cwd = Path(cwd).resolve()
+        # Active reservations; with none, every other dirty checkout is unowned.
+        self.ownership = tuple(ownership)
         self.verify_argv = verify_argv
         self.timeout = timeout
         self.lit_argv = list(lit_argv)
@@ -136,6 +140,19 @@ class LocalAdapter:
             self.git("rev-parse", "--path-format=absolute", "--git-common-dir").strip()
         )
 
+    def dirty(self, worktree):
+        # -z keeps names verbatim and terminates every record with NUL; a rename's
+        # following record is its source path.
+        records = iter(self.git(
+            "status", "--porcelain=v1", "-z", "--untracked-files=all", cwd=worktree
+        ).split("\0")[:-1])
+        paths = set()
+        for record in records:
+            paths.add(record[3:])
+            if {"R", "C"} & set(record[:2]):
+                paths.add(next(records))
+        return paths
+
     def inspect(self, expected_head=None, allowed=()):
         branch = self.git("branch", "--show-current").strip()
         if not branch or branch in {"main", "master"}:
@@ -143,16 +160,15 @@ class LocalAdapter:
         head = self.git("rev-parse", "HEAD").strip()
         if expected_head and head != expected_head:
             raise Stop("git-head-changed")
-        # Inspect every linked checkout. Uncooperative external writers remain a
-        # residual race; the shared lease serializes this supervisor's sessions.
+        # Inspect every linked checkout. Dirty work another active reservation
+        # declares is not this assignment's conflict; anything undeclared is.
+        # Uncooperative external writers remain a residual race; the shared lease
+        # serializes this supervisor's sessions.
         for item in self.git("worktree", "list", "--porcelain", "-z").split("\0"):
             if item.startswith("worktree "):
                 other = Path(item[9:]).resolve()
-                if (
-                    other != self.cwd
-                    and self.git(
-                        "status", "--porcelain=v1", "--untracked-files=all", cwd=other
-                    ).strip()
+                if other != self.cwd and undeclared(
+                    self.ownership, other, self.dirty(other)
                 ):
                     raise Stop("dirty-tree-conflict")
         changed = set(
