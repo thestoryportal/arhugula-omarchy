@@ -29,9 +29,10 @@ KIND_FIELDS = {
     "held": ("blocker", "release_condition"),
     "superseded_with_reason": ("reason", "replacement"),
 }
-UNIT_FIELDS = ("unit", "stream", "worktree", "branch", "head", "parent", "merge_base",
-               "base_delta", "contract_impact", "dependency_changes", "clearance_gate",
-               "retained_findings", "disposition")
+# [LAW:single-enforcer] Every free-text unit field crosses the one nonblank check in _text.
+TEXT_FIELDS = ("unit", "stream", "worktree", "branch", "base_delta", "contract_impact",
+               "dependency_changes", "clearance_gate")
+ID_FIELDS = ("head", "parent", "merge_base")
 
 
 @dataclass(frozen=True)
@@ -77,9 +78,10 @@ def _comments(values, where):
 
 def _unit(entry, index):
     where = f"units[{index}]"
-    missing = [field for field in UNIT_FIELDS if field not in entry]
-    if missing:
-        raise ValueError(f"{where}: missing {missing}")
+    text = {field: _text(entry, field, where) for field in TEXT_FIELDS}
+    ids = {field: _full_id(entry.get(field), f"{where}.{field}") for field in ID_FIELDS}
+    if not isinstance(entry.get("retained_findings"), list) or not isinstance(entry.get("disposition"), dict):
+        raise ValueError(f"{where}: missing retained_findings or disposition")
     for finding in entry["retained_findings"]:
         _text(finding, "summary", where)
         _comments(finding.get("evidence"), where)
@@ -93,12 +95,8 @@ def _unit(entry, index):
             raise ValueError(f"{where}: {kind} needs {field}")
     _comments(disposition.get("evidence"), where)
     return Unit(
-        unit=_text(entry, "unit", where), stream=_text(entry, "stream", where),
-        worktree=_text(entry, "worktree", where), branch=_text(entry, "branch", where),
-        head=_full_id(entry["head"], f"{where}.head"),
-        parent=_full_id(entry["parent"], f"{where}.parent"),
-        merge_base=_full_id(entry["merge_base"], f"{where}.merge_base"), kind=kind,
-        delta=disposition.get("delta", ""),
+        **{field: text[field] for field in ("unit", "stream", "worktree", "branch")}, **ids,
+        kind=kind, delta=disposition.get("delta", ""),
         reverification=tuple(disposition.get("reverification", ())))
 
 
@@ -185,6 +183,9 @@ class PreparedDispositionRecordTest(unittest.TestCase):
                 disposition={"kind": "held", "blocker": "A3 witness", "evidence": r["units"][3]["disposition"]["evidence"]}),
             "missing contract impact": lambda r: r["units"][4].pop("contract_impact"),
             "missing clearance gate": lambda r: r["units"][5].pop("clearance_gate"),
+            "blank A5 clearance gate": lambda r: r["units"][0].update(clearance_gate=""),
+            "null A5 clearance gate": lambda r: r["units"][1].update(clearance_gate=None),
+            "whitespace dependency changes": lambda r: r["units"][2].update(dependency_changes="  "),
             "duplicate head": lambda r: r["units"][6].update(head=r["units"][5]["head"]),
             "short comment pointer": lambda r: r["units"][5]["disposition"].update(evidence=["cmt-8ac926b9"]),
             "A4 off the A5 stack": lambda r: r["units"][3].update(parent=r["stack_root"]["head"]),
