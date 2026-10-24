@@ -1829,3 +1829,291 @@ class AutoResetTests(unittest.TestCase):
             stream.write(row)
         with self.assertRaisesRegex(ValueError, "user input changed"):
             self.controller().step()
+
+    def routing_hold(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        original = self.f.control.read_text()
+        self.f.control.write_text(original + " ")
+        return controller, original
+
+    def test_unchanged_hold_is_reported_once_across_supervisor_restarts(self):
+        # [LAW:behavior-not-structure] systemd restarts the supervisor on failure;
+        # an unchanged condition must not become a new hold event each restart.
+        controller, _ = self.routing_hold()
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "routing")
+        restarted = [self.controller().attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in restarted], [False] * 3)
+        self.assertTrue(all(r.event == first.event for r in restarted))
+        self.assertEqual(self.controller().held(), first.event)
+        self.assertEqual(self.window.lines, [])
+
+    def test_changed_condition_is_reevaluated_once(self):
+        controller, original = self.routing_hold()
+        self.assertTrue(controller.attempt().new)
+        self.f.control.write_text(original)
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "type": "response_item",
+                        "payload": {"role": "user", "content": [{"text": "pause now"}]},
+                    }
+                )
+                + "\n"
+            )
+        changed = controller.attempt()
+        self.assertTrue(changed.new)
+        self.assertRegex(changed.event["held"], "user input changed")
+        self.assertFalse(controller.attempt().new)
+        self.assertEqual(self.window.lines, [])
+
+    def test_resolved_condition_resumes_and_clears_the_hold(self):
+        controller, original = self.routing_hold()
+        self.assertTrue(controller.attempt().new)
+        self.f.control.write_text(original)
+        resumed = controller.attempt()
+        self.assertEqual(resumed["phase"], "waiting_title")
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertIsNone(controller.held())
+
+    def assert_restored_binding_resumes(self, key):
+        # [LAW:behavior-not-structure] Repairing a bound input is a changed condition:
+        # a restarted supervisor resumes instead of reporting the stale hold forever.
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        bound = Path(self.config[key]["path"])
+        accepted = bound.read_text()
+        bound.write_text(accepted + " ")
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "authority/source binding changed")
+        bound.write_text(accepted)
+        resumed = self.controller().attempt()
+        self.assertEqual(resumed["phase"], "waiting_title")
+        self.assertIsNone(self.controller().held())
+
+    def test_restored_authority_resumes_a_held_reset(self):
+        self.assert_restored_binding_resumes("authority")
+
+    def test_restored_continuation_resumes_a_held_reset(self):
+        self.assert_restored_binding_resumes("continuation")
+
+    def test_run_keeps_one_hold_event_and_waits_for_a_changed_condition(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        from io import StringIO
+        from unittest.mock import patch
+        from ops.orchestration.auto_reset import main
+
+        controller, _ = self.routing_hold()
+        waits = []
+
+        class Wakes:
+            def __init__(self, paths):
+                pass
+
+            def wait(self):
+                waits.append(1)
+                if len(waits) == 3:
+                    raise KeyboardInterrupt
+
+            def close(self):
+                pass
+
+        errors = StringIO()
+        with (
+            patch("sys.argv", ["auto_reset", "run", "--config", "fixture"]),
+            patch("ops.orchestration.auto_reset.configured", return_value=controller),
+            patch("ops.orchestration.auto_reset.Wakeups", Wakes),
+            redirect_stdout(StringIO()),
+            redirect_stderr(errors),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                main()
+        events = [json.loads(line) for line in errors.getvalue().splitlines()]
+        self.assertEqual(len(events), 1)
+        self.assertRegex(events[0]["held"], "routing")
+        self.assertEqual(self.window.lines, [])
+
+    def flaky_window(self, failures):
+        """Make the live window probe fail `failures` times, each with a fresh receipt."""
+        calls = []
+        healthy = self.window.check
+
+        def check():
+            calls.append(1)
+            if len(calls) <= failures:
+                raise OSError(f"native window command failed: receipt-{len(calls)}")
+            return healthy()
+
+        self.window.check = check
+        return calls
+
+    def test_recovered_native_capability_resumes_without_a_file_change(self):
+        # WS-04 6.2: a changed relevant capability permits the next attempt even
+        # though no file or user frontier changed.
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        calls = self.flaky_window(1)
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "native window command failed")
+        resumed = controller.attempt()
+        self.assertEqual(resumed["phase"], "waiting_title")
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertIsNone(controller.held())
+        self.assertGreaterEqual(len(calls), 2)
+
+    def test_unavailable_native_capability_is_reprobed_but_reported_once(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        calls = self.flaky_window(10)
+        results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(self.window.lines, [])
+
+    def waiting_title(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        self.assertEqual(controller.status()["phase"], "waiting_title")
+        return controller
+
+    def test_recovered_context_probe_resumes_without_a_file_change(self):
+        # Pass-2 F1: any read-only live probe, not only the wrapped ones, can recover.
+        controller = self.waiting_title()
+        calls = []
+        healthy = self.window.context
+
+        def context(frontier, previous):
+            calls.append(1)
+            if len(calls) == 1:
+                raise OSError("native context probe failed")
+            return healthy(frontier, previous)
+
+        self.window.context = context
+        self.assertTrue(controller.attempt().new)
+        resumed = controller.attempt()
+        self.assertEqual(resumed["phase"], "waiting_fresh")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(self.window.queued), 1)
+        self.assertIsNone(controller.held())
+
+    def test_changed_refusing_probe_is_reported_as_a_new_hold(self):
+        # Pass-4 F4: a recovered title followed by a failing context is a changed
+        # capability; the saved title hold must not hide it.
+        controller = self.waiting_title()
+        titles = []
+        healthy = self.window.title
+
+        def title():
+            titles.append(1)
+            if len(titles) == 1:
+                raise OSError("native title probe failed: receipt-1")
+            return healthy()
+
+        def context(frontier, previous):
+            raise OSError(f"native context probe failed: receipt-{len(titles)}")
+
+        self.window.title, self.window.context = title, context
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "^title: ")
+        second = controller.attempt()
+        self.assertTrue(second.new)
+        self.assertRegex(second.event["held"], "^context: ")
+        self.assertEqual(controller.held(), second.event)
+        third = controller.attempt()
+        self.assertFalse(third.new)
+        self.assertEqual(third.event, second.event)
+
+    def test_exited_owned_writer_resumes_without_a_file_change(self):
+        from unittest.mock import patch
+
+        release = json.loads(self.release.read_text())
+        release["owned_processes"] = [{"pid": 999999999}]
+        self.release.write_text(json.dumps(release))
+        controller = self.waiting_title()
+        exists = Path.exists
+
+        def alive(path):
+            return str(path) == "/proc/999999999" or exists(path)
+
+        with patch.object(Path, "exists", alive):
+            first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "^owned writer: remains active")
+        self.assertEqual(controller.attempt()["phase"], "waiting_fresh")
+
+    def test_hold_recorded_before_capability_classification_stays_held(self):
+        # Pass-2 F2: a 7ee540f8 hold file has no classification; it keeps its
+        # condition gate instead of failing the supervisor with KeyError.
+        controller, _ = self.routing_hold()
+        from ops.orchestration.records import atomic_json
+
+        legacy = {
+            "held": "routing/pause changed after preparation",
+            "supervisor": str(controller.path),
+            "condition": controller.condition(),
+        }
+        atomic_json(controller.hold_path, legacy)
+        result = controller.attempt()
+        self.assertFalse(result.new)
+        self.assertEqual(result.event["held"], legacy["held"])
+        self.assertEqual(self.window.lines, [])
+
+    def test_hold_after_a_durable_effect_waits_for_a_changed_condition(self):
+        # The effect boundary: a refused queue recorded its refusal, so the
+        # supervisor must not resend it while nothing relevant has changed.
+        from ops.orchestration.native_window import QueueRefused
+
+        controller = self.waiting_title()
+        sends = []
+
+        def queue(context, frontier, previous, text):
+            sends.append(1)
+            raise QueueRefused("queue refused")
+
+        self.window.queue = queue
+        results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(controller.status()["phase"], "prompt_refused")
+        self.assertEqual(len(sends), 1)
+
+    def test_failed_package_preparation_is_not_repeated_unchanged(self):
+        # A failed preparation leaves its new package directory behind; repeating it
+        # each pass would leave another directory every wake-up.
+        from unittest.mock import patch
+        from ops.orchestration.records import private_directory
+
+        self.hold()
+        controller = self.controller()
+        packages = Path(self.config["packages"])
+
+        def prepare_clear(directory, owned, *, automatic=None):
+            private_directory(directory)
+            raise OSError("package evidence unreadable")
+
+        with patch.object(self.loop, "prepare_clear", prepare_clear):
+            results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(len(list(packages.iterdir())), 1)
+
+    def test_unchanged_durable_hold_is_not_rediscovered(self):
+        # Pass-3 F3: a routing/pause mismatch is a durable fact the condition covers;
+        # only a changed condition may step again, not every wake-up.
+        from unittest.mock import patch
+
+        controller, _ = self.routing_hold()
+        with patch.object(controller, "step", wraps=controller.step) as step:
+            results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(step.call_count, 1)

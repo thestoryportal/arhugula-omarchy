@@ -316,6 +316,18 @@ class NativeLit:
         return None, receipt
 
 
+class CapabilityHold(ValueError):
+    """A live native fact (window, process) refused a step; no durable record shows it change.
+
+    `probe` names the refusing fact stably, apart from per-run detail, so a different
+    refusal is a different hold.
+    """
+
+    def __init__(self, probe, detail):
+        super().__init__(f"{probe}: {detail}")
+        self.probe = probe
+
+
 class Loop:
     def __init__(self, state, control, lit):
         self.path, self.control, self.lit = (
@@ -672,8 +684,8 @@ class Loop:
             state = self._read()
             for handle in owned_processes:
                 if Path(f"/proc/{int(handle['pid'])}").exists():
-                    raise ValueError(
-                        "owned writer is still active; release before clear"
+                    raise CapabilityHold(
+                        "owned writer", "still active; release before clear"
                     )
             if file_binding(state["handoff"]["path"]) != state["handoff"]:
                 raise ValueError("sealed production handoff changed")
@@ -836,7 +848,7 @@ class Loop:
         # including delivery after the old goal thread automatically reenters.
         for handle in frontier["owned_processes"]:
             if Path(f"/proc/{int(handle['pid'])}").exists():
-                raise ValueError("owned writer remains active")
+                raise CapabilityHold("owned writer", "remains active")
         return frontier
 
     def ready_clear(self, transcript):
