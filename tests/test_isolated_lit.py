@@ -3,8 +3,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import os
 import tempfile
 import unittest
+from unittest import mock
 
 from ops.orchestration.continuation import Lease, continue_work
 from ops.orchestration.handoff import read_handoff
@@ -17,6 +19,12 @@ ROOT = Path(__file__).resolve().parents[1]
 @unittest.skipUnless(shutil.which("lit"), "real LIT integration requires lit")
 class IsolatedLitTests(unittest.TestCase):
     def setUp(self):
+        # The supervisor claims as a native session. Fix that precondition to one
+        # Codex thread so the suite behaves alike under Claude, Codex and CI.
+        environment = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_SESSION_ID"}
+        identity = mock.patch.dict(os.environ, {**environment, "CODEX_THREAD_ID": "fixture-supervisor"}, clear=True)
+        identity.start()
+        self.addCleanup(identity.stop)
         self.directory = tempfile.TemporaryDirectory(prefix="arhugula-lit-test-")
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name) / "repo"

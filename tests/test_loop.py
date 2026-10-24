@@ -390,3 +390,46 @@ class LoopTests(unittest.TestCase):
         ]
         with patch.object(native, "command", side_effect=outputs):
             self.assertEqual(native.next(data, {"bad"}), ("ready", "backlog-receipt"))
+
+    def test_export_without_comment_or_relation_records_holds_admission(self):
+        from unittest.mock import patch
+        from ops.orchestration.loop import Loop, NativeLit
+
+        complete = {**copy.deepcopy(self.lit.data), "comments": [], "relations": []}
+        for missing in ("comments", "relations"):
+            export = {k: v for k, v in complete.items() if k != missing}
+            native = NativeLit(self.root, self.root / "artifacts")
+            outputs = [(json.dumps(export), "export-receipt"), ("u1", "show-receipt")]
+            loop = Loop(self.root / "state.json", self.control, native)
+            with self.subTest(missing=missing), patch.object(
+                native, "command", side_effect=outputs
+            ):
+                with self.assertRaisesRegex(ValueError, "invalid LIT ticket/export"):
+                    loop.begin("u1")
+                self.assertIsNone(loop.status()["admission"])
+
+    def test_pause_reassignment_or_failed_read_before_boundary_holds_check(self):
+        def pause():
+            control = json.loads(self.control.read_text())
+            control["repair_paused"] = True
+            self.control.write_text(json.dumps(control))
+
+        def reassign():
+            self.lit.data["issues"][0]["assignee"] = "claude_successor"
+
+        def fail():
+            self.lit.fail = True
+
+        original = (self.control.read_text(), copy.deepcopy(self.lit.data))
+        for change, error in (
+            (pause, "pause/routing changed"),
+            (reassign, "LIT changed"),
+            (fail, "LIT read failed"),
+        ):
+            self.control.write_text(original[0])
+            self.lit.data, self.lit.fail = copy.deepcopy(original[1]), False
+            admission = self.loop.begin("u1")["admission"]
+            change()
+            with self.subTest(change=change.__name__):
+                with self.assertRaisesRegex(Exception, error):
+                    self.loop.check(admission)
