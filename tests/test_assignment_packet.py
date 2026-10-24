@@ -126,7 +126,7 @@ class Fixture(unittest.TestCase):
     def assignment(self, **changes):
         values = dict(
             goal="Ground admitted workers with complete bounded current artifacts",
-            unit=UNIT, pointer=self.pointer, recipient=self.admitted(), baseline=BASELINE,
+            unit=UNIT, pointer=self.pointer, recipient=self.recipient, adoption=None, baseline=BASELINE,
             owned=("ops/orchestration/assignment_packet.py",), deliverables=("assignment packet module",),
             acceptance=("WT-04", "WT-05"), constraints=("no ceiling or watcher change",),
             guidance=self.guidance, findings=(), verification=("python -m unittest tests.test_assignment_packet",),
@@ -135,7 +135,8 @@ class Fixture(unittest.TestCase):
         return Assignment(**{**values, **changes})
 
     def packet(self, assignment=None, artifacts=()):
-        return build_packet(assignment or self.assignment(), ArtifactIndex(tuple(artifacts)), lit=self.lit)
+        return build_packet(assignment or self.assignment(), ArtifactIndex(tuple(artifacts)), lit=self.lit,
+                            routing=self.routing, profiles=self.profiles, ceiling=1000)
 
 
 class AdmissionTests(Fixture):
@@ -197,6 +198,30 @@ class AdmissionTests(Fixture):
                     self.admitted(**changes)
                 self.assertEqual(held.exception.reason, reason)
 
+    def test_publication_rechecks_admission(self):
+        # PR38 P1: an assignment built while the recipient was eligible carries no
+        # admission, so the state at publication decides.
+        assignment = self.assignment(adoption=self.adopt(self.role, self.laws))
+        self.assertEqual(self.packet(assignment).reads, ())
+        cases = [
+            ("routing paused", {**self.control, "repair_paused": True}, transcript(), Reason.AUTHORITY_CHANGED),
+            ("headroom spent", self.control, transcript(later=((800, 50),)), Reason.REFRESH_REQUIRED),
+            ("recipient writing", self.control, transcript(complete=False), Reason.OWNERSHIP_CONFLICT),
+        ]
+        for name, control, native, reason in cases:
+            with self.subTest(name):
+                self.routing.write_text(json.dumps(control))
+                self.transcript.write_text(native)
+                with self.assertRaises(Hold) as held:
+                    self.packet(assignment)
+                self.assertEqual(held.exception.reason, reason)
+        # Compaction since adoption voids the loaded guidance; the packet re-reads it.
+        self.routing.write_text(json.dumps(self.control))
+        self.transcript.write_text(transcript(compacted=True))
+        published = self.packet(assignment)
+        self.assertEqual(len(published.reads), 2)
+        self.assertEqual(published.recipient.loaded, frozenset())
+
     def test_pause_refuses_admission(self):
         self.routing.write_text(json.dumps({**self.control, "repair_paused": True}))
         with self.assertRaises(Hold) as held:
@@ -210,22 +235,21 @@ class AdmissionTests(Fixture):
         self.assertEqual([s.path for s in first.reads], [role.path, laws.path])
         # The worker publishes its adoption; the next related unit arrives by
         # pointer with no introduction or repeated Law read.
-        adopted = self.admitted(adoption=self.adopt(self.role, self.laws))
+        adoption = self.adopt(self.role, self.laws)
         next_unit = "trial-193.u9f.ct8"
-        second = self.packet(self.assignment(unit=next_unit, recipient=adopted,
+        second = self.packet(self.assignment(unit=next_unit, adoption=adoption,
                                              pointer=self.publish(next_unit, "assign-ct8", "TO implementer: U14.")))
         self.assertEqual(second.reads, ())
         self.assertEqual([g["loaded"] for g in json.loads(second.text)["guidance"]], [True, True])
         # A source edited after adoption is read again from its current bytes.
         self.laws.write_text("code laws, amended\n")
-        changed = self.packet(self.assignment(recipient=adopted))
+        changed = self.packet(self.assignment(adoption=adoption))
         self.assertEqual([(s.path, s.sha256) for s in changed.reads],
                          [(laws.path, hashlib.sha256(self.laws.read_bytes()).hexdigest())])
         self.assertEqual([g["loaded"] for g in json.loads(changed.text)["guidance"]], [True, False])
         # Compaction since adoption may have dropped any source from context.
         self.transcript.write_text(transcript(compacted=True))
-        compacted = self.admitted(adoption=self.adopt(self.role, self.laws))
-        self.assertEqual(len(self.packet(self.assignment(recipient=compacted)).reads), 2)
+        self.assertEqual(len(self.packet(self.assignment(adoption=self.adopt(self.role, self.laws))).reads), 2)
         self.assertEqual((self.routing.read_bytes(), self.profiles.read_bytes()), before)
 
 
@@ -233,7 +257,7 @@ class PacketTests(Fixture):
     def test_missing_required_context_refuses_dispatch(self):
         optional = {"findings", "dependencies"}
         for field in fields(Assignment):
-            if field.name in optional or field.name in {"pointer", "recipient"}:
+            if field.name in optional or field.name in {"pointer", "recipient", "adoption"}:
                 continue
             with self.subTest(field.name):
                 empty = "" if isinstance(getattr(self.assignment(), field.name), str) else ()

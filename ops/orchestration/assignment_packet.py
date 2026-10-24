@@ -20,7 +20,7 @@ from .startup import EXCEEDED, UNAVAILABLE, StartupBudgetRejected, first_turn
 SLICE_LIMIT = 16 * 1024
 PROJECTION_LIMIT = 16 * 1024
 REVISION = re.compile(r"[0-9a-f]{40}")
-OPTIONAL = frozenset({"findings", "dependencies"})
+OPTIONAL = frozenset({"findings", "dependencies", "adoption"})
 ADOPTION = re.compile(r"adoption: session (\S+) compactions (\d+)")
 ADOPTED = re.compile(r"adopted-source: ([0-9a-f]{64}) (\S.*)")
 
@@ -257,7 +257,10 @@ class Assignment:
     goal: str
     unit: str
     pointer: VerifiedComment
-    recipient: Admitted
+    # Who receives the unit. Admission is measured at publication, never carried here.
+    recipient: Recipient
+    # The recipient's stored adoption_body() comment, or None before it has read any guidance.
+    adoption: VerifiedComment | None
     baseline: str
     # Paths and resources this unit may change.
     owned: tuple
@@ -287,6 +290,8 @@ class Assignment:
 @dataclass(frozen=True)
 class AssignmentPacket:
     assignment: Assignment
+    # The recipient's admission, measured when this packet was published.
+    recipient: Admitted
     artifacts: ArtifactIndex
     views: tuple
     # Sources this session has not loaded at their current bytes.
@@ -295,15 +300,18 @@ class AssignmentPacket:
     text: str
 
 
-def build_packet(assignment, artifacts, *, lit):
-    """Publish only a packet whose pointer is the stored LIT comment it claims."""
+def build_packet(assignment, artifacts, *, lit, routing, profiles, ceiling):
+    """Publish only to a recipient admitted now, by the stored LIT pointer it claims."""
+    # [LAW:no-ambient-temporal-coupling] Publication is the admission boundary: a pause,
+    # compaction or spent headroom since any earlier check decides this packet.
+    recipient = admit_recipient(assignment.recipient, routing=routing, profiles=profiles,
+                                ceiling=ceiling, adoption=assignment.adoption, lit=lit)
     stored(lit, assignment.pointer)
     known = {artifact.sha256 for artifact in artifacts.artifacts}
     stray = [finding.comment_id for finding in assignment.findings if finding.against not in known]
     if stray:
         raise Hold(Reason.INVALID_INPUT, f"findings {stray} name no indexed artifact")
     views = effective_views(artifacts)
-    recipient = assignment.recipient
     # [LAW:one-source-of-truth] The file's current bytes, not a recorded hash, decide
     # whether the session already holds this source.
     sources = tuple(_bind(g) for g in assignment.guidance)
@@ -328,4 +336,4 @@ def build_packet(assignment, artifacts, *, lit):
     if size > PROJECTION_LIMIT:
         # [LAW:no-silent-failure] Refuse rather than truncate: move bulk into an indexed artifact.
         raise Hold(Reason.INVALID_INPUT, f"projection is {size} bytes, over {PROJECTION_LIMIT}")
-    return AssignmentPacket(assignment, artifacts, views, reads, text)
+    return AssignmentPacket(assignment, recipient, artifacts, views, reads, text)
