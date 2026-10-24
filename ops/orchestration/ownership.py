@@ -77,10 +77,18 @@ def _names(record, name):
 
 
 def _paths(record):
+    # [LAW:one-source-of-truth] One spelling per path, the one git reports, so
+    # comparing strings compares files; "ops//x.py" or "./x.py" are refused.
     paths = _names(record, "paths")
     for path in paths:
         pure = PurePosixPath(path)
-        if pure.is_absolute() or ".." in pure.parts or not pure.parts:
+        canonical = pure.as_posix() + ("/" if path.endswith("/") else "")
+        if (
+            pure.is_absolute()
+            or not pure.parts
+            or ".." in pure.parts
+            or path != canonical
+        ):
             raise ValueError(f"invalid reservation: path {path!r}")
     return paths
 

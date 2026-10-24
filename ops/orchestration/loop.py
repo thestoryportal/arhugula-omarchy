@@ -282,12 +282,53 @@ def open_dependencies(data, ticket):
     )
 
 
-# Preparation may inspect, test and stage beside an open prerequisite; only an
-# implementation admission is landing clearance, so only it can complete.
+def implementation_clearance(data, ticket, authorization):
+    if authorization is not None:
+        raise ValueError("authorization applies only to a preparation admission")
+    blocked = open_dependencies(data, ticket)
+    if blocked:
+        raise ValueError("dependency-open: " + ",".join(blocked))
+
+
+def preparation_clearance(data, ticket, authorization):
+    # The ticket's own LIT record authorizes the slice and names each blocker it
+    # retains for implementation and landing; a purpose alone releases nothing.
+    records = [
+        c for c in data["comments"]
+        if c["id"] == authorization and c["issue_id"] == ticket
+    ]
+    if len(records) != 1:
+        raise ValueError("preparation-authorization-required")
+    # Whole IDs only: an epic ID must not match inside one of its children's IDs.
+    named = {t.rstrip(".") for t in re.findall(r"[\w.-]+", records[0]["body"])}
+    omitted = [d for d in open_dependencies(data, ticket) if d not in named]
+    if omitted:
+        raise ValueError("authorization-omits-retained-gate: " + ",".join(omitted))
+
+
+# Only an implementation admission is landing clearance, so only it can complete.
 CLEARANCE = {
-    "implementation": open_dependencies,
-    "preparation": lambda data, ticket: [],
+    "implementation": implementation_clearance,
+    "preparation": preparation_clearance,
 }
+
+
+def read_journal(path):
+    state = json.loads(Path(path).read_text())
+    if (
+        state["version"] != 2
+        or not isinstance(state["completed"], dict)
+        or not isinstance(state["reviews"], dict)
+    ):
+        raise ValueError("invalid loop journal")
+    # Journals written before reservations existed recorded none.
+    state.setdefault("reservations", [])
+    return state
+
+
+def journal_ownership(path):
+    """Active reservations recorded in a loop journal, for checkout inspection."""
+    return [parse_reservation(r) for r in read_journal(path)["reservations"]]
 
 
 class NativeLit:
@@ -354,16 +395,7 @@ class Loop:
         )
 
     def _read(self):
-        state = json.loads(self.path.read_text())
-        if (
-            state["version"] != 2
-            or not isinstance(state["completed"], dict)
-            or not isinstance(state["reviews"], dict)
-        ):
-            raise ValueError("invalid loop journal")
-        # Journals written before reservations existed recorded none.
-        state.setdefault("reservations", [])
-        return state
+        return read_journal(self.path)
 
     def _save(self, state):
         atomic_json(self.path, state)
@@ -424,7 +456,7 @@ class Loop:
 
     def begin(
         self, ticket, *, maintenance=False, headroom=True, unit=None,
-        purpose="implementation",
+        purpose="implementation", authorization=None,
     ):
         if purpose not in CLEARANCE:
             raise ValueError(f"invalid admission purpose: {purpose!r}")
@@ -480,9 +512,8 @@ class Loop:
                 and any(x.startswith(ticket + "::") for x in state["unit_quarantine"])
             ):
                 raise ValueError("review unit quarantined; choose an independent unit")
-            blocked = CLEARANCE[purpose](data, ticket)
-            if blocked:
-                raise ValueError("dependency-open: " + ",".join(blocked))
+            CLEARANCE[purpose](data, ticket, authorization)
+            reservation = self._writer(state, ticket)
             issue = next(i for i in data["issues"] if i["id"] == ticket)
             if (
                 issue["status"] == "closed"
@@ -501,6 +532,8 @@ class Loop:
                 iteration=state["iteration"],
                 unit=unit,
                 purpose=purpose,
+                authorization=authorization,
+                reservation=reservation,
             )
             state["admissions"][ticket] = state["admission"]
             state['startup_required'] = False
@@ -560,6 +593,8 @@ class Loop:
                 or file_binding(self.control)["sha256"] != grant["control"]
             ):
                 raise ValueError("LIT changed or pause/routing changed; begin again")
+            if self._writer(state, grant["ticket"]) != grant["reservation"]:
+                raise ValueError("reservation changed; begin again")
             return {
                 "ticket": grant["ticket"],
                 "reads": receipts,
@@ -724,11 +759,23 @@ class Loop:
             return {"released": key}
 
     @staticmethod
+    def _writer(state, ticket):
+        # [LAW:single-enforcer] Work is admitted only under its recorded writer
+        # reservation, so its checkout, paths, resources and reviewer precede use.
+        records = [
+            r for r in state["reservations"]
+            if r["key"] == ticket and r["kind"] == "writer"
+        ]
+        if not records:
+            raise ValueError("reservation-required: reserve the writer before admission")
+        return records[0]
+
+    @staticmethod
     def _reservations(state):
         return [parse_reservation(r) for r in state["reservations"]]
 
     def ownership(self):
-        return self._reservations(self._read())
+        return journal_ownership(self.path)
 
     def next(self):
         state = self._read()
@@ -1191,6 +1238,9 @@ def main():
         "--unit", help="stable shipping-unit ID under a multi-unit LIT ticket"
     )
     begin.add_argument("--purpose", choices=sorted(CLEARANCE), default="implementation")
+    begin.add_argument(
+        "--authorization", help="LIT comment ID authorizing a preparation admission"
+    )
     reserve = sub.add_parser("reserve")
     reserve.add_argument(
         "--record", type=Path, required=True,
@@ -1283,6 +1333,7 @@ def main():
                 headroom=fits and not args.headroom_hold,
                 unit=args.unit,
                 purpose=args.purpose,
+                authorization=args.authorization,
             )
         elif args.command == "reserve":
             result = loop.reserve(json.loads(args.record.read_text()))

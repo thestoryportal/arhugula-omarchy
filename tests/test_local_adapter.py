@@ -70,6 +70,20 @@ class LocalAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
             owned.inspect()
 
+    def test_runner_inspects_under_the_loop_journal_ownership(self):
+        from ops.orchestration.runner import adapter_for
+
+        journal = Path(self.directory.name) / "state.json"
+        journal.write_text(json.dumps({"version": 2, "completed": {}, "reviews": {},
+            "reservations": [{"kind": "preserved", "key": "cmt-protected",
+                              "worktree": str(self.root), "paths": ["foreign.txt"]}]}))
+        (self.root / "foreign.txt").write_text("preserved residue")
+        config = {"verify_argv": ["true"]}
+        with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
+            adapter_for(config, self.tree, 60).inspect()
+        owned = adapter_for({**config, "loop_state": str(journal)}, self.tree, 60)
+        self.assertEqual(owned.inspect()["branch"], "isolated")
+
     def test_unexpected_file_or_head_stops(self):
         (self.tree / "foreign.txt").write_text("another agent")
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
