@@ -39,6 +39,7 @@
       "base_delta": "Clean, unlanded, 22 commits behind the baseline; sits on the superseded A3 pack. Files: lifecycle/cli_read_boundary.py (+423), tests/test_cli_read_boundary.py (+338). Neither file changed on main since 42eccc02.",
       "contract_impact": "Main .harness/a5_contract_authority.md row 5 binds the qualified source GO to frozen a2573ac217103bb2c9a72f33b12f3ef86df0abb0; cli_read_boundary.py is byte-identical to that head. The A5 stack differs from it only in U3's doc rows and the directory-refusal test in tests/test_cli_read_boundary.py (see A5 U3).",
       "dependency_changes": "Parent A3 pack superseded by #1643 on main; no A5 file changed.",
+      "clearance_gate": "A3 installed acceptance and A3 clearance precede A5 clearance; A5 clears as one stack after its owed reverification.",
       "retained_findings": [
         {"summary": "A5 source GO is qualified to a2573ac2; the A5 final preparation was accepted as preparation only.", "evidence": ["cmt-1953a86d-1182-4359-a2ad-1121ac6f9bda", "cmt-b4930d67-5bfb-4bf0-82f9-fa95c50e9364"]}
       ],
@@ -63,6 +64,7 @@
       "base_delta": "Clean, unlanded, 22 behind. Files: lifecycle/external_cli_provider.py (+159), types.py (+83), tests/test_external_cli_codex_isolation.py (+35), tests/test_external_cli_codex_read_boundary.py (+352). None changed on main since 42eccc02.",
       "contract_impact": "The three A5 source files are byte-identical to the GO'd a2573ac2. Every added non-stdlib import resolves on the baseline.",
       "dependency_changes": "None beyond the U1 rebase.",
+      "clearance_gate": "A3 installed acceptance and A3 clearance precede A5 clearance; A5 clears as one stack after its owed reverification.",
       "retained_findings": [
         {"summary": "A5 source GO is qualified to a2573ac2; the A5 final preparation was accepted as preparation only.", "evidence": ["cmt-1953a86d-1182-4359-a2ad-1121ac6f9bda", "cmt-b4930d67-5bfb-4bf0-82f9-fa95c50e9364"]}
       ],
@@ -87,6 +89,7 @@
       "base_delta": "Clean, unlanded, 22 behind. File: docs/operations/omarchy-codex-read-boundary.md (+110). Not on main.",
       "contract_impact": "Against a2573ac2, the A5 stack head differs on the seven A5 files only by the executable_paths doc row and two refusal bullets (+3/-2) and test_a_directory_executable_allowance_is_refused_at_launch (+13). design-substrate/Spec_Harness_Runtime_v1_135.md line 14 records that no dedicated witness exists for refusing a non-regular executable_paths entry; this residual supplies that witness and its operator doc.",
       "dependency_changes": "None beyond the U2 rebase.",
+      "clearance_gate": "A3 installed acceptance and A3 clearance precede A5 clearance; A5 clears as one stack after its owed reverification.",
       "retained_findings": [
         {"summary": "The post-GO residual (doc rows plus the directory-refusal test) is not covered by the qualified GO on a2573ac2 and needs its own independent check against Runtime spec v1.135.", "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]}
       ],
@@ -112,9 +115,11 @@
       "base_delta": "Clean, unlanded, 22 behind. Files: cp workflow_driver.py, workflow_driver_types.py, cp_tests/test_b104_child_resume_refusal_values.py, cp_tests/test_resume_refusal_propagation.py; runtime audit_signing_errors.py, sub_agent_dispatch.py, tests/test_child_resume_refusal_propagation.py. None changed on main since 42eccc02.",
       "contract_impact": "Main .harness/class_1_fork_a4_typed_resume_refusal.md and a4_contract_authority.md cite this head as Unit 1. Every added non-stdlib import resolves on the baseline.",
       "dependency_changes": "Parent becomes the rebased A5 head; A5 clearance precedes A4.",
+      "clearance_gate": "A3 then A5 clearance precede A4 clearance; A4 also needs the RT plan v2.67 owed source correction and witnesses recorded under A4 U2.",
       "retained_findings": [
         {"summary": "U1 owning suites passed 28/28 at this head (historical pre-landing source observation).", "evidence": ["cmt-a846f038-903d-4786-bfcf-216792c7e833"]},
-        {"summary": "CP plan v2.56 line 38: the two-child matrix and selection mutants and criterion 6's terminal-carrier-deletion mutation are owed; no preparation head carries them.", "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]}
+        {"summary": "CP plan v2.56 line 38: the two-child matrix and selection mutants and criterion 6's terminal-carrier-deletion mutation are owed; no preparation head carries them.", "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]},
+        {"summary": "RT plan v2.67 Delivery portions (lines 52-60): Unit 1 implements the superseded returned-arm text. At this head sub_agent_dispatch.py raises the refusal-only RefusedChildAuditSigningError on the returned FAILED arm under fail-closed signing, dropping the child result and result_ref; the correction is owed at the A4 stack head (A4 U2).", "evidence": ["cmt-073cbce5-96f3-4172-af6b-ebaa7bc52266"]}
       ],
       "disposition": {
         "kind": "reuse_with_delta",
@@ -136,18 +141,25 @@
       "parent": "c71bf24c7a76c292c4e7099b80a3744d60ff46bd",
       "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
       "base_delta": "Clean, unlanded, 22 behind. Files: cp workflow_driver.py, cp_tests/test_resume_refusal_propagation.py, runtime tests/test_public_nested_resume_refusal.py (+470). None changed on main since 42eccc02.",
-      "contract_impact": "Main cites public-test commit bba659dc5c22d381e931fa71922c6d7e5da26483, which is not an ancestor of this head. On the eight A4 files this head differs from bba659dc only in two test modules (+56/-1), including test_a_raised_multi_reason_refusal_with_fail_closed_signing_keeps_every_reason, the criterion-8 Unit 1 witness named by design-substrate/Implementation_Plan_Harness_Runtime_v2_67.md line 49.",
+      "contract_impact": "Main cites public-test commit bba659dc5c22d381e931fa71922c6d7e5da26483, which is not an ancestor of this head. On the eight A4 files this head differs from bba659dc only in two test modules (+56/-1), including test_a_raised_multi_reason_refusal_with_fail_closed_signing_keeps_every_reason, the criterion-8 Unit 1 witness named by design-substrate/Implementation_Plan_Harness_Runtime_v2_67.md line 49. The same plan (criterion 2, lines 21-29; Delivery portions, lines 52-60) says no preparation head carries the returned-arm result-preserving RefusedChildResultAuditSigningError: at cf1c916f runtime src has no such class and sub_agent_dispatch.py raises the refusal-only RefusedChildAuditSigningError on that arm (lines 1176 and 1240).",
       "dependency_changes": "None beyond the U1 rebase.",
+      "clearance_gate": "A3 then A5 clearance precede A4 clearance; A4 also needs the RT plan v2.67 owed source correction and witnesses recorded under A4 U2.",
       "retained_findings": [
-        {"summary": "The earlier venue failure RT-FAIL-STATE-ROOT-PLACEMENT:inside-checkout was superseded by the valid-venue 37/37 PASS and the 118/118 regression PASS at this head; both remain historical pre-landing observations.", "evidence": ["cmt-a846f038-903d-4786-bfcf-216792c7e833", "cmt-8ac926b9-2eff-4ebe-9669-9ddd3d8acac5", "cmt-68d31297-37ad-4bb4-be22-b8d1e7ab6143"]}
+        {"summary": "The earlier venue failure RT-FAIL-STATE-ROOT-PLACEMENT:inside-checkout was superseded by the valid-venue 37/37 PASS and the 118/118 regression PASS at this head; both remain historical pre-landing observations.", "evidence": ["cmt-a846f038-903d-4786-bfcf-216792c7e833", "cmt-8ac926b9-2eff-4ebe-9669-9ddd3d8acac5", "cmt-68d31297-37ad-4bb4-be22-b8d1e7ab6143"]},
+        {"summary": "Review F1 (pass 1 RED): a rebase-only A4 delta is not actionable; RT plan v2.67 criteria 2, 4, 5 and 8 leave owed source and witness work.", "evidence": ["cmt-073cbce5-96f3-4172-af6b-ebaa7bc52266"]}
       ],
       "disposition": {
         "kind": "reuse_with_delta",
-        "delta": "Rebase c71bf24c..cf1c916f onto the rebased A4 U1. No file content change is expected.",
+        "delta": "Rebase c71bf24c..cf1c916f onto the rebased A4 U1 (no content change to the existing eight files from the rebase), then add the owed RT plan v2.67 source work on top: criterion 2's returned-arm RefusedChildResultAuditSigningError in audit_signing_errors.py (member of ChildResumeRefusedError, PostEffectAuditSigningError and the typed signing family) raised by sub_agent_dispatch.py on the returned FAILED arm under fail-closed signing, carrying every reason with audit_signing_failed true, effect_class sub-agent-result, the child RunResult as result and its result_ref (resolving through the protected result store, or the unresolvable value when the store write fails). The raised arm keeps the refusal-only RefusedChildAuditSigningError.",
         "reverification": [
           "Show the rebased A4 head equals cf1c916f on all eight A4 files.",
           "Run the four owning modules (37) and the four regression modules child_resume_refusal, audit_refusal_precedence, lifecycle_sub_agent_dispatch, claimed_child_admission (118) on the rebased head with basetemp outside every checkout.",
-          "Record which of bba659dc or this head is the A4 public-test authority, since main cites a commit that is not on this stack."
+          "Record which of bba659dc or this head is the A4 public-test authority, since main cites a commit that is not on this stack.",
+          "Criterion 2 witnesses on the corrected head: the returned-arm carrier's reasons, audit_signing_failed, effect_class, result and result_ref (both resolvable and store-write-failure cases), class membership, one outer report keyed by result_ref and the Control Plane child refusal, using the middle fan-out fixture where one sibling completes an effect before another refuses.",
+          "Criterion 5 returned-arm mutations must each turn a test red: raising the refusal-only carrier (drops result and result_ref) and raising a plain PostEffectAuditSigningError (drops the typed refusal); on the raised arm, raising any result-preserving carrier.",
+          "Criterion 4 final real-dispatcher, real-leaf witness: root ORCHESTRATOR_WORKERS -> middle ORCHESTRATOR_WORKERS -> leaf with the real CP resume-guard gate refusal and a depth-2 claim-busy, each ending the root FAILED with the exact typed class and carrier and no pause snapshot; the historical synthesized-leaf observation is not evidence for the corrected head.",
+          "Criterion 8 owed mutation: collapsing the raised arm to a single reason (or dropping a reason) must turn test_a_raised_multi_reason_refusal_with_fail_closed_signing_keeps_every_reason red on the corrected head.",
+          "Criterion 6 on the corrected head: ruff and pyright clean on the touched files and the existing B-104 refusal, admission and signing suites pass."
         ],
         "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c", "cmt-c48cea22-9d05-4704-be8f-0eaab5c5f548"]
       }
@@ -163,6 +175,7 @@
       "base_delta": "Clean, unlanded, 22 behind; merges cleanly onto the baseline. Files: examples/README.md, three examples/ollama-*.toml manifests, tests/test_omarchy_offline_examples.py (+384). None changed on main since 5d93b0bf.",
       "contract_impact": "Main has no A7 contract record under .harness; A7 is examples, docs and one test module outside the A3 -> A5 -> A4 clearance order.",
       "dependency_changes": "harness_runtime llm_dispatch.py (RuntimeLLMDispatcher) changed on main via #1643, so the example tests have not been observed against the baseline dispatcher.",
+      "clearance_gate": "Outside the A3 -> A5 -> A4 order; A7 clears independently after its owed formal review, CI and installed acceptance.",
       "retained_findings": [
         {"summary": "Formal pass-1, codex-check, CI and installed acceptance are owed; the optional reviewer P3 is unfixed; the A4 public-API proof is unresolved and not claimed.", "evidence": ["cmt-e19e7270-6c0d-4b28-be5b-258ab18e9d0f"]}
       ],
@@ -187,6 +200,7 @@
       "base_delta": "Clean, unlanded, 22 behind. Files: docs/operations/omarchy-offline-embedding.md (+112), examples/omarchy.offline-embedding.toml.example (+96), examples/README.md (+4), tests/test_omarchy_offline_examples.py (+125/-1). Its tree 9af0b4bf equals the original A7 3c3dc002 tree.",
       "contract_impact": "No A7 contract record on main.",
       "dependency_changes": "Same llm_dispatch.py change as A7 U1.",
+      "clearance_gate": "Outside the A3 -> A5 -> A4 order; A7 clears independently after its owed formal review, CI and installed acceptance.",
       "retained_findings": [
         {"summary": "Formal pass-1, codex-check, CI and installed acceptance are owed; the optional reviewer P3 is unfixed; the A4 public-API proof is unresolved and not claimed.", "evidence": ["cmt-e19e7270-6c0d-4b28-be5b-258ab18e9d0f"]}
       ],

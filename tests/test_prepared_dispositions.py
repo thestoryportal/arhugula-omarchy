@@ -30,8 +30,8 @@ KIND_FIELDS = {
     "superseded_with_reason": ("reason", "replacement"),
 }
 UNIT_FIELDS = ("unit", "stream", "worktree", "branch", "head", "parent", "merge_base",
-               "base_delta", "contract_impact", "dependency_changes", "retained_findings",
-               "disposition")
+               "base_delta", "contract_impact", "dependency_changes", "clearance_gate",
+               "retained_findings", "disposition")
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,8 @@ class Unit:
     parent: str
     merge_base: str
     kind: str
+    delta: str
+    reverification: tuple
 
 
 @dataclass(frozen=True)
@@ -95,7 +97,9 @@ def _unit(entry, index):
         worktree=_text(entry, "worktree", where), branch=_text(entry, "branch", where),
         head=_full_id(entry["head"], f"{where}.head"),
         parent=_full_id(entry["parent"], f"{where}.parent"),
-        merge_base=_full_id(entry["merge_base"], f"{where}.merge_base"), kind=kind)
+        merge_base=_full_id(entry["merge_base"], f"{where}.merge_base"), kind=kind,
+        delta=disposition.get("delta", ""),
+        reverification=tuple(disposition.get("reverification", ())))
 
 
 def _stack_parents(record):
@@ -152,6 +156,21 @@ class PreparedDispositionRecordTest(unittest.TestCase):
              ("A7 U2", "reuse_with_delta")])
         self.assertEqual(record.clearance_order, ("A3", "A5", "A4"))
 
+    def test_a4_disposition_carries_the_source_work_rt_plan_v2_67_still_owes(self):
+        # Rebasing cf1c916f alone cannot clear A4: the plan's Delivery portions say no
+        # preparation head carries the returned-arm result-preserving carrier.
+        a4 = {u.unit: u for u in parse_record(self.raw).units if u.stream == "A4"}
+        owed = " ".join((a4["A4 U2"].delta, *a4["A4 U2"].reverification)).lower()
+
+        for obligation in ("RefusedChildResultAuditSigningError", "result_ref", "criterion 2",
+                           "criterion 5", "criterion 4", "real-leaf", "criterion 8"):
+            with self.subTest(obligation):
+                self.assertIn(obligation.lower(), owed)
+        self.assertNotIn("No file content change is expected", a4["A4 U2"].delta)
+        gate = self.raw["units"][4]["clearance_gate"]
+        self.assertIn("A5", gate)
+        self.assertIn("A3", gate)
+
     def test_parser_refuses_records_a_later_pull_could_not_act_on(self):
         def mutated(change):
             raw = copy.deepcopy(self.raw)
@@ -165,6 +184,7 @@ class PreparedDispositionRecordTest(unittest.TestCase):
             "held without release": lambda r: r["units"][3].update(
                 disposition={"kind": "held", "blocker": "A3 witness", "evidence": r["units"][3]["disposition"]["evidence"]}),
             "missing contract impact": lambda r: r["units"][4].pop("contract_impact"),
+            "missing clearance gate": lambda r: r["units"][5].pop("clearance_gate"),
             "duplicate head": lambda r: r["units"][6].update(head=r["units"][5]["head"]),
             "short comment pointer": lambda r: r["units"][5]["disposition"].update(evidence=["cmt-8ac926b9"]),
             "A4 off the A5 stack": lambda r: r["units"][3].update(parent=r["stack_root"]["head"]),
