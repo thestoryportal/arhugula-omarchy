@@ -283,6 +283,58 @@ def open_dependencies(data, ticket):
     )
 
 
+# [LAW:types-are-the-program] What an admission clears, by name. Preparation is a
+# strict subset: it never clears implementation, dependency completion or landing.
+PREPARATION_OPERATIONS = frozenset(
+    {"artifact-inspection", "test-preparation", "review-context-preparation",
+     "environment-work"}
+)
+IMPLEMENTATION_OPERATIONS = PREPARATION_OPERATIONS | {"implementation"}
+
+
+class Implementation:
+    """Implementation and landing clearance: every prerequisite is already closed."""
+
+    operations = IMPLEMENTATION_OPERATIONS
+    release = None
+
+    def admit(self, data, blocked):
+        if blocked:
+            raise ValueError("dependency-open: " + ",".join(blocked))
+
+
+IMPLEMENTATION = Implementation()
+
+
+@dataclass(frozen=True)
+class Preparation:
+    """Named preparation beside open prerequisites, minted by verified Buford.
+
+    The release names the controlling user release this delegated admission acts
+    under; it is preserved provenance, not the authority. The authority is the
+    verified native Buford identity at the CLI boundary that mints the grant.
+    """
+
+    operations: frozenset
+    release: str
+
+    @classmethod
+    def parse(cls, operations, release):
+        operations = frozenset(operations)
+        outside = operations - PREPARATION_OPERATIONS
+        if not operations or outside:
+            raise ValueError(
+                "preparation-operation-refused: " + (",".join(sorted(outside)) or "none")
+            )
+        if type(release) is not str or not release:
+            raise ValueError("preparation requires the controlling release comment")
+        return cls(operations, release)
+
+    def admit(self, data, blocked):
+        if not any(c["id"] == self.release for c in data["comments"]):
+            raise ValueError(f"release-unverified: {self.release}")
+
+
 def read_journal(path):
     state = json.loads(Path(path).read_text())
     if (
@@ -428,7 +480,10 @@ class Loop:
             "production_paused": self._control()["repair_paused"],
         }
 
-    def begin(self, ticket, *, maintenance=False, headroom=True, unit=None):
+    def begin(
+        self, ticket, *, maintenance=False, headroom=True, unit=None,
+        clearance=IMPLEMENTATION,
+    ):
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             control = self._control()
@@ -481,11 +536,10 @@ class Loop:
                 and any(x.startswith(ticket + "::") for x in state["unit_quarantine"])
             ):
                 raise ValueError("review unit quarantined; choose an independent unit")
-            # Admission is implementation and landing clearance. Preparation beside
-            # an open blocker is not admitted here: no verified grant source exists.
+            # The grant records the exact open prerequisites it was admitted beside;
+            # the LIT fingerprint invalidates it when any of them changes.
             blocked = open_dependencies(data, ticket)
-            if blocked:
-                raise ValueError("dependency-open: " + ",".join(blocked))
+            clearance.admit(data, blocked)
             reservation = self._writer(state, ticket)
             issue = next(i for i in data["issues"] if i["id"] == ticket)
             if (
@@ -505,8 +559,14 @@ class Loop:
                 iteration=state["iteration"],
                 unit=unit,
                 reservation=reservation,
+                operations=sorted(clearance.operations),
+                blockers=blocked,
+                issuer=state["session_id"],
+                release=clearance.release,
             )
-            state["admissions"][ticket] = state["admission"]
+            # Only implementation clearance can later complete the ticket.
+            if "implementation" in clearance.operations:
+                state["admissions"][ticket] = state["admission"]
             state['startup_required'] = False
             self._save(state)
             return {
@@ -551,12 +611,15 @@ class Loop:
             self._save(state)
             return report
 
-    def check(self, admission):
+    def check(self, admission, operation):
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             grant = state["admission"]
             if grant is None or grant["id"] != admission:
                 raise ValueError("fresh LIT admission required")
+            # [LAW:single-enforcer] The operation is cleared here, at its use.
+            if operation not in grant["operations"]:
+                raise ValueError(f"operation-not-admitted: {operation}")
             data, receipts = self.lit.read(grant["ticket"])
             if (
                 fingerprint(data, grant["ticket"], state["goal_ticket"])
@@ -1207,6 +1270,13 @@ def main():
     begin.add_argument(
         "--unit", help="stable shipping-unit ID under a multi-unit LIT ticket"
     )
+    begin.add_argument(
+        "--prepare", action="append", choices=sorted(PREPARATION_OPERATIONS),
+        help="admit only this preparation beside open prerequisites (repeatable)",
+    )
+    begin.add_argument(
+        "--release", help="LIT comment ID of the controlling user release for --prepare"
+    )
     reserve = sub.add_parser("reserve")
     reserve.add_argument(
         "--record", type=Path, required=True,
@@ -1216,6 +1286,9 @@ def main():
     release.add_argument("key")
     check = sub.add_parser("check")
     check.add_argument("admission")
+    check.add_argument(
+        "--operation", required=True, choices=sorted(IMPLEMENTATION_OPERATIONS)
+    )
     complete = sub.add_parser("complete")
     complete.add_argument("ticket")
     complete.add_argument("--evidence", type=Path, required=True)
@@ -1298,13 +1371,17 @@ def main():
                 maintenance=args.maintenance,
                 headroom=fits and not args.headroom_hold,
                 unit=args.unit,
+                # Minted only here, after the actual Buford identity check above.
+                clearance=IMPLEMENTATION
+                if (args.prepare, args.release) == (None, None)
+                else Preparation.parse(args.prepare or (), args.release),
             )
         elif args.command == "reserve":
             result = loop.reserve(json.loads(args.record.read_text()))
         elif args.command == "release":
             result = loop.release(args.key)
         elif args.command == "check":
-            result = loop.check(args.admission)
+            result = loop.check(args.admission, args.operation)
         elif args.command == 'finish-startup':
             result = loop.finish_startup()
         elif args.command == "complete":

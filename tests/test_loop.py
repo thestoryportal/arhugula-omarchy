@@ -155,7 +155,7 @@ class LoopTests(unittest.TestCase):
             {"id": "new-comment", "issue_id": "u1", "body": "changed scope"}
         )
         with self.assertRaisesRegex(ValueError, "LIT changed"):
-            self.loop.check(first["admission"])
+            self.loop.check(first["admission"], "implementation")
         self.loop.begin("u1")
         self.assertEqual(self.lit.reads, 3)
 
@@ -452,14 +452,14 @@ class LoopTests(unittest.TestCase):
         self.loop.release("u1")
         self.loop.reserve(self.writer("u1", "coder-u1", ["u1.py"]))
         grant = self.loop.begin("u1")
-        self.assertEqual(self.loop.check(grant["admission"])["ticket"], "u1")
+        self.assertEqual(self.loop.check(grant["admission"], "implementation")["ticket"], "u1")
         # A released or replaced reservation invalidates the admission it bound.
         self.loop.release("u1")
         with self.assertRaisesRegex(ValueError, "reservation-required"):
-            self.loop.check(grant["admission"])
+            self.loop.check(grant["admission"], "implementation")
         self.loop.reserve(self.writer("u1", "coder-u1", ["u1.py", "more.py"]))
         with self.assertRaisesRegex(ValueError, "reservation changed"):
-            self.loop.check(grant["admission"])
+            self.loop.check(grant["admission"], "implementation")
 
     def test_quiet_window_holds_heavy_conflict(self):
         quiet = {"kind": "hold", "key": "quiet:soak", "owner": "runtime",
@@ -501,15 +501,123 @@ class LoopTests(unittest.TestCase):
             self.loop.begin("u4")
         with self.assertRaisesRegex(ValueError, "dependency-open: u1"):
             self.loop.begin("u5")
-        # No admission infers clearance from preparation: none is offered beside u1.
-        with self.assertRaises(TypeError):
-            self.loop.begin("u5", purpose="preparation")
         self.loop.begin("u6")
         self.loop.begin("u1")
         self.close("u1")
         self.loop.begin("u5")
         self.close("u5")
         self.assertEqual(self.loop.status()["quarantine"], ["u2"])
+
+    def prepared(self, *operations, release="cmt-release"):
+        from ops.orchestration.loop import Preparation
+
+        return Preparation.parse(operations, release)
+
+    def test_preparation_beside_open_prerequisite_clears_only_its_operations(self):
+        # u2 waits on u1; the controlling release is an actual LIT comment.
+        self.lit.data["relations"] = [{"type": "blocks", "src_id": "u2", "dst_id": "u1"}]
+        self.lit.data["comments"] = [{"id": "cmt-release", "issue_id": "u7", "body": "x"}]
+        with self.assertRaisesRegex(ValueError, "dependency-open: u1"):
+            self.loop.begin("u2")
+        grant = self.loop.begin(
+            "u2", clearance=self.prepared("artifact-inspection", "test-preparation")
+        )["admission"]
+        recorded = self.loop.status()["admission"]
+        self.assertEqual(
+            {k: recorded[k] for k in ("ticket", "blockers", "issuer", "release", "operations")},
+            {"ticket": "u2", "blockers": ["u1"], "issuer": "old", "release": "cmt-release",
+             "operations": ["artifact-inspection", "test-preparation"]},
+        )
+        self.assertEqual(recorded["reservation"]["paths"], ["u2.py"])
+        self.assertEqual(self.loop.check(grant, "test-preparation")["ticket"], "u2")
+        # Operations outside the recorded slice, implementation included, are refused at use.
+        for operation in ("implementation", "environment-work"):
+            with self.assertRaisesRegex(ValueError, "operation-not-admitted: " + operation):
+                self.loop.check(grant, operation)
+        # Preparation never completes the ticket.
+        self.lit.data["issues"][1]["status"] = "closed"
+        with self.assertRaisesRegex(ValueError, "completion requires this ticket admission"):
+            self.loop.complete("u2", self.evidence)
+        self.lit.data["issues"][1]["status"] = "open"
+        # A changed prerequisite makes the grant stale; implementation then follows order.
+        self.loop.begin("u1")
+        grant = self.loop.begin(
+            "u2", clearance=self.prepared("artifact-inspection")
+        )["admission"]
+        self.close("u1")
+        with self.assertRaisesRegex(ValueError, "LIT changed"):
+            self.loop.check(grant, "artifact-inspection")
+        implementation = self.loop.begin("u2")["admission"]
+        self.assertEqual(self.loop.check(implementation, "implementation")["ticket"], "u2")
+
+    def test_preparation_refuses_unbounded_or_unprovenanced_grants(self):
+        self.lit.data["relations"] = [{"type": "blocks", "src_id": "u2", "dst_id": "u1"}]
+        self.lit.data["comments"] = [{"id": "cmt-release", "issue_id": "u7", "body": "x"}]
+        for operations, release, error in (
+            (("implementation",), "cmt-release", "preparation-operation-refused: implementation"),
+            (("landing",), "cmt-release", "preparation-operation-refused: landing"),
+            ((), "cmt-release", "preparation-operation-refused: none"),
+            (("test-preparation",), None, "controlling release"),
+        ):
+            with self.subTest(operations=operations, release=release):
+                with self.assertRaisesRegex(ValueError, error):
+                    self.prepared(*operations, release=release)
+        with self.assertRaisesRegex(ValueError, "release-unverified: cmt-forged"):
+            self.loop.begin("u2", clearance=self.prepared("test-preparation", release="cmt-forged"))
+        # Preparation, like implementation, needs the ticket's recorded writer first.
+        self.loop.release("u2")
+        with self.assertRaisesRegex(ValueError, "reservation-required"):
+            self.loop.begin("u2", clearance=self.prepared("test-preparation"))
+        self.assertIsNone(self.loop.status()["admission"])
+
+    def cli(self, *argv, actual=("old", "gpt-6.1-sol", "high")):
+        import io
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from ops.orchestration import ceiling, loop
+
+        identity = dict(zip(("session_id", "model", "effort"), actual))
+        measured = SimpleNamespace(identity=SimpleNamespace(session_id="old", model="gpt-6.1-sol"))
+        row = json.loads(self.control.read_text())
+        row["sessions"][0]["task_budget"] = 1
+        self.control.write_text(json.dumps(row))
+        bound = SimpleNamespace(bound=lambda *_: None)
+        args = ["loop", "--state", str(self.loop.path), "--control", str(self.control), *argv]
+        # The measured-headroom seam fits; identity is the boundary under test.
+        with patch.object(loop, "identity", return_value=identity), \
+                patch.object(loop, "NativeLit", return_value=self.lit), \
+                patch("ops.orchestration.session_context.inspect_transcript"), \
+                patch.object(ceiling.Measurement, "parse", return_value=measured), \
+                patch.object(ceiling.Authority, "sealed", return_value=bound), \
+                patch.object(ceiling, "decide", return_value=SimpleNamespace(admit=True)), \
+                patch("sys.argv", args), patch("sys.stdout", new_callable=io.StringIO) as out, \
+                patch("sys.stderr", new_callable=io.StringIO) as err:
+            code = loop.main()
+        return code, out.getvalue(), err.getvalue()
+
+    def test_cli_mints_preparation_only_under_actual_buford_identity(self):
+        self.lit.data["relations"] = [{"type": "blocks", "src_id": "u2", "dst_id": "u1"}]
+        self.lit.data["comments"] = [{"id": "cmt-release", "issue_id": "u7", "body": "x"}]
+        prepare = ("begin", "u2", "--prepare", "test-preparation", "--release", "cmt-release")
+        code, _, err = self.cli(*prepare, actual=("impostor", "gpt-6.1-sol", "high"))
+        self.assertEqual(code, 2)
+        self.assertIn("actual Buford identity/model/effort mismatch", err)
+        self.assertIsNone(self.loop.status()["admission"])
+        for argv, error in (
+            (("begin", "u2", "--release", "cmt-release"), "preparation-operation-refused"),
+            (("begin", "u2", "--prepare", "test-preparation"), "controlling release"),
+        ):
+            code, _, err = self.cli(*argv)
+            self.assertEqual(code, 2)
+            self.assertIn(error, err)
+        code, out, err = self.cli(*prepare)
+        self.assertEqual((code, err), (0, ""))
+        grant = json.loads(out)["admission"]
+        code, out, _ = self.cli("check", grant, "--operation", "test-preparation")
+        self.assertEqual((code, json.loads(out)["ticket"]), (0, "u2"))
+        code, _, err = self.cli("check", grant, "--operation", "implementation")
+        self.assertEqual(code, 2)
+        self.assertIn("operation-not-admitted: implementation", err)
 
     def test_export_without_comment_or_relation_records_holds_admission(self):
         from unittest.mock import patch
@@ -552,4 +660,4 @@ class LoopTests(unittest.TestCase):
             change()
             with self.subTest(change=change.__name__):
                 with self.assertRaisesRegex(Exception, error):
-                    self.loop.check(admission)
+                    self.loop.check(admission, "implementation")
