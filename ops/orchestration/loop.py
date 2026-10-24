@@ -416,7 +416,6 @@ def recorded_writer(state, ticket):
 
 def clear(state, admission, operation):
     """The current grant, if it is `admission`, names `operation` and its writer stands."""
-    # [LAW:single-enforcer] Every use of a grant, at the CLI or at an effect, clears here.
     grant = state["admission"]
     if grant is None or grant["id"] != admission:
         raise ValueError("fresh LIT admission required")
@@ -425,16 +424,6 @@ def clear(state, admission, operation):
     if recorded_writer(state, grant["ticket"]) != grant["reservation"]:
         raise ValueError("reservation changed; begin again")
     return grant
-
-
-def journal_clearance(path, admission):
-    """Clears each effect's named operation against the journal's grant when it runs."""
-
-    def cleared(operation):
-        with Lease(Path(path).with_suffix(".lock")):
-            clear(read_journal(path), admission, operation)
-
-    return cleared
 
 
 def read_journal(path):
@@ -716,6 +705,8 @@ class Loop:
             return report
 
     def check(self, admission, operation):
+        # [LAW:single-enforcer] Every use of a grant, at the CLI or at a runner
+        # effect, clears here against the current journal, LIT scope and control.
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             grant = clear(state, admission, operation)

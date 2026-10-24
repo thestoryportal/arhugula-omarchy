@@ -9,25 +9,32 @@ from .handoff import read_handoff
 from .local import CodexWorker, LocalAdapter, ProcessWorker
 from .routing import route
 from .artifacts import DEFAULT_ROOT
-from .loop import journal_clearance, journal_ownership
+from .loop import Loop, NativeLit, journal_ownership
 
 
 def adapter_for(config, cwd, seconds):
     # The loop journal owns active reservations, held under its lease per inspection,
-    # and the admission whose operations every effect of this run must clear; without
-    # one nothing is declared, so every other dirty checkout holds this run.
+    # and the admission every effect of this run must clear through Loop.check, which
+    # rereads LIT and control each time; a run's own LIT transition therefore stales
+    # its grant until Buford begins again. Without a journal nothing is declared, so
+    # every other dirty checkout holds this run.
     journal = config.get("loop_state")
-    if journal and type(config.get("admission")) is not str:
-        raise ValueError("loop_state requires the admission this run's effects clear")
+    if journal and not all(
+        type(config.get(key)) is str for key in ("admission", "loop_control")
+    ):
+        raise ValueError("loop_state requires the admission and loop_control it clears against")
+    store = config.get("artifact_root", DEFAULT_ROOT)
     scoped = dict(
         ownership=lambda: journal_ownership(journal),
-        clearance=journal_clearance(journal, config.get("admission")),
+        clearance=lambda operation: Loop(
+            journal, config["loop_control"], NativeLit(cwd, store)
+        ).check(config["admission"], operation),
     ) if journal else {}
     return LocalAdapter(
         cwd,
         config.get("verify_argv", ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]),
         timeout=min(seconds, 300),
-        artifact_root=config.get("artifact_root", DEFAULT_ROOT),
+        artifact_root=store,
         **scoped,
     )
 
@@ -35,7 +42,7 @@ def adapter_for(config, cwd, seconds):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=["plan", "run"])
-    parser.add_argument("--config", type=Path, help="trusted local JSON: worker_argv, verify_argv, goal, loop_state, admission")
+    parser.add_argument("--config", type=Path, help="trusted local JSON: worker_argv, verify_argv, goal, loop_state, loop_control, admission")
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
     parser.add_argument("--tickets", type=int, default=1)
     parser.add_argument("--seconds", type=int, default=1800)

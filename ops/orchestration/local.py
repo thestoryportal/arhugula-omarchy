@@ -133,6 +133,7 @@ class LocalAdapter:
         return self.lit("show", ticket)
 
     def comment(self, ticket, body):
+        self.clearance("implementation")
         self.lit("comment", "add", ticket, "--body", body)
 
     def done(self, ticket):

@@ -72,65 +72,121 @@ class LocalAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
             owned.inspect()
 
-    def journal(self, *operations, reservations=()):
-        """A loop journal whose current grant clears `operations` for this checkout's writer."""
-        writer = {"kind": "writer", "key": "unit-1", "owner": "coder", "reviewer": "reviewer",
-                  "worktree": str(self.tree), "paths": ["own.txt"], "resources": []}
-        journal = Path(self.directory.name) / "state.json"
-        journal.write_text(json.dumps({
-            "version": 2, "completed": {}, "reviews": {},
-            "reservations": [writer, *reservations],
-            "admission": {"id": "grant-1", "ticket": "unit-1", "reservation": writer,
-                          "operations": sorted(operations)}}))
-        return journal
+    def admitted(self, *preparation, reservations=()):
+        """A runner config whose loop journal holds a real Buford grant for this checkout.
+
+        LIT is a seam the test edits; procfs shows this process holding Buford's
+        transcript, so preparation can be issued. Returns (config, lit, control).
+        """
+        from ops.orchestration.loop import IMPLEMENTATION, Loop, Preparation
+
+        base = Path(self.directory.name)
+        transcript = base / "buford.jsonl"
+        transcript.write_text(json.dumps({"type": "session_meta", "payload": {"id": "buford"}}))
+        control = base / "control.json"
+        control.write_text(json.dumps({"repair_paused": False, "notification_thread": "buford",
+            "sessions": [{"role": "buford", "session_id": "buford",
+                          "transcript": str(transcript)}]}))
+        proc = base / "proc"
+        for pid, parent, held in ((os.getpid(), 1, transcript),):
+            (proc / str(pid) / "fd").mkdir(parents=True)
+            (proc / str(pid) / "stat").write_text(f"{pid} (test) S {parent} 0 0\n")
+            (proc / str(pid) / "fd" / "3").symlink_to(held)
+        lit = mock.Mock()
+        lit.data = {
+            "issues": [{"id": "unit-1", "status": "in_progress", "labels": []},
+                       {"id": "goal", "status": "open", "labels": []},
+                       {"id": "gate", "status": "closed", "labels": ["role:human"],
+                        "closed_at": "2026-10-23T22:07:38Z"}],
+            "relations": [{"type": "blocks", "src_id": "unit-1", "dst_id": "gate"}],
+            "comments": [{"id": "cmt-release", "issue_id": "gate", "body": "released",
+                          "created_at": "2026-10-23T22:05:35Z"}],
+        }
+        lit.read.side_effect = lambda ticket: (json.loads(json.dumps(lit.data)), {})
+        (base / "handoff.md").write_text("goal")
+        journal = base / "state.json"
+        loop = Loop(journal, control, lit, proc=proc)
+        loop.initialize("buford", "gpt-6.1-sol", "high", base / "handoff.md", "goal")
+        for record in ({"kind": "writer", "key": "unit-1", "owner": "coder",
+                        "reviewer": "reviewer", "worktree": str(self.tree),
+                        "paths": ["own.txt"], "resources": []}, *reservations):
+            loop.reserve(record)
+        clearance = Preparation.parse(preparation, "cmt-release") if preparation else IMPLEMENTATION
+        grant = loop.begin("unit-1", clearance=clearance)["admission"]
+        # The runner reads LIT through its native boundary; here that is the seam.
+        self.enterContext(mock.patch("ops.orchestration.runner.NativeLit", return_value=lit))
+        config = {"verify_argv": ["true"], "loop_state": str(journal),
+                  "loop_control": str(control), "admission": grant,
+                  "artifact_root": str(base / "artifacts")}
+        return config, lit, control
 
     def test_runner_effects_clear_their_operation_against_the_journal_grant(self):
         from ops.orchestration.runner import adapter_for
 
-        journal = self.journal("artifact-inspection", "test-preparation")
-        with self.assertRaisesRegex(ValueError, "requires the admission"):
-            adapter_for({"loop_state": str(journal)}, self.tree, 60)
-        prepared = adapter_for({"verify_argv": ["true"], "loop_state": str(journal),
-                                "admission": "grant-1",
-                                "artifact_root": str(Path(self.directory.name) / "artifacts")},
-                               self.tree, 60)
+        config, lit, _ = self.admitted("artifact-inspection", "test-preparation")
+        for missing in ("admission", "loop_control"):
+            partial = {k: v for k, v in config.items() if k != missing}
+            with self.assertRaisesRegex(ValueError, "requires the admission and loop_control"):
+                adapter_for(partial, self.tree, 60)
+        prepared = adapter_for(config, self.tree, 60)
         prepared.lit_argv = ["false"]
         head = git(self.tree, "rev-parse", "HEAD")
         (self.tree / "own.txt").write_text("owned\n")
-        # Preparation inspects and verifies; it never claims, commits or closes.
+        # Preparation inspects and verifies; it never claims, commits, comments or closes.
         self.assertEqual(prepared.inspect(allowed=["own.txt"])["branch"], "isolated")
         self.assertTrue(prepared.verify()[0])
         for effect in (lambda: prepared.commit("unit-1", ["own.txt"]),
                        lambda: prepared.start("unit-1"),
+                       lambda: prepared.comment("unit-1", "evidence"),
                        lambda: prepared.done("unit-1")):
             with self.assertRaisesRegex(ValueError, "operation-not-admitted: implementation"):
                 effect()
         self.assertEqual(git(self.tree, "rev-parse", "HEAD"), head)
         self.assertEqual(git(self.tree, "diff", "--cached", "--name-only"), "")
-        # A replaced grant stops the next effect of a run built under the old one.
-        state = json.loads(journal.read_text())
-        state["admission"] = {**state["admission"], "id": "grant-2",
-                              "operations": ["artifact-inspection", "implementation",
-                                             "test-preparation"]}
-        journal.write_text(json.dumps(state))
-        with self.assertRaisesRegex(ValueError, "fresh LIT admission required"):
-            prepared.inspect(allowed=["own.txt"])
-        implementing = adapter_for({"loop_state": str(journal), "admission": "grant-2"},
-                                   self.tree, 60)
-        self.assertTrue(implementing.commit("unit-1", ["own.txt"]))
+        # A prerequisite opened after the grant stales even its admitted operations.
+        lit.data["issues"].append({"id": "late", "status": "open", "labels": []})
+        lit.data["relations"].append({"type": "blocks", "src_id": "unit-1", "dst_id": "late"})
+        for effect in (lambda: prepared.inspect(allowed=["own.txt"]), prepared.verify):
+            with self.assertRaisesRegex(ValueError, "LIT changed"):
+                effect()
+
+    def test_runner_commit_holds_on_stale_scope_or_control(self):
+        from ops.orchestration.runner import adapter_for
+
+        config, lit, control = self.admitted()
+        head = git(self.tree, "rev-parse", "HEAD")
+        (self.tree / "own.txt").write_text("owned\n")
+        original = (json.loads(json.dumps(lit.data)), control.read_text())
+
+        def blocker():
+            lit.data["issues"].append({"id": "late", "status": "open", "labels": []})
+            lit.data["relations"].append({"type": "blocks", "src_id": "unit-1", "dst_id": "late"})
+
+        def pause():
+            control.write_text(control.read_text().replace('"repair_paused": false',
+                                                            '"repair_paused": true'))
+
+        for change in (blocker, pause):
+            lit.data, _ = json.loads(json.dumps(original[0])), control.write_text(original[1])
+            change()
+            with self.subTest(change=change.__name__):
+                with self.assertRaisesRegex(ValueError, "LIT changed or pause/routing changed"):
+                    adapter_for(config, self.tree, 60).commit("unit-1", ["own.txt"])
+                self.assertEqual(git(self.tree, "rev-parse", "HEAD"), head)
+        lit.data, _ = original[0], control.write_text(original[1])
+        self.assertTrue(adapter_for(config, self.tree, 60).commit("unit-1", ["own.txt"]))
 
     def test_runner_inspects_under_the_loop_journal_ownership(self):
         from ops.orchestration.runner import adapter_for
 
-        journal = self.journal("artifact-inspection", reservations=[
+        config, _, _ = self.admitted(reservations=[
             {"kind": "preserved", "key": "cmt-protected",
              "worktree": str(self.root), "paths": ["foreign.txt"]}])
+        journal = Path(config["loop_state"])
         (self.root / "foreign.txt").write_text("preserved residue")
-        config = {"verify_argv": ["true"]}
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
-            adapter_for(config, self.tree, 60).inspect()
-        owned = adapter_for({**config, "loop_state": str(journal), "admission": "grant-1"},
-                            self.tree, 60)
+            adapter_for({"verify_argv": ["true"]}, self.tree, 60).inspect()
+        owned = adapter_for(config, self.tree, 60)
         self.assertEqual(owned.inspect()["branch"], "isolated")
         # Releasing the declaration after construction stops it covering the checkout.
         state = json.loads(journal.read_text())
@@ -143,12 +199,12 @@ class LocalAdapterTests(unittest.TestCase):
         from ops.orchestration.loop import Loop
         from ops.orchestration.runner import adapter_for
 
-        journal = self.journal("artifact-inspection", reservations=[
+        config, _, _ = self.admitted(reservations=[
             {"kind": "preserved", "key": "cmt-protected",
              "worktree": str(self.root), "paths": ["foreign.txt"]}])
+        journal = Path(config["loop_state"])
         (self.root / "foreign.txt").write_text("preserved residue")
-        owned = adapter_for({"loop_state": str(journal), "admission": "grant-1"},
-                            self.tree, 60)
+        owned = adapter_for(config, self.tree, 60)
         attempts, scan = [], owned.dirty
 
         def release_mid_scan(worktree):
