@@ -65,6 +65,21 @@ class SessionContextTests(unittest.TestCase):
             data += fragment
         self.path.write_text(data)
 
+    def test_actual_effort_is_recorded_beside_model(self):
+        self.write(
+            _codex("session_meta", {"id": "codex-1"}),
+            _codex("turn_context", {"model": "gpt-a", "effort": "low"}),
+            _codex("turn_context", {"model": "gpt-b", "effort": "medium"}),
+        )
+        summary = inspect_transcript("codex", self.path)
+        self.assertEqual((summary["model"], summary["effort"]), ("gpt-b", "medium"))
+        message = _claude_message("m1", 1, 0, 0, "end_turn", 1)
+        self.write(_claude("assistant", message=message, effort="high"))
+        summary = inspect_transcript("claude", self.path)
+        self.assertEqual((summary["model"], summary["effort"]), ("claude-opus-test", "high"))
+        self.write(_claude("assistant", message=message))
+        self.assertIsNone(inspect_transcript("claude", self.path)["effort"])
+
     def test_codex_cached_input_is_already_in_request_total(self):
         self.write(
             _codex("session_meta", {"session_id": "codex-1"}),
