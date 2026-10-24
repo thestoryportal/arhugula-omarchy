@@ -143,6 +143,16 @@ def _field(value):
     return value
 
 
+def _stored(adapter, comment):
+    """Only the one LIT comment matching every claimed field may be pointed at."""
+    # [LAW:parse-dont-validate] A VerifiedComment is a claim any caller can build;
+    # the store, reread under the lease, is the proof.
+    found = _carrying(adapter, comment.issue, f"operation: {_operation(comment.operation_id)}")
+    stored = [(c["id"], hashlib.sha256(c["body"].encode()).hexdigest()) for c in found]
+    if stored != [(comment.comment_id, comment.body_sha256)]:
+        raise Hold(Reason.INVALID_INPUT, f"{comment.issue} {comment.comment_id} is not the stored comment of operation {comment.operation_id}")
+
+
 def _admit(routing, recipient):
     """Current routing, read at the moment of delivery, governs a pending pointer."""
     try:
@@ -170,27 +180,32 @@ def _intent(path):
         raise Hold(Reason.PUBLICATION_UNCERTAIN, f"delivery intent {path}: {error}") from error
 
 
-def deliver_pointer(queue, recipient, comment, operation_id, *, sender, action, routing, ledger):
+def deliver_pointer(adapter, queue, recipient, comment, operation_id, *, sender, action, routing, ledger):
     """Enqueue one pointer to ``comment`` through the injected existing native queue.
+
+    ``comment`` is reread from LIT through ``adapter`` and must match exactly one
+    stored comment by issue, ID, body hash and operation, or nothing is recorded
+    or enqueued.
 
     ``queue(thread, text)`` returns the native message ID, raises QueueFailed when
     the queue refused, and anything else leaves delivery uncertain. The durable
     intent is written before enqueue, so an interrupted process holds instead of
     replaying a pointer that may already be queued.
     """
-    # [LAW:one-source-of-truth] The pointer is derived from the verified comment,
+    # [LAW:one-source-of-truth] The pointer is derived from the stored comment,
     # never from the task body, so a duplicate task conversation cannot be sent.
     text = " | ".join([
         f"TO {_field(recipient.name)}, {_field(recipient.role)}",
         f"FROM {_field(sender.name)}, {_field(sender.role)}",
-        comment.issue,
-        comment.comment_id,
+        _field(comment.issue),
+        _field(comment.comment_id),
         _field(action),
     ])
     path = Path(ledger) / f"{_operation(operation_id)}.json"
     intent = dict(operation_id=operation_id, issue=comment.issue, comment_id=comment.comment_id,
                   body_sha256=comment.body_sha256, thread=recipient.session_id, text=text)
     with Lease(Path(ledger) / LOCK):
+        _stored(adapter, comment)
         _admit(routing, recipient)
         prior = _intent(path) or dict(intent, state="comment_verified", queue_failures=[])
         if {key: prior[key] for key in intent} != intent:
