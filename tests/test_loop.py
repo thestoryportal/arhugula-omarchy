@@ -279,33 +279,48 @@ class LoopTests(unittest.TestCase):
                     "obligations": [
                         {
                             "name": name,
-                            "kind": kind,
                             "state": state,
                             "owner": "buford",
                             "next_action": "cmt-next",
                         }
-                        for name, kind, state in obligations
+                        for name, state in obligations
                     ],
                 }
             )
         )
         return path
 
+    def closure(self, **states):
+        """Every WS-11 required obligation met unless overridden, then any extras."""
+        from ops.orchestration.loop import TRIAL_CLOSURE
+
+        return [(name, states.pop(name, "met")) for name in TRIAL_CLOSURE] + list(
+            states.items()
+        )
+
+    def trial_loop(self):
+        from ops.orchestration.loop import Loop
+
+        return Loop(
+            self.root / "state.json",
+            self.control,
+            self.lit,
+            membership=lambda journal, ticket: "trial",
+        )
+
+    def closed(self, ticket):
+        self.loop.begin(ticket)
+        next(x for x in self.lit.data["issues"] if x["id"] == ticket)["status"] = "closed"
+
     def test_retained_worktree_can_close_trial(self):
         """WT-29: a retained worktree and pending asynchronous metrics/archive do not hold
         trial bookkeeping; the pending items stay visible with their owner."""
-        self.loop.begin("u1")
-        next(x for x in self.lit.data["issues"] if x["id"] == "u1")["status"] = "closed"
+        self.closed("u1")
         closeout = self.closeout(
             "u1",
-            [
-                ("own-main", "required", "met"),
-                ("installed-acceptance", "required", "met"),
-                ("metrics", "asynchronous", "open"),
-                ("archive", "asynchronous", "open"),
-            ],
+            self.closure(installed_acceptance="not_applicable", metrics="open", archive="open"),
         )
-        result = self.loop.complete("u1", self.evidence, closeout=closeout)
+        result = self.trial_loop().complete("u1", self.evidence, closeout=closeout)
         self.assertEqual(result["epoch_completed"], 1)
         state = json.loads((self.root / "state.json").read_text())
         record = state["completed"]["u1"]
@@ -314,35 +329,63 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(self.loop.begin("u2")["epoch_completed"], 1)  # unrelated work moves
 
     def test_async_housekeeping_cannot_close_required_obligation(self):
-        self.loop.begin("u1")
-        next(x for x in self.lit.data["issues"] if x["id"] == "u1")["status"] = "closed"
-        open_final = self.closeout(
-            "u1", [("metrics", "asynchronous", "met"), ("installed-acceptance", "required", "open")]
-        )
-        with self.assertRaisesRegex(ValueError, "required obligation open: installed-acceptance"):
-            self.loop.complete("u1", self.evidence, closeout=open_final)
-        self.assertEqual(self.loop.status()["epoch_completed"], 0)
+        self.closed("u1")
+        trial = self.trial_loop()
+        open_final = self.closeout("u1", self.closure(installed_acceptance="open", metrics="met"))
+        with self.assertRaisesRegex(ValueError, "required obligation open: installed_acceptance"):
+            trial.complete("u1", self.evidence, closeout=open_final)
+        # pass-1 F2 repro: an open asynchronous item alone is not a closeout
+        only_async = self.closeout("u1", [("metrics", "open")])
+        with self.assertRaisesRegex(ValueError, "omits required obligation: deliverables"):
+            trial.complete("u1", self.evidence, closeout=only_async)
+        with self.assertRaisesRegex(ValueError, "trial completion requires its closeout"):
+            trial.complete("u1", self.evidence)
         for bad in (
-            self.closeout("u2", [("own-main", "required", "met")]),  # another ticket's record
-            self.closeout("u1", [("own-main", "deferred", "met")]),
-            self.closeout("u1", [("own-main", "required", "met")], disposition="pending"),
+            self.closeout("u2", self.closure()),  # another ticket's record
+            self.closeout("u1", self.closure(own_main="deferred")),
+            self.closeout("u1", self.closure(own_main="not_applicable")),
+            self.closeout("u1", self.closure(metrics="not_applicable")),
+            self.closeout("u1", self.closure() + [("review", "met")]),  # duplicate name
+            self.closeout("u1", self.closure(), disposition="pending"),
             self.closeout("u1", []),
         ):
             with self.assertRaises(ValueError):
-                self.loop.complete("u1", self.evidence, closeout=bad)
+                trial.complete("u1", self.evidence, closeout=bad)
         self.assertEqual(self.loop.status()["epoch_completed"], 0)
-        # non-trial closeout keeps its existing evidence-only contract
+        self.assertEqual(
+            trial.complete("u1", self.evidence, closeout=self.closeout("u1", self.closure()))[
+                "epoch_completed"
+            ],
+            1,
+        )
+
+    def test_non_trial_closeout_keeps_its_evidence_only_contract(self):
+        """Legacy work completes on evidence alone; a trial closeout cannot attach to it."""
+        self.closed("u1")
+        with self.assertRaisesRegex(ValueError, "ticket is legacy"):
+            self.loop.complete("u1", self.evidence, closeout=self.closeout("u1", self.closure()))
+        self.assertEqual(self.loop.status()["epoch_completed"], 0)
         self.assertEqual(self.loop.complete("u1", self.evidence)["epoch_completed"], 1)
+
+    def test_trial_membership_is_held_once_the_profile_is_activated(self):
+        """The default adapter reads the activation receipt beside the journal: absent means
+        every ticket is legacy; present, membership needs adapters this loop lacks, so
+        completion holds instead of counting under either profile."""
+        self.closed("u1")
+        (self.root / "workflow-activation.json").write_text("{}")
+        for closeout in (None, self.closeout("u1", self.closure())):
+            with self.assertRaisesRegex(ValueError, "authority_unavailable"):
+                self.loop.complete("u1", self.evidence, closeout=closeout)
+        self.assertEqual(self.loop.status()["epoch_completed"], 0)
 
     def test_workflow_closeout_cannot_close_a_production_parent(self):
         self.lit.data["relations"].append(
             {"type": "parent-child", "src_id": "u7", "dst_id": "u1"}
         )
-        self.loop.begin("u1")
-        next(x for x in self.lit.data["issues"] if x["id"] == "u1")["status"] = "closed"
-        closeout = self.closeout("u1", [("own-main", "required", "met")])
+        self.closed("u1")
+        closeout = self.closeout("u1", self.closure())
         with self.assertRaisesRegex(ValueError, "completed parent/epic"):
-            self.loop.complete("u1", self.evidence, closeout=closeout)
+            self.trial_loop().complete("u1", self.evidence, closeout=closeout)
 
     def test_native_close_crash_holds_next_admission_until_completion_reconciled(self):
         self.loop.begin("u1")

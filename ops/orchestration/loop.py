@@ -338,7 +338,36 @@ class Closeout:
 
 
 _WORKTREE_FIELDS = ("disposition", "owner", "path", "branch", "head", "protected", "reason")
-_OBLIGATION_FIELDS = ("name", "kind", "state", "owner", "next_action")
+_OBLIGATION_FIELDS = ("name", "state", "owner", "next_action")
+# [LAW:one-source-of-truth] WS-11 task closure, each with its legal states: the code names
+# what is required, so a closeout can neither omit one nor relabel it asynchronous.
+# Installed acceptance binds only where the task requires it; that one alone may be
+# declared not applicable, explicitly on the record. Any other name is asynchronous
+# housekeeping (metrics, reflection, archive) that may stay open with its owner.
+TRIAL_CLOSURE = {
+    "deliverables": ("met", "open"),
+    "review": ("met", "open"),
+    "own_main": ("met", "open"),
+    "installed_acceptance": ("met", "open", "not_applicable"),
+    "ownership": ("met", "open"),
+    "evidence": ("met", "open"),
+    "lit_state": ("met", "open"),
+}
+_ASYNCHRONOUS = ("met", "open")
+ACTIVATION_RECEIPT = "workflow-activation.json"
+
+
+def activation_membership(journal, ticket):
+    """WS-01 trial membership as this loop can observe it: `legacy`, or a hold.
+
+    [LAW:effects-at-boundaries] Before the canonical activation receipt beside the journal
+    exists, every ticket is legacy. Once it exists, membership needs the policy,
+    LIT-relation and admission adapters this loop does not have, so completion holds
+    rather than counting under a guessed profile."""
+    receipt = Path(journal).with_name(ACTIVATION_RECEIPT)
+    if os.path.lexists(receipt):
+        raise ValueError(f"trial membership authority_unavailable for {ticket}: {receipt}")
+    return "legacy"
 
 
 def parse_closeout(raw, ticket):
@@ -354,8 +383,7 @@ def parse_closeout(raw, ticket):
         or doc.get("schema_version") != 1
         or doc.get("ticket") != ticket
         or type(doc.get("worktrees")) is not list
-        or not doc.get("obligations")
-        or type(doc["obligations"]) is not list
+        or type(doc.get("obligations")) is not list
     ):
         raise ValueError(f"closeout record is not a schema-1 closeout of {ticket}")
     worktrees = {}
@@ -371,27 +399,34 @@ def parse_closeout(raw, ticket):
         ):
             raise ValueError(f"invalid closeout worktree disposition: {tree!r}")
         worktrees[tree["path"]] = tree["disposition"]
-    required_open, pending = [], []
+    states = {}
     for item in doc["obligations"]:
         if (
             type(item) is not dict
             or set(item) != set(_OBLIGATION_FIELDS)
             or not all(type(item[k]) is str and item[k] for k in _OBLIGATION_FIELDS)
-            or item["kind"] not in ("required", "asynchronous")
-            or item["state"] not in ("met", "open")
+            or item["state"] not in TRIAL_CLOSURE.get(item["name"], _ASYNCHRONOUS)
+            or item["name"] in states
         ):
             raise ValueError(f"invalid closeout obligation: {item!r}")
-        if item["state"] == "open":
-            (required_open if item["kind"] == "required" else pending).append(item["name"])
-    return Closeout(worktrees, tuple(required_open), tuple(pending))
+        states[item["name"]] = item["state"]
+    missing = [name for name in TRIAL_CLOSURE if name not in states]
+    if missing:
+        raise ValueError("closeout omits required obligation: " + ",".join(missing))
+    return Closeout(
+        worktrees,
+        tuple(name for name in TRIAL_CLOSURE if states[name] == "open"),
+        tuple(n for n, state in states.items() if n not in TRIAL_CLOSURE and state == "open"),
+    )
 
 
 class Loop:
-    def __init__(self, state, control, lit):
-        self.path, self.control, self.lit = (
+    def __init__(self, state, control, lit, membership=activation_membership):
+        self.path, self.control, self.lit, self.membership = (
             Path(state).absolute(),
             Path(control).absolute(),
             lit,
+            membership,
         )
 
     def _read(self):
@@ -596,9 +631,11 @@ class Loop:
             }
 
     def complete(self, ticket, evidence, *, closeout=None):
-        """Count a closed leaf. A trial `closeout` record adds its own refusals: a
-        required obligation still open holds the count; retained worktrees and pending
-        asynchronous housekeeping do not, and stay visible on the completion record."""
+        """Count a closed leaf. Trial membership comes from `membership`, never the caller:
+        trial work also needs its `closeout` record, where an open required obligation
+        holds the count while retained worktrees and pending asynchronous housekeeping
+        do not and stay visible on the completion record. Legacy work keeps its
+        evidence-only contract and refuses a trial closeout."""
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             data, receipts = self.lit.read(ticket)
@@ -625,7 +662,10 @@ class Loop:
                     "reads": receipts,
                     "epoch": state["epoch"],
                 }
-                if closeout is not None:
+                profile = self.membership(self.path, ticket)
+                if profile == "trial":
+                    if closeout is None:
+                        raise ValueError("trial completion requires its closeout record")
                     parsed = parse_closeout(Path(closeout).read_bytes(), ticket)
                     if parsed.required_open:
                         raise ValueError(
@@ -636,6 +676,8 @@ class Loop:
                         worktrees=parsed.worktrees,
                         pending=list(parsed.pending),
                     )
+                elif closeout is not None:
+                    raise ValueError("a closeout record is trial bookkeeping; ticket is legacy")
                 state["completed"][ticket] = record
                 if state["admission"] and state["admission"]["ticket"] == ticket:
                     state["admission"] = None
