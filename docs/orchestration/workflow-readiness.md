@@ -279,6 +279,166 @@ with the comparison and active time, is the immutable record
 `/mnt/mac/arhugula-artifacts/wo-u22-supervision-decision-20261024T0036Z/decision.md`
 (SHA-256 `8d65c251f76f15ee5903bf5d7062b5420262e8f0c51482a8f8e9331b53bcb1c8`).
 
+## Installed reuse
+
+The accepted 19-step build/install cannot yet be reused for product main
+`46a3b74e`. Its disposition is `unknown`, and re-running the origin check alone
+will not change that. Two kinds of fact are missing. Nobody has re-observed where
+the installed modules import from. And the accepted record never recorded the
+host's architecture, OS and kernel or the resource pins, so there is nothing to
+compare today's values against. WO-U19 (plan WP-14; specification WS-12;
+verification WT-17) records this.
+
+A disposition is one of four values, decided by `install_reuse` in the product's
+`tools/workflow_evidence.py`:
+
+- `valid`: the install may be reused.
+- `impact_review_required`: an installed input or toolchain pin changed, or the
+  product head moved without an equivalence record. Rebuild, or document why the
+  change does not affect the install.
+- `invalid`: the installed artifact itself differs from what was accepted, or an
+  observation found a defect in it.
+- `unknown`: a fact was not observed. An unobserved fact never counts as unchanged.
+
+Every candidate must observe the same mandatory facts, on both the accepted side
+and the current side: at least one distribution hash and one installed package,
+each named by its file or package name, the site-packages path, the import
+origins, the interpreter path, the OS, kernel and architecture, and the resource
+pins. A missing one makes the disposition
+`unknown`, even when both sides are missing it. A blank or free-text value is not
+an observation either. Each fact has a fixed shape: a distribution hash is a
+SHA-256 digest, the paths are absolute, the import origins name a nonzero module
+count, each installed package is non-editable with at least one RECORD file
+verified, and the resource pins are the SHA-256 digest of the accepted
+resource-pin record. Three observations are defects rather than gaps: a failed
+import-origin check, an editable install and a package whose files differ from its
+RECORD. Each makes the disposition `invalid`, even when both sides show the same
+defect, and refuses installed acceptance.
+
+Only `valid` permits reuse. A new session, a reopened discussion or a status
+comment is not an input and cannot change the disposition.
+
+**What was checked.** The accepted record is
+`.local/production-source09-01a10968/installed-build-execution-01a10c4c/build-evidence-acceptance.json`
+(SHA-256 `802fe077968b116480f05f4571bbd8a3b1ba9fce7801b3eeb6b44147d970123d`), which
+pins its execution result and accepted product head `91e76a4e`. It was read in its
+own schema, not rewritten. Its status must be exactly
+`BUILD_INSTALL_EVIDENCE_ACCEPTED_ONLY`. At 2026-10-24T06:19:13Z profile-coder
+(Claude session `e6220df3-af01-48e9-a390-6c7e71709e19`) re-read the existing install in
+`.local/production-source09-01a10968/installed-a3-exec-01a10bd5` by hashing files:
+
+- The seven wheels and `requirements.lock.txt` match their accepted pins.
+- All 457 RECORD entries across the seven `harness_*` packages verify, matching the
+  accepted count, and none of the packages is an editable install.
+- The site-packages path and the resolved interpreter path (`cpython-3.12.14`) are
+  unchanged.
+- The installed inputs (each member's `src/` and `pyproject.toml`, plus the root
+  `pyproject.toml` and `uv.lock`) are byte-identical at `91e76a4e` and `46a3b74e`.
+  The eight commits between them change only `tools/`, `.github/` and `.harness/`.
+  The equivalence record that proves this is
+  `/mnt/mac/arhugula-artifacts/wo-u19-installed-reuse-c2-20261024T0619Z/install-equivalence.json`
+  (SHA-256 `1ea6abb40664fe6adea72854addf1fe0f0f5856277c464c1b2cb9c4eed3d40e6`).
+
+The run's raw output is `run-jdya3tfe` in the Mac store. With the equivalence
+record, the disposition is `unknown` for five reasons: the import origins, the
+architecture, the kernel, the OS and the resource pins.
+
+**What is still open.** The import-origin check needs the installed interpreter.
+The accepted build ran it as steps V0/V1 and recorded 339 harness modules, all
+from site-packages. This read did not run the installed interpreter. The read
+gets the host's OS, kernel and architecture from the kernel, but the accepted
+record has none of them, and no resource pins were recorded on either side. So
+reuse needs two things: an accepted record that carries the host facts and
+resource pins, and a re-run of the origin check. Runtime owns both observations,
+and Buford schedules them. Until then the reuse stays `unknown`.
+
+**What reuse does not mean.** A valid reuse is not installed A3 GO. A result from
+an earlier run counts toward the final installed matrix only through
+`bind_acceptance`. That function accepts only a passed installed run. The run must
+be of the final candidate, or of an accepted candidate that a valid reuse carries
+to it, and the binding names the equivalence record. The final candidate must
+also observe every mandatory fact; one missing fact refuses the binding. Source
+tests, the 19-step build and synthetic fixtures are never installed acceptance.
+
+**Revalidate when:** product main changes an installed input (the equivalence then
+fails and an impact review is required), any byte under the install root changes,
+and against the final main SHA before the final installed matrix.
+
+## Scenario contracts
+
+No final-matrix scenario may start yet: none has a complete contract. A contract
+names the final candidate by its key. The final main SHA has not been chosen, and
+admission refuses a candidate that lacks a mandatory fact, such as the import
+origins above. This section lists what each contract must contain and where each
+obligation comes from (WS-13 §15.2; verification WT-19).
+
+`parse_scenario_contract` in `tools/workflow_evidence.py` refuses to admit a
+contract that is missing, or leaves empty, any of these:
+
+- the scenario name, its version and at least one acceptance ID;
+- the candidate key it runs against and a run ID;
+- its literal argv, an absolute working directory and its environment allowlist;
+- the prerequisites it requires, by their register names;
+- its accepted workload, as an immutable reference;
+- its expected outcome: the scenario behaves, it is refused with one named code,
+  or the product fails in one named way;
+- each threshold with the immutable source it comes from (a behaving scenario
+  needs at least one), and its timeout with its source;
+- for every process, container, service or durable state it touches, an owner and
+  how it is reclaimed;
+- its author and a witness who is someone else;
+- where its evidence goes;
+- what the start, pre-cleanup and post-cleanup observations record.
+
+`admit_scenario` refuses a contract whose candidate key differs from the installed
+candidate's key, or whose candidate lacks a mandatory fact. It refuses when a
+required prerequisite is anything but `ready` in the register; a prerequisite the
+register does not list counts as `unknown`. It also refuses when the workload, the
+timeout or any threshold differs from the accepted one. Dropping a threshold,
+adding one or changing a value all refuse. A 30-minute soak cannot stand in for
+the 60-minute soak.
+
+`judge_scenario` passes only the expected outcome. A refusal with a different code
+fails. An expected product failure, such as a recovery scenario's injected crash,
+passes only when the product's structured result names that failure. A bare
+nonzero exit proves nothing, and a refusal or a different failure fails. An
+infrastructure failure, such as a stopped Docker daemon or a lost mount, is an
+`error`. It is never product behavior, so it cannot satisfy an expected failure
+either. A pass without a post-cleanup observation is held, but cleanup cannot turn
+a failure into anything else.
+
+| Obligation | Accepted source | Contract state |
+| --- | --- | --- |
+| W0–W5, including the W5 60-minute soak | `operating-targets-v1.md` | Held: no final candidate key; W5's rate is fixed in a LIT addendum before its start, and none exists yet |
+| S1–S3 shutdown, R1–R3 recovery, failure matrix | `operating-targets-v1.md` | Held: no final candidate key; resource owners for containers and services (obligation O3 above) |
+| Final-main B-104 and N1 | `profile-contract-decision-1.md` | Held: no final candidate key |
+| Installed C-RT-38 (v12 plan) | sealed v12 amendment | Held: awaiting independent acceptance |
+
+Both accepted sources are in `/home/robbo/Work/arhugula-trial/evaluation/production-readiness-arch/`:
+`operating-targets-v1.md` (SHA-256
+`3cec06035969b740ba84dcc1ad8755f959a12464cff7e86ebdeabb0b530c680c`) and
+`profile-contract-decision-1.md` (SHA-256
+`f90964269fc1a841c645228f5a02fbfff90bfabe653b2b4aae33172b1af85908`). Their
+workloads, thresholds and resource pins stay as accepted. Changing one needs the
+dated LIT amendment those sources require.
+
+Every row also waits on the prerequisites in the register above. Docker, the
+telemetry stack, offline embedding assets and a quiet window are missing, and the
+kernel/process route is denied.
+
+The v12 amendment lives in `.local/production-source09-01a10968/v12-plan-01a10e0a/`
+and is sealed. Its four files are `design.json` (SHA-256
+`5f4cc219ca656a21ab1b4efb6f3e12bcc85bc847f8898294f418dba03dfbc445`),
+`implementation-plan.json` (`c0c77071217dd2d1569cf333bf44085e30f5333373123f553ec59b64140f2b33`),
+`bindings.json` (`7efc1d724c17567c08849ccdaaac1a9995a468cf1c0885d3fa8be03cca7f8410`)
+and `result.json` (`26678bb59afe7f85165e3779a9cff2db83f2ad09d6b1f6ce630df4c455eed961`).
+Its verdict is `AMENDMENT_READY_FOR_INDEPENDENT_REVIEW`, with T1–T5 pending
+acceptance and T6–T8 held. An independent review was requested in
+`.local/resume-01a10e20/reviewer-v12-body.txt`, and no verdict is retained in the
+checkout or in LIT. The author's native record also lists reads it skipped
+(Laws:Prompt, prompt craft, brainstorming). These gaps stay recorded; this register
+neither closes them nor rewrites the sealed files.
+
 ## Re-verifying this register
 
 The scripts in `docs/orchestration/readiness/` repeat every read above. Run
@@ -295,6 +455,17 @@ python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy -
   python3 docs/orchestration/readiness/measure_roster.py
 python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy --timeout 60 -- \
   bash docs/orchestration/readiness/observe-supervision.sh
+```
+
+The installed-reuse read needs the pinned product interpreter and a product
+checkout that contains WO-U19. It writes the equivalence record it derives into
+the `--out` directory:
+
+```bash
+python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy --timeout 120 -- \
+  /home/robbo/Work/arhugula-build-eval/.venv/bin/python -I \
+  docs/orchestration/readiness/observe_installed_reuse.py \
+  --product /home/robbo/Work/arhugula-build-eval --current origin/main --out OUT_DIR
 ```
 
 The structural check confirms that every 15.1 prerequisite has one entry with all
