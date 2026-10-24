@@ -1829,3 +1829,89 @@ class AutoResetTests(unittest.TestCase):
             stream.write(row)
         with self.assertRaisesRegex(ValueError, "user input changed"):
             self.controller().step()
+
+    def routing_hold(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        original = self.f.control.read_text()
+        self.f.control.write_text(original + " ")
+        return controller, original
+
+    def test_unchanged_hold_is_reported_once_across_supervisor_restarts(self):
+        # [LAW:behavior-not-structure] systemd restarts the supervisor on failure;
+        # an unchanged condition must not become a new hold event each restart.
+        controller, _ = self.routing_hold()
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "routing")
+        restarted = [self.controller().attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in restarted], [False] * 3)
+        self.assertTrue(all(r.event == first.event for r in restarted))
+        self.assertEqual(self.controller().held(), first.event)
+        self.assertEqual(self.window.lines, [])
+
+    def test_changed_condition_is_reevaluated_once(self):
+        controller, original = self.routing_hold()
+        self.assertTrue(controller.attempt().new)
+        self.f.control.write_text(original)
+        with self.f.old_transcript.open("a") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "type": "response_item",
+                        "payload": {"role": "user", "content": [{"text": "pause now"}]},
+                    }
+                )
+                + "\n"
+            )
+        changed = controller.attempt()
+        self.assertTrue(changed.new)
+        self.assertRegex(changed.event["held"], "user input changed")
+        self.assertFalse(controller.attempt().new)
+        self.assertEqual(self.window.lines, [])
+
+    def test_resolved_condition_resumes_and_clears_the_hold(self):
+        controller, original = self.routing_hold()
+        self.assertTrue(controller.attempt().new)
+        self.f.control.write_text(original)
+        resumed = controller.attempt()
+        self.assertEqual(resumed["phase"], "waiting_title")
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertIsNone(controller.held())
+
+    def test_run_keeps_one_hold_event_and_waits_for_a_changed_condition(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        from io import StringIO
+        from unittest.mock import patch
+        from ops.orchestration.auto_reset import main
+
+        controller, _ = self.routing_hold()
+        waits = []
+
+        class Wakes:
+            def __init__(self, paths):
+                pass
+
+            def wait(self):
+                waits.append(1)
+                if len(waits) == 3:
+                    raise KeyboardInterrupt
+
+            def close(self):
+                pass
+
+        errors = StringIO()
+        with (
+            patch("sys.argv", ["auto_reset", "run", "--config", "fixture"]),
+            patch("ops.orchestration.auto_reset.configured", return_value=controller),
+            patch("ops.orchestration.auto_reset.Wakeups", Wakes),
+            redirect_stdout(StringIO()),
+            redirect_stderr(errors),
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                main()
+        events = [json.loads(line) for line in errors.getvalue().splitlines()]
+        self.assertEqual(len(events), 1)
+        self.assertRegex(events[0]["held"], "routing")
+        self.assertEqual(self.window.lines, [])

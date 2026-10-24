@@ -80,6 +80,18 @@ def user_frontier(actual):
     return {"count": actual["user_count"], "hash": actual["last_user_hash"]}
 
 
+# Step failures the supervisor reports as a durable hold instead of exiting.
+HOLDS = (OSError, ValueError, KeyError, sqlite3.Error)
+
+
+@dataclass(frozen=True)
+class Held:
+    """A recorded hold; `new` marks only the first report of its unchanged condition."""
+
+    event: dict
+    new: bool
+
+
 def bound_json(binding):
     if file_binding(binding["path"]) != binding:
         raise ValueError("bound recovery artifact changed")
@@ -443,6 +455,65 @@ class AutoReset:
 
     def save(self, state):
         atomic_json(self.path, state)
+
+    @property
+    def hold_path(self):
+        return self.path.with_suffix(".hold.json")
+
+    def held(self):
+        return json.loads(self.hold_path.read_text()) if self.hold_path.exists() else None
+
+    def condition(self):
+        """Digest of every durable input a step consults, plus the lanes' user frontier.
+
+        Model turns that add no user input leave it unchanged, so they cannot turn
+        one hold into another rediscovery; a step reports any unreadable input itself.
+        """
+        state = self.status()
+        files = (
+            self.path,
+            self.loop.path,
+            self.loop.control,
+            self.config["release"],
+            *source_closure(),
+            *CLOSURE_FILES,
+            *self.config.get("memento", {}).get("ceiling_layers", ()),
+        )
+        try:
+            control = json.loads(self.loop.control.read_text())
+            lanes = [s["transcript"] for s in control["sessions"] if s["role"] == "buford"]
+            lanes += [state["old_transcript"]] if "old_transcript" in state else []
+            frontiers = [user_frontier(identity(path)) for path in lanes]
+        except HOLDS as error:
+            frontiers = [{"unreadable": str(error)}]
+        value = {
+            "config": self.config,
+            "files": [file_binding(p) if Path(p).exists() else str(p) for p in files],
+            "user_frontiers": frontiers,
+        }
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True, default=str).encode()
+        ).hexdigest()
+
+    def attempt(self):
+        """Step once per changed condition; an unchanged hold is never rediscovered."""
+        recorded = self.held()
+        if recorded is not None and recorded["condition"] == self.condition():
+            return Held(recorded, new=False)
+        try:
+            state = self.step()
+        except HOLDS as error:
+            # [LAW:no-silent-failure] The hold is durable and reported once; the
+            # condition is taken after the failure so its own effects are included.
+            event = {
+                "held": str(error),
+                "supervisor": str(self.path),
+                "condition": self.condition(),
+            }
+            atomic_json(self.hold_path, event)
+            return Held(event, new=True)
+        self.hold_path.unlink(missing_ok=True)
+        return state
 
     def bindings(self):
         for bound in [
@@ -1257,7 +1328,7 @@ def main():
         if args.command == "release":
             result = controller.release(args.ownership, args.goal_receipt, args.bottle)
         elif args.command == "status":
-            result = controller.status()
+            result = {**controller.status(), "hold": controller.held()}
         elif args.command == "wait-bootstrap":
             result = wait_bootstrap(controller, args.manifest)
         elif args.command == "recover-maintenance":
@@ -1267,8 +1338,11 @@ def main():
             with Lease(controller.path.with_suffix(".runtime.lock")):
                 while True:
                     old = controller.status()
-                    result = controller.step()
-                    if result != old:
+                    result = controller.attempt()
+                    if isinstance(result, Held):
+                        if result.new:
+                            print(json.dumps(result.event), file=sys.stderr, flush=True)
+                    elif result != old:
                         print(
                             json.dumps(
                                 {
@@ -1310,7 +1384,7 @@ def main():
             return 0
         print(json.dumps(result))
         return 0
-    except (OSError, ValueError, KeyError, sqlite3.Error) as error:
+    except HOLDS as error:
         print(
             json.dumps({"held": str(error), "supervisor": str(controller.path)}),
             file=sys.stderr,
