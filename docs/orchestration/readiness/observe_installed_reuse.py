@@ -73,8 +73,13 @@ def main() -> int:
     accepted = evidence.accepted_build_install(
         acceptance, pinned.read_bytes(), installed_inputs(ACCEPTED_HEAD)
     )
+    # Neither the installed origin check nor the accepted resource pins are observed by
+    # this read; both stay unknown until Runtime re-observes them.
     artifact, environment = evidence.observe_install(
-        EXEC_ROOT, tuple(f"harness_{name}" for name in PACKAGES), origins=None
+        EXEC_ROOT,
+        tuple(f"harness_{name}" for name in PACKAGES),
+        origins=None,
+        resources=None,
     )
     current = evidence.InstalledCandidate(
         installed_inputs(args.current), artifact, environment

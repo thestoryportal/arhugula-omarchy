@@ -281,11 +281,13 @@ with the comparison and active time, is the immutable record
 
 ## Installed reuse
 
-The accepted 19-step build/install can serve product main `46a3b74e` without a
-rebuild, but not yet. Its reuse disposition is `unknown` for one reason: nobody has
-re-observed where its modules import from. When Runtime re-runs the accepted
-origin check and it reports the same result, the disposition becomes `valid`.
-WO-U19 (plan WP-14; specification WS-12; verification WT-17) records this.
+The accepted 19-step build/install cannot yet be reused for product main
+`46a3b74e`. Its disposition is `unknown`, and re-running the origin check alone
+will not change that. Two kinds of fact are missing. Nobody has re-observed where
+the installed modules import from. And the accepted record never recorded the
+host's architecture, OS and kernel or the resource pins, so there is nothing to
+compare today's values against. WO-U19 (plan WP-14; specification WS-12;
+verification WT-17) records this.
 
 A disposition is one of four values, decided by `install_reuse` in the product's
 `tools/workflow_evidence.py`:
@@ -297,6 +299,12 @@ A disposition is one of four values, decided by `install_reuse` in the product's
 - `invalid`: the installed artifact itself differs from what was accepted.
 - `unknown`: a fact was not observed. An unobserved fact never counts as unchanged.
 
+Every candidate must observe the same mandatory facts, on both the accepted side
+and the current side: at least one distribution hash and one installed package,
+the site-packages path, the import origins, the interpreter path, the OS, kernel
+and architecture, and the resource pins. A missing one makes the disposition
+`unknown`, even when both sides are missing it.
+
 Only `valid` permits reuse. A new session, a reopened discussion or a status
 comment is not an input and cannot change the disposition.
 
@@ -304,8 +312,9 @@ comment is not an input and cannot change the disposition.
 `.local/production-source09-01a10968/installed-build-execution-01a10c4c/build-evidence-acceptance.json`
 (SHA-256 `802fe077968b116480f05f4571bbd8a3b1ba9fce7801b3eeb6b44147d970123d`), which
 pins its execution result and accepted product head `91e76a4e`. It was read in its
-own schema, not rewritten. At 2026-10-24T05:38:49Z profile-coder (Claude session
-`adb8fdf0-83d0-4382-ae61-93392021740c`) re-read the existing install in
+own schema, not rewritten. Its status must be exactly
+`BUILD_INSTALL_EVIDENCE_ACCEPTED_ONLY`. At 2026-10-24T06:03:27Z profile-coder
+(Claude session `e6220df3-af01-48e9-a390-6c7e71709e19`) re-read the existing install in
 `.local/production-source09-01a10968/installed-a3-exec-01a10bd5` by hashing files:
 
 - The seven wheels and `requirements.lock.txt` match their accepted pins.
@@ -317,22 +326,29 @@ own schema, not rewritten. At 2026-10-24T05:38:49Z profile-coder (Claude session
   `pyproject.toml` and `uv.lock`) are byte-identical at `91e76a4e` and `46a3b74e`.
   The eight commits between them change only `tools/`, `.github/` and `.harness/`.
   The equivalence record that proves this is
-  `/mnt/mac/arhugula-artifacts/wo-u19-installed-reuse-20261024T0538Z/install-equivalence.json`
-  (SHA-256 `f119f34ef7c9069024144510ca0aaa4fcdd37c374bed77785b36b981aac5494f`).
+  `/mnt/mac/arhugula-artifacts/wo-u19-installed-reuse-c1-20261024T0603Z/install-equivalence.json`
+  (SHA-256 `37cc9b667912a057568cbd5eb5f2ec67ea632c1325a16c13b732deb94456eef1`).
 
-The run's raw output is `run-ywta_xwn` in the Mac store.
+The run's raw output is `run-zbycpze0` in the Mac store. With the equivalence
+record, the disposition is `unknown` for five reasons: the import origins, the
+architecture, the kernel, the OS and the resource pins.
 
 **What is still open.** The import-origin check needs the installed interpreter.
 The accepted build ran it as steps V0/V1 and recorded 339 harness modules, all
-from site-packages. This read did not run the installed interpreter. Runtime owns
-the re-run, and Buford schedules it. Until then the reuse stays `unknown`.
+from site-packages. This read did not run the installed interpreter. The read
+gets the host's OS, kernel and architecture from the kernel, but the accepted
+record has none of them, and no resource pins were recorded on either side. So
+reuse needs two things: an accepted record that carries the host facts and
+resource pins, and a re-run of the origin check. Runtime owns both observations,
+and Buford schedules them. Until then the reuse stays `unknown`.
 
 **What reuse does not mean.** A valid reuse is not installed A3 GO. A result from
 an earlier run counts toward the final installed matrix only through
 `bind_acceptance`. That function accepts only a passed installed run. The run must
 be of the final candidate, or of an accepted candidate that a valid reuse carries
-to it, and the binding names the equivalence record. Source tests, the 19-step
-build and synthetic fixtures are never installed acceptance.
+to it, and the binding names the equivalence record. The final candidate must
+also observe every mandatory fact; one missing fact refuses the binding. Source
+tests, the 19-step build and synthetic fixtures are never installed acceptance.
 
 **Revalidate when:** product main changes an installed input (the equivalence then
 fails and an impact review is required), any byte under the install root changes,
@@ -342,28 +358,35 @@ and against the final main SHA before the final installed matrix.
 
 No final-matrix scenario may start yet: none has a complete contract. A contract
 names the final candidate by its key. The final main SHA has not been chosen, and
-admission refuses a candidate with an unobserved fact, such as the import origins
-above. This section lists what each contract must contain and where each
-obligation comes from (WS-13; verification WT-19).
+admission refuses a candidate that lacks a mandatory fact, such as the import
+origins above. This section lists what each contract must contain and where each
+obligation comes from (WS-13 §15.2; verification WT-19).
 
 `parse_scenario_contract` in `tools/workflow_evidence.py` refuses to admit a
-contract that is missing any of these:
+contract that is missing, or leaves empty, any of these:
 
-- the candidate key it runs against, its exact argv and its environment;
-- the capability it needs;
+- the scenario name, its version and at least one acceptance ID;
+- the candidate key it runs against and a run ID;
+- its literal argv, an absolute working directory and its environment allowlist;
+- the prerequisites it requires, by their register names;
 - its accepted workload, as an immutable reference;
 - its expected outcome: the scenario either behaves, or it is refused with one
   named code;
 - each threshold with the immutable source it comes from (a behaving scenario
-  needs at least one);
-- an owner for every resource it starts;
+  needs at least one), and its timeout with its source;
+- for every process, container, service or durable state it touches, an owner and
+  how it is reclaimed;
+- its author and a witness who is someone else;
 - where its evidence goes;
-- what the pre-cleanup and post-cleanup observations record.
+- what the start, pre-cleanup and post-cleanup observations record.
 
 `admit_scenario` refuses a contract whose candidate key differs from the installed
-candidate's key, whose candidate has an unobserved fact, or whose thresholds differ
-from the accepted ones. Dropping a threshold, adding one or changing a value all
-refuse. A 30-minute soak cannot stand in for the 60-minute soak.
+candidate's key, or whose candidate lacks a mandatory fact. It refuses when a
+required prerequisite is anything but `ready` in the register; a prerequisite the
+register does not list counts as `unknown`. It also refuses when the workload, the
+timeout or any threshold differs from the accepted one. Dropping a threshold,
+adding one or changing a value all refuse. A 30-minute soak cannot stand in for
+the 60-minute soak.
 
 `judge_scenario` passes only the expected outcome. A refusal with a different code
 fails. An infrastructure failure, such as a stopped Docker daemon or a lost mount,
