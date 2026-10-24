@@ -296,7 +296,8 @@ A disposition is one of four values, decided by `install_reuse` in the product's
 - `impact_review_required`: an installed input or toolchain pin changed, or the
   product head moved without an equivalence record. Rebuild, or document why the
   change does not affect the install.
-- `invalid`: the installed artifact itself differs from what was accepted.
+- `invalid`: the installed artifact itself differs from what was accepted, or an
+  observation found a defect in it.
 - `unknown`: a fact was not observed. An unobserved fact never counts as unchanged.
 
 Every candidate must observe the same mandatory facts, on both the accepted side
@@ -306,8 +307,12 @@ and architecture, and the resource pins. A missing one makes the disposition
 `unknown`, even when both sides are missing it. A blank or free-text value is not
 an observation either. Each fact has a fixed shape: a distribution hash is a
 SHA-256 digest, the paths are absolute, the import origins name a nonzero module
-count or the failures, and the resource pins are the SHA-256 digest of the
-accepted resource-pin record.
+count, each installed package is non-editable with at least one RECORD file
+verified, and the resource pins are the SHA-256 digest of the accepted
+resource-pin record. Three observations are defects rather than gaps: a failed
+import-origin check, an editable install and a package whose files differ from its
+RECORD. Each makes the disposition `invalid`, even when both sides show the same
+defect, and refuses installed acceptance.
 
 Only `valid` permits reuse. A new session, a reopened discussion or a status
 comment is not an input and cannot change the disposition.
