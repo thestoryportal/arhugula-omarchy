@@ -29,6 +29,7 @@ def _fresh(kind: str) -> dict[str, Any]:
         "session_id": None,
         "identity_conflict": False,
         "model": None,
+        "effort": None,
         "last_activity": None,
         "status": "unknown",
         "latest_request_input_tokens": None,
@@ -172,6 +173,7 @@ def _feed_codex(state: dict[str, Any], record: dict[str, Any]) -> None:
     elif kind == "turn_context":
         if isinstance(payload.get("model"), str):
             state["model"] = payload["model"]
+        state["effort"] = payload.get("effort")
     elif kind == "token_usage_record":
         _codex_usage(state, payload.get("usage") or payload.get("turn_token_usage"))
     elif kind == "compacted":
@@ -236,6 +238,8 @@ def _feed_claude(state: dict[str, Any], record: dict[str, Any]) -> None:
             state["cached_input_tokens"] = None
         if isinstance(message.get("model"), str):
             state["model"] = message["model"]
+        # Claude records the selected effort beside, not inside, the message.
+        state["effort"] = record.get("effort")
         _claude_usage(state, message.get("usage"))
         stop = message.get("stop_reason")
         state["status"] = (
