@@ -9,27 +9,38 @@ import unittest
 from ops.orchestration.assignment_packet import (
     PROJECTION_LIMIT,
     SLICE_LIMIT,
-    Adoption,
     ArtifactIndex,
     Assignment,
     Finding,
     Guidance,
     admit_recipient,
+    adoption_body,
     assemble,
     build_packet,
     index_artifact,
     read_slice,
 )
-from ops.orchestration.communication import Hold, Reason, Recipient, VerifiedComment
+from ops.orchestration.communication import Hold, Reason, Recipient, VerifiedComment, ensure_comment
 from ops.orchestration.startup import StartupBudgetRejected, budget
 
 
 UNIT = "trial-193.u9f.p1s"
 WORKER = "01a16b50-5b2b-7260-9e8e-8dd62d4398d2"
 BASELINE = "2676226d87bdfb0cb7cba97522a0ee8f7254949d"
-POINTER = VerifiedComment(UNIT, "cmt-0001", "0" * 64, "wo-u13-assign-1")
-ROLE = Guidance("docs/orchestration/roles/implementer.md", "a" * 64, "startup")
-LAWS = Guidance("docs/governance/laws/code/SKILL.md", "b" * 64, "code")
+STALE = "01a16b2a-9b5c-7533-88eb-fe4266fe75a4"
+
+
+class FakeLit:
+    """LIT seam: an append-only comment store."""
+
+    def __init__(self):
+        self.comments = []
+
+    def export(self):
+        return {"comments": [dict(c) for c in self.comments]}
+
+    def comment(self, issue, body):
+        self.comments.append({"id": f"cmt-{len(self.comments) + 1:04d}", "issue_id": issue, "body": body})
 
 
 def _record(kind, payload):
@@ -69,16 +80,30 @@ class Fixture(unittest.TestCase):
         self.routing.write_text(json.dumps(self.control))
         self.profiles = self.root / "launch-profiles.json"
         self.profiles.write_text(json.dumps({"version": 1, "roles": {"implementer": {
-            "client": "codex", "model": "gpt-test", "effort": "medium", "role_file": ROLE.path}}}))
+            "client": "codex", "model": "gpt-test", "effort": "medium", "role_file": "implementer.md"}}}))
         self.recipient = Recipient("implementer", "independent reviewer", WORKER)
         # The startup receipt is measured once, when the session finishes startup.
         self.startup = budget(self.transcript, WORKER)
+        self.lit = FakeLit()
+        self.role = self.root / "implementer.md"
+        self.role.write_text("reviewer role\n")
+        self.laws = self.root / "code-SKILL.md"
+        self.laws.write_text("code laws\n")
+        self.guidance = (Guidance(str(self.role), "startup"), Guidance(str(self.laws), "code"))
+        self.pointer = self.publish(UNIT, "assign", "TO implementer: review U13 at abc123.")
 
-    def admitted(self, *, ceiling=1000, loaded=frozenset(), compactions=0, **changes):
+    def publish(self, issue, operation, body):
+        return ensure_comment(self.lit, issue, f"wo-u13-{operation}", body, ledger=self.root / "ledger")
+
+    def adopt(self, *paths, session=WORKER, compactions=0):
+        """The session's own adoption record of the current bytes of ``paths``."""
+        sources = {(str(path), hashlib.sha256(path.read_bytes()).hexdigest()) for path in paths}
+        return self.publish(UNIT, f"adopt-{len(self.lit.comments)}", adoption_body(session, compactions, sources))
+
+    def admitted(self, *, ceiling=1000, adoption=None, **changes):
         return admit_recipient(
             changes.get("recipient", self.recipient), routing=self.routing, profiles=self.profiles,
-            ceiling=ceiling, startup=changes.get("startup", self.startup),
-            adoption=changes.get("adoption", Adoption(WORKER, compactions, loaded)))
+            ceiling=ceiling, startup=changes.get("startup", self.startup), adoption=adoption, lit=self.lit)
 
     def artifact(self, name, data, *supersedes, purpose="design"):
         path = self.root / name
@@ -89,13 +114,16 @@ class Fixture(unittest.TestCase):
     def assignment(self, **changes):
         values = dict(
             goal="Ground admitted workers with complete bounded current artifacts",
-            unit=UNIT, pointer=POINTER, recipient=self.admitted(), baseline=BASELINE,
+            unit=UNIT, pointer=self.pointer, recipient=self.admitted(), baseline=BASELINE,
             owned=("ops/orchestration/assignment_packet.py",), deliverables=("assignment packet module",),
             acceptance=("WT-04", "WT-05"), constraints=("no ceiling or watcher change",),
-            guidance=(ROLE, LAWS), findings=(), verification=("python -m unittest tests.test_assignment_packet",),
+            guidance=self.guidance, findings=(), verification=("python -m unittest tests.test_assignment_packet",),
             evidence="docs/orchestration/implementation-evidence/wo-u13", dependencies=("trial-193.u9f.z9o",),
             stop="packet and admission behavior only")
         return Assignment(**{**values, **changes})
+
+    def packet(self, assignment=None, artifacts=()):
+        return build_packet(assignment or self.assignment(), ArtifactIndex(tuple(artifacts)), lit=self.lit)
 
 
 class AdmissionTests(Fixture):
@@ -113,8 +141,8 @@ class AdmissionTests(Fixture):
         with self.assertRaises(StartupBudgetRejected) as rejected:
             budget(over_cap, WORKER)
         cases = [
-            ("wrong uuid", dict(recipient=Recipient("implementer", "reviewer", "01a16b2a-stale")), None, Reason.IDENTITY_MISMATCH),
-            ("transcript of another session", {}, transcript(session="01a16b2a-stale"), Reason.IDENTITY_MISMATCH),
+            ("wrong uuid", dict(recipient=Recipient("implementer", "reviewer", STALE)), None, Reason.IDENTITY_MISMATCH),
+            ("transcript of another session", {}, transcript(session=STALE), Reason.IDENTITY_MISMATCH),
             ("substituted model", {}, transcript(model="gpt-other"), Reason.IDENTITY_MISMATCH),
             ("substituted effort", {}, transcript(effort="high"), Reason.IDENTITY_MISMATCH),
             ("active writer", {}, transcript(complete=False), Reason.OWNERSHIP_CONFLICT),
@@ -122,8 +150,12 @@ class AdmissionTests(Fixture):
             ("insufficient headroom", {}, transcript(inputs=800), Reason.REFRESH_REQUIRED),
             ("ceiling differs from effective", dict(ceiling=900), None, Reason.POLICY_MISMATCH),
             ("startup over the 15-percent cap", dict(startup=rejected.exception.report), None, Reason.REFRESH_REQUIRED),
-            ("startup receipt of another session", dict(startup={**self.startup, "session_id": "01a16b2a-stale"}), None, Reason.IDENTITY_MISMATCH),
-            ("adoption of another session", dict(adoption=Adoption("01a16b2a-stale", 0, frozenset())), None, Reason.IDENTITY_MISMATCH),
+            ("startup receipt of another session", dict(startup={**self.startup, "session_id": STALE}), None, Reason.IDENTITY_MISMATCH),
+            ("startup receipt without measurements", dict(startup={"session_id": WORKER}), None, Reason.HEADROOM_UNKNOWN),
+            ("startup receipt with an inconsistent limit", dict(startup={**self.startup, "limit_tokens": 999}), None, Reason.HEADROOM_UNKNOWN),
+            ("startup receipt from another window", dict(startup={**self.startup, "context_window_tokens": 2000, "limit_tokens": 300}), None, Reason.HEADROOM_UNKNOWN),
+            ("adoption of another session", dict(adoption=self.adopt(self.role, session=STALE)), None, Reason.IDENTITY_MISMATCH),
+            ("adoption never stored in LIT", dict(adoption=VerifiedComment(UNIT, "cmt-none", "f" * 64, "wo-u13-adopt-none")), None, Reason.INVALID_INPUT),
         ]
         for name, changes, native, reason in cases:
             with self.subTest(name):
@@ -140,23 +172,27 @@ class AdmissionTests(Fixture):
 
     def test_full_guidance_is_read_once_per_unchanged_source(self):
         before = (self.routing.read_bytes(), self.profiles.read_bytes())
-        first = build_packet(self.assignment(), ArtifactIndex(()))
-        self.assertEqual(first.reads, (ROLE, LAWS))
-        # The worker records adoption of both sources; the next related unit
-        # arrives by pointer with no introduction or repeated Law read.
-        adopted = self.admitted(loaded=frozenset({(ROLE.path, ROLE.sha256), (LAWS.path, LAWS.sha256)}))
-        second = build_packet(self.assignment(unit="trial-193.u9f.ct8", recipient=adopted,
-                                              pointer=replace(POINTER, issue="trial-193.u9f.ct8")),
-                              ArtifactIndex(()))
+        role, laws = self.guidance
+        first = self.packet()
+        self.assertEqual([s.path for s in first.reads], [role.path, laws.path])
+        # The worker publishes its adoption; the next related unit arrives by
+        # pointer with no introduction or repeated Law read.
+        adopted = self.admitted(adoption=self.adopt(self.role, self.laws))
+        next_unit = "trial-193.u9f.ct8"
+        second = self.packet(self.assignment(unit=next_unit, recipient=adopted,
+                                             pointer=self.publish(next_unit, "assign-ct8", "TO implementer: U14.")))
         self.assertEqual(second.reads, ())
         self.assertEqual([g["loaded"] for g in json.loads(second.text)["guidance"]], [True, True])
-        changed = replace(LAWS, sha256="c" * 64)
-        self.assertEqual(build_packet(self.assignment(recipient=adopted, guidance=(ROLE, changed)),
-                                      ArtifactIndex(())).reads, (changed,))
+        # A source edited after adoption is read again from its current bytes.
+        self.laws.write_text("code laws, amended\n")
+        changed = self.packet(self.assignment(recipient=adopted))
+        self.assertEqual([(s.path, s.sha256) for s in changed.reads],
+                         [(laws.path, hashlib.sha256(self.laws.read_bytes()).hexdigest())])
+        self.assertEqual([g["loaded"] for g in json.loads(changed.text)["guidance"]], [True, False])
         # Compaction since adoption may have dropped any source from context.
         self.transcript.write_text(transcript(compacted=True))
-        compacted = self.admitted(loaded=adopted.loaded)
-        self.assertEqual(build_packet(self.assignment(recipient=compacted), ArtifactIndex(())).reads, (ROLE, LAWS))
+        compacted = self.admitted(adoption=self.adopt(self.role, self.laws))
+        self.assertEqual(len(self.packet(self.assignment(recipient=compacted)).reads), 2)
         self.assertEqual((self.routing.read_bytes(), self.profiles.read_bytes()), before)
 
 
@@ -173,9 +209,19 @@ class PacketTests(Fixture):
                 self.assertEqual(held.exception.reason, Reason.INVALID_INPUT)
                 self.assertIn(field.name, str(held.exception))
         for name, changes in (("short baseline", dict(baseline=BASELINE[:7])),
-                              ("pointer on another unit", dict(pointer=replace(POINTER, issue="trial-193.u9f.ct8")))):
+                              ("pointer on another unit", dict(pointer=replace(self.pointer, issue="trial-193.u9f.ct8")))):
             with self.subTest(name), self.assertRaises(Hold):
                 self.assignment(**changes)
+
+    def test_pointer_must_be_the_stored_lit_comment(self):
+        for name, pointer in (
+            ("absent comment", VerifiedComment(UNIT, "cmt-does-not-exist", "f" * 64, "wo-u13-assign")),
+            ("altered body hash", replace(self.pointer, body_sha256="f" * 64)),
+            ("another operation", replace(self.pointer, operation_id="wo-u13-other")),
+        ):
+            with self.subTest(name), self.assertRaises(Hold) as held:
+                self.packet(self.assignment(pointer=pointer))
+            self.assertEqual(held.exception.reason, Reason.INVALID_INPUT)
 
     def test_packet_retains_all_material_findings(self):
         plan = self.artifact("plan-v1.md", b"plan v1\n")
@@ -186,7 +232,7 @@ class PacketTests(Fixture):
             Finding(UNIT, "cmt-f2", amendment.sha256, "cmt-f2-fix"),
             Finding(UNIT, "cmt-f3", effective.sha256, None),
         )
-        packet = build_packet(self.assignment(findings=findings), ArtifactIndex((plan, amendment, effective)))
+        packet = self.packet(self.assignment(findings=findings), (plan, amendment, effective))
         projected = json.loads(packet.text)
         self.assertEqual(projected["views"], [{"document": effective.sha256,
                                                "lineage": [plan.sha256, amendment.sha256, effective.sha256]}])
@@ -195,8 +241,7 @@ class PacketTests(Fixture):
                          [("cmt-f1", plan.sha256, None), ("cmt-f2", amendment.sha256, "cmt-f2-fix"),
                           ("cmt-f3", effective.sha256, None)])
         with self.assertRaises(Hold) as held:
-            build_packet(self.assignment(findings=(Finding(UNIT, "cmt-f4", "d" * 64, None),)),
-                         ArtifactIndex((plan,)))
+            self.packet(self.assignment(findings=(Finding(UNIT, "cmt-f4", "d" * 64, None),)), (plan,))
         self.assertIn("cmt-f4", str(held.exception))
 
     def test_conflicting_amendments_refuse_effective_view(self):
@@ -204,12 +249,12 @@ class PacketTests(Fixture):
         first = self.artifact("amend-a.md", b"section 2 says A\n", plan)
         second = self.artifact("amend-b.md", b"section 2 says B\n", plan)
         with self.assertRaises(Hold) as held:
-            build_packet(self.assignment(), ArtifactIndex((plan, first, second)))
+            self.packet(artifacts=(plan, first, second))
         self.assertEqual(held.exception.reason, Reason.OWNERSHIP_CONFLICT)
         self.assertIn(first.sha256, str(held.exception))
         self.assertIn(second.sha256, str(held.exception))
         merged = self.artifact("plan-effective.md", b"original plan, section 2 resolved\n", first, second)
-        packet = build_packet(self.assignment(), ArtifactIndex((plan, first, second, merged)))
+        packet = self.packet(artifacts=(plan, first, second, merged))
         self.assertEqual([v.lineage for v in packet.views],
                          [(plan.sha256, first.sha256, second.sha256, merged.sha256)])
         self.assertEqual(hashlib.sha256((self.root / "plan.md").read_bytes()).hexdigest(), plan.sha256)
@@ -226,7 +271,7 @@ class PacketTests(Fixture):
         data = b"".join(b'{"id": "cmt-%06d", "body": "finding text"}\n' % n for n in range(3000))
         export = self.artifact("lit-export.json", data, purpose="selected result")
         self.assertGreater(export.byte_length, 4 * SLICE_LIMIT)
-        packet = build_packet(self.assignment(), ArtifactIndex((export,)))
+        packet = self.packet(artifacts=(export,))
         self.assertLessEqual(len(packet.text.encode()), PROJECTION_LIMIT)
         self.assertNotIn("finding text", packet.text)
         slices = []
@@ -248,7 +293,7 @@ class PacketTests(Fixture):
 
     def test_oversized_projection_refuses_instead_of_truncating(self):
         with self.assertRaises(Hold) as held:
-            build_packet(self.assignment(deliverables=("x" * PROJECTION_LIMIT,)), ArtifactIndex(()))
+            self.packet(self.assignment(deliverables=("x" * PROJECTION_LIMIT,)))
         self.assertEqual(held.exception.reason, Reason.INVALID_INPUT)
 
 

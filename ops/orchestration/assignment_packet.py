@@ -12,14 +12,17 @@ import json
 from pathlib import Path
 import re
 
-from .communication import Hold, Reason, Recipient, VerifiedComment, routed
+from .communication import Hold, Reason, Recipient, VerifiedComment, routed, stored
 from .session_context import admit, inspect_transcript
+from .startup import EXCEEDED, UNAVAILABLE, StartupBudgetRejected, receipt
 
 
 SLICE_LIMIT = 16 * 1024
 PROJECTION_LIMIT = 16 * 1024
 REVISION = re.compile(r"[0-9a-f]{40}")
 OPTIONAL = frozenset({"findings", "dependencies"})
+ADOPTION = re.compile(r"adoption: session (\S+) compactions (\d+)")
+ADOPTED = re.compile(r"adopted-source: ([0-9a-f]{64}) (\S.*)")
 
 # The existing admit() reasons, mapped to the WS-18 code callers branch on.
 CAPACITY = {
@@ -34,6 +37,7 @@ CAPACITY = {
     "missing-request-metric": Reason.HEADROOM_UNKNOWN,
     "insufficient-headroom": Reason.REFRESH_REQUIRED,
 }
+STARTUP = {UNAVAILABLE: Reason.HEADROOM_UNKNOWN, EXCEEDED: Reason.REFRESH_REQUIRED}
 
 
 @dataclass(frozen=True)
@@ -153,18 +157,45 @@ class Finding:
 @dataclass(frozen=True)
 class Guidance:
     path: str
-    sha256: str
     # The first action at which this source must be fully in context.
     medium: str
 
 
 @dataclass(frozen=True)
-class Adoption:
-    """Guidance sources a session recorded reading, valid until its context compacts."""
+class Source:
+    """A guidance source bound to the bytes it holds when the packet is built."""
 
-    session_id: str
-    compactions: int
-    sources: frozenset
+    path: str
+    sha256: str
+    medium: str
+
+
+def _bind(guidance):
+    try:
+        data = Path(guidance.path).read_bytes()
+    except OSError as error:
+        raise Hold(Reason.ARTIFACT_UNAVAILABLE, f"guidance {guidance.path}: {error!r}") from error
+    return Source(guidance.path, hashlib.sha256(data).hexdigest(), guidance.medium)
+
+
+def adoption_body(session_id, compactions, sources):
+    """The LIT record a session publishes after reading ``sources`` ((path, sha256) pairs)."""
+    return "\n".join([f"adoption: session {session_id} compactions {compactions}",
+                      *(f"adopted-source: {sha} {path}" for path, sha in sorted(sources))])
+
+
+def _loaded(lit, record, session_id, compactions):
+    """Sources the session's own stored adoption record shows still in its context."""
+    if record is None:
+        return frozenset()
+    lines = stored(lit, record)["body"].splitlines()
+    headers = [match for match in map(ADOPTION.fullmatch, lines) if match]
+    if [match[1] for match in headers] != [session_id]:
+        raise Hold(Reason.IDENTITY_MISMATCH, f"adoption {record.comment_id} is not one record of {session_id}")
+    if int(headers[0][2]) != compactions:
+        # A compaction since adoption may have dropped any source from context.
+        return frozenset()
+    return frozenset((match[2], match[1]) for match in map(ADOPTED.fullmatch, lines) if match)
 
 
 @dataclass(frozen=True)
@@ -174,6 +205,8 @@ class Admitted:
     effort: str
     capacity: dict
     startup: dict
+    # The session's stored adoption record, or None before it has read any guidance.
+    adoption: VerifiedComment | None
     # (path, sha256) sources still present in this session's context.
     loaded: frozenset
 
@@ -186,12 +219,12 @@ def _selected(profiles, name):
         raise Hold(Reason.AUTHORITY_UNAVAILABLE, f"launch profile {name} in {profiles}: {error!r}") from error
 
 
-def admit_recipient(recipient, *, routing, profiles, ceiling, startup, adoption):
+def admit_recipient(recipient, *, routing, profiles, ceiling, startup, adoption, lit):
     """Admit the routed session only from its own measured native facts.
 
     ``ceiling`` is the effective Memento setting. ``startup`` is the report
-    recorded once when this session finished startup: startup.budget()'s receipt
-    under the 15-percent cap, or a StartupBudgetRejected report with its reason.
+    recorded once when this session finished startup.budget(). ``adoption`` is
+    the session's published adoption_body() comment, or None if it has none.
     """
     row = routed(routing, recipient)
     selected = _selected(profiles, recipient.name)
@@ -210,12 +243,17 @@ def admit_recipient(recipient, *, routing, profiles, ceiling, startup, adoption)
     actual = (row["kind"], summary["model"], summary["effort"])
     if actual != selected:
         raise Hold(Reason.IDENTITY_MISMATCH, f"{recipient.session_id} runs {actual}, not the selected {selected}")
-    if "reason" in startup:
-        raise Hold(Reason.REFRESH_REQUIRED, f"startup rejected: {startup['reason']}")
-    if {startup["session_id"], adoption.session_id} != {recipient.session_id}:
-        raise Hold(Reason.IDENTITY_MISMATCH, f"startup receipt or adoption is not of {recipient.session_id}")
-    loaded = adoption.sources if adoption.compactions == summary["compaction_count"] else frozenset()
-    return Admitted(recipient, summary["model"], summary["effort"], capacity, startup, loaded)
+    if startup.get("session_id") != recipient.session_id:
+        raise Hold(Reason.IDENTITY_MISMATCH, f"startup receipt is not of {recipient.session_id}")
+    try:
+        # [LAW:single-enforcer] startup.py owns the 15-percent rule for recorded reports too.
+        receipt(startup, recipient.session_id)
+    except StartupBudgetRejected as error:
+        raise Hold(STARTUP[error.report["reason"]], f"startup receipt: {error.report}") from error
+    if startup["context_window_tokens"] != summary["reported_context_window_tokens"]:
+        raise Hold(Reason.HEADROOM_UNKNOWN, f"startup window {startup['context_window_tokens']} is not the native window")
+    loaded = _loaded(lit, adoption, recipient.session_id, summary["compaction_count"])
+    return Admitted(recipient, summary["model"], summary["effort"], capacity, startup, adoption, loaded)
 
 
 @dataclass(frozen=True)
@@ -255,31 +293,37 @@ class AssignmentPacket:
     assignment: Assignment
     artifacts: ArtifactIndex
     views: tuple
-    # Guidance this session has not loaded at its current source hash.
+    # Sources this session has not loaded at their current bytes.
     reads: tuple
     # The bounded model projection: pointers and obligations only.
     text: str
 
 
-def build_packet(assignment, artifacts):
+def build_packet(assignment, artifacts, *, lit):
+    """Publish only a packet whose pointer is the stored LIT comment it claims."""
+    stored(lit, assignment.pointer)
     known = {artifact.sha256 for artifact in artifacts.artifacts}
     stray = [finding.comment_id for finding in assignment.findings if finding.against not in known]
     if stray:
         raise Hold(Reason.INVALID_INPUT, f"findings {stray} name no indexed artifact")
     views = effective_views(artifacts)
     recipient = assignment.recipient
-    reads = tuple(g for g in assignment.guidance if (g.path, g.sha256) not in recipient.loaded)
+    # [LAW:one-source-of-truth] The file's current bytes, not a recorded hash, decide
+    # whether the session already holds this source.
+    sources = tuple(_bind(g) for g in assignment.guidance)
+    reads = tuple(s for s in sources if (s.path, s.sha256) not in recipient.loaded)
     text = json.dumps(dict(
         unit=assignment.unit,
         goal=assignment.goal,
         pointer=dict(issue=assignment.pointer.issue, comment_id=assignment.pointer.comment_id,
                      body_sha256=assignment.pointer.body_sha256),
         recipient=dict(asdict(recipient.recipient), model=recipient.model, effort=recipient.effort,
-                       remaining_tokens=recipient.capacity["remaining_tokens"]),
+                       remaining_tokens=recipient.capacity["remaining_tokens"],
+                       adoption=recipient.adoption and recipient.adoption.comment_id),
         **{name: getattr(assignment, name) for name in (
             "baseline", "owned", "deliverables", "acceptance", "constraints",
             "verification", "evidence", "dependencies", "stop")},
-        guidance=[dict(asdict(g), loaded=g not in reads) for g in assignment.guidance],
+        guidance=[dict(asdict(s), loaded=s not in reads) for s in sources],
         artifacts=[asdict(artifact) for artifact in artifacts.artifacts],
         views=[asdict(view) for view in views],
         findings=[asdict(finding) for finding in assignment.findings],

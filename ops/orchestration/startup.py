@@ -12,22 +12,39 @@ class StartupBudgetRejected(ValueError):
         super().__init__(report['reason'])
 
 
-def budget(transcript, session):
-    observed = inspect_transcript('codex', transcript)
-    window = observed['reported_context_window_tokens']
-    consumed = observed['estimated_consumed_context_tokens']
+UNAVAILABLE = 'startup native context metric unavailable or invalid'
+EXCEEDED = 'startup-context-budget exceeded'
+
+
+def _decide(session, consumed, window, known):
+    """The one 15-percent rule, applied to a fresh measurement or a recorded one."""
     report = dict(session_id=session, consumed_tokens=consumed,
                   context_window_tokens=window,
                   limit_tokens=window * 15 // 100 if type(window) is int and window > 0 else None,
                   limit_percent=15, measurement_basis='latest-native-request-input-plus-response-output')
     # [LAW:parse-dont-validate] Unknown native metrics cannot prove a percentage.
-    if (observed['session_id'] != session or observed['identity_conflict']
-            or observed['metric_error'] or observed['partial_tail']
-            or type(window) is not int or window <= 0
+    if (not known or type(window) is not int or window <= 0
             or type(consumed) is not int or consumed < 0):
-        raise StartupBudgetRejected({**report, 'reason': 'startup native context metric unavailable or invalid'})
+        raise StartupBudgetRejected({**report, 'reason': UNAVAILABLE})
     if consumed > report['limit_tokens']:
-        raise StartupBudgetRejected({**report, 'reason': 'startup-context-budget exceeded'})
+        raise StartupBudgetRejected({**report, 'reason': EXCEEDED})
+    return report
+
+
+def budget(transcript, session):
+    observed = inspect_transcript('codex', transcript)
+    known = (observed['session_id'] == session and not observed['identity_conflict']
+             and not observed['metric_error'] and not observed['partial_tail'])
+    return _decide(session, observed['estimated_consumed_context_tokens'],
+                   observed['reported_context_window_tokens'], known)
+
+
+def receipt(report, session):
+    """Accept a recorded startup report only if the same rule re-derives every field."""
+    decided = _decide(session, report.get('consumed_tokens'), report.get('context_window_tokens'),
+                      report.get('session_id') == session)
+    if {key: report.get(key) for key in decided} != decided:
+        raise StartupBudgetRejected({**decided, 'reason': UNAVAILABLE})
     return report
 
 
