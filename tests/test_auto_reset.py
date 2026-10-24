@@ -1880,6 +1880,29 @@ class AutoResetTests(unittest.TestCase):
         self.assertEqual(len(self.window.lines), 1)
         self.assertIsNone(controller.held())
 
+    def assert_restored_binding_resumes(self, key):
+        # [LAW:behavior-not-structure] Repairing a bound input is a changed condition:
+        # a restarted supervisor resumes instead of reporting the stale hold forever.
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        bound = Path(self.config[key]["path"])
+        accepted = bound.read_text()
+        bound.write_text(accepted + " ")
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "authority/source binding changed")
+        bound.write_text(accepted)
+        resumed = self.controller().attempt()
+        self.assertEqual(resumed["phase"], "waiting_title")
+        self.assertIsNone(self.controller().held())
+
+    def test_restored_authority_resumes_a_held_reset(self):
+        self.assert_restored_binding_resumes("authority")
+
+    def test_restored_continuation_resumes_a_held_reset(self):
+        self.assert_restored_binding_resumes("continuation")
+
     def test_run_keeps_one_hold_event_and_waits_for_a_changed_condition(self):
         from contextlib import redirect_stdout, redirect_stderr
         from io import StringIO

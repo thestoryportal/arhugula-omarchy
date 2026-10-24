@@ -500,14 +500,15 @@ class AutoReset:
         one hold into another rediscovery; a step reports any unreadable input itself.
         """
         state = self.status()
+        # [LAW:one-source-of-truth] The files bindings() checks, so repairing one
+        # changes the condition and the next attempt re-evaluates it.
         files = (
             self.path,
             self.loop.path,
             self.loop.control,
             self.config["release"],
-            *source_closure(),
-            *CLOSURE_FILES,
-            *self.config.get("memento", {}).get("ceiling_layers", ()),
+            *self.executed(),
+            *(bound["path"] for bound in self.bound()),
         )
         try:
             control = json.loads(self.loop.control.read_text())
@@ -559,21 +560,29 @@ class AutoReset:
         self.hold_path.unlink(missing_ok=True)
         return state
 
-    def bindings(self):
-        for bound in [
+    def bound(self):
+        """The accepted authority, continuation and source bindings."""
+        return [
             self.config["authority"],
             self.config["continuation"],
             *self.config["source_acceptance"],
-        ]:
+        ]
+
+    def executed(self):
+        """Every blob this controller or the fresh context's startup executes."""
+        return (
+            *source_closure(),
+            *CLOSURE_FILES,
+            *self.config.get("memento", {}).get("ceiling_layers", ()),
+        )
+
+    def bindings(self):
+        for bound in self.bound():
             if file_binding(bound["path"]) != bound:
                 raise ValueError("autoreset authority/source binding changed")
         # [LAW:one-source-of-truth] Installed files are not proof of the code executing
         # this controller or the fresh context's startup. Match every executed blob.
-        for path in (
-            *source_closure(),
-            *CLOSURE_FILES,
-            *self.config.get("memento", {}).get("ceiling_layers", ()),
-        ):
+        for path in self.executed():
             actual = file_binding(path)
             accepted = [
                 b
