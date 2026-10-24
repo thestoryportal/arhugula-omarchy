@@ -241,6 +241,18 @@ class BoundedReceiptTests(unittest.TestCase):
         self.assertEqual(argv[-1], argument)
         self.assertTrue(result["summary_truncated"])
 
+    def test_paths_too_long_for_the_bound_refuse_before_the_command_runs(self):
+        from ops.orchestration.artifacts import capture
+
+        marker = self.root / "command-ran"
+        deep = self.root.joinpath(*["d" * 250] * 14)
+        with self.assertRaisesRegex(ValueError, "model receipt bound"):
+            capture(
+                [sys.executable, "-c", f"open({str(marker)!r}, 'w')"], Path.cwd(), root=deep
+            )
+        self.assertFalse(marker.exists())
+        self.assertEqual(list(deep.rglob("*.log")), [])
+
     def test_findings_beyond_the_summary_are_flagged_and_complete_on_disk(self):
         result = self.capture(
             [sys.executable, "-c", "for n in range(3000): print(f'ERROR failure {n}')"]
