@@ -1,0 +1,204 @@
+{
+  "schema": "wo-u16-prepared-dispositions/v1",
+  "ticket": "arhugula-harness-trial-193.u9f.hq3",
+  "owning_record": "arhugula-harness-trial-193",
+  "author": {
+    "name": "claude-coder",
+    "role": "Claude author",
+    "session": "20f9071a-1a3f-4d3a-b788-b04125e20f9e"
+  },
+  "taken_at": "2026-10-24T01:57Z",
+  "status": "Author dispositions for independent review. They authorize no rebase, landing, review-budget reset or reconstruction until reviewed and recorded on the owning record.",
+  "paths": "O = /home/robbo/Work/arhugula-omarchy; H = /home/robbo/Work/arhugula-build-eval",
+  "baseline": {
+    "repo": "H",
+    "ref": "origin/main",
+    "commit": "3e913ccc43cac265ff6092c4292c9e1ef07eac7b"
+  },
+  "contract_commits": [
+    {"pr": 1635, "commit": "01cb8d17b18d7d3b531a75d29d778781f3ac03d1", "subject": "A5 Proposed read-boundary contracts; Runtime spec v1.135, plan v2.66"},
+    {"pr": 1637, "commit": "7936da12673e63db03510c307c70dd7355333dc9", "subject": "A4 Proposed typed-resume-refusal contracts; Runtime spec v1.136, plan v2.67; CP spec v1.128, plan v2.56"},
+    {"pr": 1641, "commit": "ffd6ded927d6f5c73ae32e44b20a3806af00f10a", "subject": "A3 contract reconciliation"},
+    {"pr": 1643, "commit": "8d684b42a1f07ddd43f1c43c093cca5f77764eca", "subject": "A3 runtime: Ollama tool loop and post-effect retry fence; changes llm_dispatch.py"}
+  ],
+  "clearance_order": ["A3", "A5", "A4"],
+  "stack_root": {
+    "unit": "A3 cell-10 pack U2",
+    "head": "42eccc0256ac63c6644e4393888a2055847363cb",
+    "status": "Unlanded A3 pack (5d93b0bf..42eccc02, 4 commits, 8 files); main landed A3 in another form via #1643. Every A5 and A4 file is byte-identical at 42eccc02 and at the baseline, so the A5/A4 delta does not depend on the pack bytes. A3 installed acceptance remains open and still gates A5 then A4 clearance."
+  },
+  "units": [
+    {
+      "unit": "A5 U1",
+      "stream": "A5",
+      "worktree": "O/.worktrees/a5-final-u1-20261001",
+      "branch": "pack/a5-final-u1",
+      "head": "14a95d3005964e4450a0ba4faef89730450f9880",
+      "parent": "42eccc0256ac63c6644e4393888a2055847363cb",
+      "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "base_delta": "Clean, unlanded, 22 commits behind the baseline; sits on the superseded A3 pack. Files: lifecycle/cli_read_boundary.py (+423), tests/test_cli_read_boundary.py (+338). Neither file changed on main since 42eccc02.",
+      "contract_impact": "Main .harness/a5_contract_authority.md row 5 binds the qualified source GO to frozen a2573ac217103bb2c9a72f33b12f3ef86df0abb0; cli_read_boundary.py is byte-identical to that head. The A5 stack differs from it only in U3's doc rows and the directory-refusal test in tests/test_cli_read_boundary.py (see A5 U3).",
+      "dependency_changes": "Parent A3 pack superseded by #1643 on main; no A5 file changed.",
+      "retained_findings": [
+        {"summary": "A5 source GO is qualified to a2573ac2; the A5 final preparation was accepted as preparation only.", "evidence": ["cmt-1953a86d-1182-4359-a2ad-1121ac6f9bda", "cmt-b4930d67-5bfb-4bf0-82f9-fa95c50e9364"]}
+      ],
+      "disposition": {
+        "kind": "reuse_with_delta",
+        "delta": "Rebase 42eccc02..14a95d30 onto the baseline, dropping the A3 pack parent. No file content change is expected.",
+        "reverification": [
+          "Show the rebased U1 tree equals the original on both U1 files (git diff --stat original rebased is empty).",
+          "Run harness-runtime/tests/test_cli_read_boundary.py on the rebased stack head with ruff and pyright on the changed files."
+        ],
+        "evidence": ["cmt-3e09ccef-1ebc-4279-9c1c-d8c40fc4fddc", "cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]
+      }
+    },
+    {
+      "unit": "A5 U2",
+      "stream": "A5",
+      "worktree": "O/.worktrees/a5-final-u2-20261001",
+      "branch": "pack/a5-final-u2",
+      "head": "10c24ba8526fd45458e970d27a7f7c6b8210cf8b",
+      "parent": "14a95d3005964e4450a0ba4faef89730450f9880",
+      "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "base_delta": "Clean, unlanded, 22 behind. Files: lifecycle/external_cli_provider.py (+159), types.py (+83), tests/test_external_cli_codex_isolation.py (+35), tests/test_external_cli_codex_read_boundary.py (+352). None changed on main since 42eccc02.",
+      "contract_impact": "The three A5 source files are byte-identical to the GO'd a2573ac2. Every added non-stdlib import resolves on the baseline.",
+      "dependency_changes": "None beyond the U1 rebase.",
+      "retained_findings": [
+        {"summary": "A5 source GO is qualified to a2573ac2; the A5 final preparation was accepted as preparation only.", "evidence": ["cmt-1953a86d-1182-4359-a2ad-1121ac6f9bda", "cmt-b4930d67-5bfb-4bf0-82f9-fa95c50e9364"]}
+      ],
+      "disposition": {
+        "kind": "reuse_with_delta",
+        "delta": "Rebase 14a95d30..10c24ba8 onto the rebased U1. No file content change is expected.",
+        "reverification": [
+          "Show the rebased U2 tree equals the original on its four files.",
+          "Run tests/test_external_cli_codex_isolation.py and tests/test_external_cli_codex_read_boundary.py on the rebased stack head, with ruff and pyright on the changed files."
+        ],
+        "evidence": ["cmt-3e09ccef-1ebc-4279-9c1c-d8c40fc4fddc", "cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]
+      }
+    },
+    {
+      "unit": "A5 U3",
+      "stream": "A5",
+      "worktree": "O/.worktrees/a5-final-u3-20261001",
+      "branch": "pack/a5-final-u3",
+      "head": "591bc8256a5fbf95729f69efab5f13f6ad3ad1bc",
+      "parent": "10c24ba8526fd45458e970d27a7f7c6b8210cf8b",
+      "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "base_delta": "Clean, unlanded, 22 behind. File: docs/operations/omarchy-codex-read-boundary.md (+110). Not on main.",
+      "contract_impact": "Against a2573ac2, the A5 stack head differs on the seven A5 files only by the executable_paths doc row and two refusal bullets (+3/-2) and test_a_directory_executable_allowance_is_refused_at_launch (+13). design-substrate/Spec_Harness_Runtime_v1_135.md line 14 records that no dedicated witness exists for refusing a non-regular executable_paths entry; this residual supplies that witness and its operator doc.",
+      "dependency_changes": "None beyond the U2 rebase.",
+      "retained_findings": [
+        {"summary": "The post-GO residual (doc rows plus the directory-refusal test) is not covered by the qualified GO on a2573ac2 and needs its own independent check against Runtime spec v1.135.", "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]}
+      ],
+      "disposition": {
+        "kind": "reuse_with_delta",
+        "delta": "Rebase 10c24ba8..591bc825 onto the rebased U2. No file content change is expected.",
+        "reverification": [
+          "Show the rebased A5 stack head equals 591bc825 on all seven A5 files.",
+          "Independently review the post-GO residual against Runtime spec v1.135 lines 14, 32, 60, 67 and 96 (regular-file executable_paths condition).",
+          "Run the three A5 owning test modules on the rebased A5 head; the A5 head then becomes the A4 parent."
+        ],
+        "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c", "cmt-c48cea22-9d05-4704-be8f-0eaab5c5f548"]
+      }
+    },
+    {
+      "unit": "A4 U1",
+      "stream": "A4",
+      "worktree": "O/.worktrees/a4-final-u1-20261001",
+      "branch": "pack/a4-final-u1",
+      "head": "c71bf24c7a76c292c4e7099b80a3744d60ff46bd",
+      "parent": "591bc8256a5fbf95729f69efab5f13f6ad3ad1bc",
+      "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "base_delta": "Clean, unlanded, 22 behind. Files: cp workflow_driver.py, workflow_driver_types.py, cp_tests/test_b104_child_resume_refusal_values.py, cp_tests/test_resume_refusal_propagation.py; runtime audit_signing_errors.py, sub_agent_dispatch.py, tests/test_child_resume_refusal_propagation.py. None changed on main since 42eccc02.",
+      "contract_impact": "Main .harness/class_1_fork_a4_typed_resume_refusal.md and a4_contract_authority.md cite this head as Unit 1. Every added non-stdlib import resolves on the baseline.",
+      "dependency_changes": "Parent becomes the rebased A5 head; A5 clearance precedes A4.",
+      "retained_findings": [
+        {"summary": "U1 owning suites passed 28/28 at this head (historical pre-landing source observation).", "evidence": ["cmt-a846f038-903d-4786-bfcf-216792c7e833"]},
+        {"summary": "CP plan v2.56 line 38: the two-child matrix and selection mutants and criterion 6's terminal-carrier-deletion mutation are owed; no preparation head carries them.", "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]}
+      ],
+      "disposition": {
+        "kind": "reuse_with_delta",
+        "delta": "Rebase 591bc825..c71bf24c onto the rebased A5 head. No file content change is expected.",
+        "reverification": [
+          "Show the rebased U1 tree equals the original on its seven files.",
+          "Run the three U1 owning modules on the rebased head with basetemp outside every checkout.",
+          "Supply and run the CP plan v2.56 line 38 owed mutants (two-child matrix, selection, criterion-6 terminal-carrier deletion) and the applicable Unit-1 regression checks."
+        ],
+        "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]
+      }
+    },
+    {
+      "unit": "A4 U2",
+      "stream": "A4",
+      "worktree": "O/.worktrees/a4-final-u2-20261001",
+      "branch": "pack/a4-final-u2",
+      "head": "cf1c916f252a4f49450d81898de5055984b6b94c",
+      "parent": "c71bf24c7a76c292c4e7099b80a3744d60ff46bd",
+      "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "base_delta": "Clean, unlanded, 22 behind. Files: cp workflow_driver.py, cp_tests/test_resume_refusal_propagation.py, runtime tests/test_public_nested_resume_refusal.py (+470). None changed on main since 42eccc02.",
+      "contract_impact": "Main cites public-test commit bba659dc5c22d381e931fa71922c6d7e5da26483, which is not an ancestor of this head. On the eight A4 files this head differs from bba659dc only in two test modules (+56/-1), including test_a_raised_multi_reason_refusal_with_fail_closed_signing_keeps_every_reason, the criterion-8 Unit 1 witness named by design-substrate/Implementation_Plan_Harness_Runtime_v2_67.md line 49.",
+      "dependency_changes": "None beyond the U1 rebase.",
+      "retained_findings": [
+        {"summary": "The earlier venue failure RT-FAIL-STATE-ROOT-PLACEMENT:inside-checkout was superseded by the valid-venue 37/37 PASS and the 118/118 regression PASS at this head; both remain historical pre-landing observations.", "evidence": ["cmt-a846f038-903d-4786-bfcf-216792c7e833", "cmt-8ac926b9-2eff-4ebe-9669-9ddd3d8acac5", "cmt-68d31297-37ad-4bb4-be22-b8d1e7ab6143"]}
+      ],
+      "disposition": {
+        "kind": "reuse_with_delta",
+        "delta": "Rebase c71bf24c..cf1c916f onto the rebased A4 U1. No file content change is expected.",
+        "reverification": [
+          "Show the rebased A4 head equals cf1c916f on all eight A4 files.",
+          "Run the four owning modules (37) and the four regression modules child_resume_refusal, audit_refusal_precedence, lifecycle_sub_agent_dispatch, claimed_child_admission (118) on the rebased head with basetemp outside every checkout.",
+          "Record which of bba659dc or this head is the A4 public-test authority, since main cites a commit that is not on this stack."
+        ],
+        "evidence": ["cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c", "cmt-c48cea22-9d05-4704-be8f-0eaab5c5f548"]
+      }
+    },
+    {
+      "unit": "A7 U1",
+      "stream": "A7",
+      "worktree": "O/.worktrees/a7-workflow-unit-20261001",
+      "branch": "feat/omarchy-workflow-examples",
+      "head": "e75001339c0ad2fd8b9ab7dfcf7171850353ee00",
+      "parent": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "base_delta": "Clean, unlanded, 22 behind; merges cleanly onto the baseline. Files: examples/README.md, three examples/ollama-*.toml manifests, tests/test_omarchy_offline_examples.py (+384). None changed on main since 5d93b0bf.",
+      "contract_impact": "Main has no A7 contract record under .harness; A7 is examples, docs and one test module outside the A3 -> A5 -> A4 clearance order.",
+      "dependency_changes": "harness_runtime llm_dispatch.py (RuntimeLLMDispatcher) changed on main via #1643, so the example tests have not been observed against the baseline dispatcher.",
+      "retained_findings": [
+        {"summary": "Formal pass-1, codex-check, CI and installed acceptance are owed; the optional reviewer P3 is unfixed; the A4 public-API proof is unresolved and not claimed.", "evidence": ["cmt-e19e7270-6c0d-4b28-be5b-258ab18e9d0f"]}
+      ],
+      "disposition": {
+        "kind": "reuse_with_delta",
+        "delta": "Rebase 5d93b0bf..e7500133 onto the baseline. No file content change is expected.",
+        "reverification": [
+          "Run tests/test_omarchy_offline_examples.py on the rebased A7 head against the baseline llm_dispatch.py.",
+          "Then the owed formal pass-1, codex-check, required CI and installed acceptance, carrying the optional P3 and the A4 public-API proof as retained findings."
+        ],
+        "evidence": ["cmt-3e09ccef-1ebc-4279-9c1c-d8c40fc4fddc", "cmt-eca8828e-5faa-4ec6-8698-fff2ea57d05c"]
+      }
+    },
+    {
+      "unit": "A7 U2",
+      "stream": "A7",
+      "worktree": "O/.worktrees/a7-offline-unit-20261001",
+      "branch": "docs/omarchy-offline-embedding-config",
+      "head": "b90045e3dc8529ea167f7b8ad44ebd2dad8a5406",
+      "parent": "e75001339c0ad2fd8b9ab7dfcf7171850353ee00",
+      "merge_base": "5d93b0bf27e4a6c602ffff7dad49e5dd21be1f22",
+      "base_delta": "Clean, unlanded, 22 behind. Files: docs/operations/omarchy-offline-embedding.md (+112), examples/omarchy.offline-embedding.toml.example (+96), examples/README.md (+4), tests/test_omarchy_offline_examples.py (+125/-1). Its tree 9af0b4bf equals the original A7 3c3dc002 tree.",
+      "contract_impact": "No A7 contract record on main.",
+      "dependency_changes": "Same llm_dispatch.py change as A7 U1.",
+      "retained_findings": [
+        {"summary": "Formal pass-1, codex-check, CI and installed acceptance are owed; the optional reviewer P3 is unfixed; the A4 public-API proof is unresolved and not claimed.", "evidence": ["cmt-e19e7270-6c0d-4b28-be5b-258ab18e9d0f"]}
+      ],
+      "disposition": {
+        "kind": "reuse_with_delta",
+        "delta": "Rebase e7500133..b90045e3 onto the rebased A7 U1. No file content change is expected.",
+        "reverification": [
+          "Show the rebased A7 head tree equals 9af0b4bf on the seven A7 files.",
+          "Run tests/test_omarchy_offline_examples.py (38 cases at preparation) and its two recorded mutations (EO inter-step, HD brief) on the rebased head."
+        ],
+        "evidence": ["cmt-3e09ccef-1ebc-4279-9c1c-d8c40fc4fddc", "cmt-e19e7270-6c0d-4b28-be5b-258ab18e9d0f"]
+      }
+    }
+  ]
+}
