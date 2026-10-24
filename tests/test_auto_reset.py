@@ -1955,3 +1955,103 @@ class AutoResetTests(unittest.TestCase):
         self.assertEqual([r.new for r in results], [True, False, False])
         self.assertEqual(len(calls), 3)
         self.assertEqual(self.window.lines, [])
+
+    def waiting_title(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        controller.step()
+        self.assertEqual(controller.status()["phase"], "waiting_title")
+        return controller
+
+    def test_recovered_context_probe_resumes_without_a_file_change(self):
+        # Pass-2 F1: any read-only live probe, not only the wrapped ones, can recover.
+        controller = self.waiting_title()
+        calls = []
+        healthy = self.window.context
+
+        def context(frontier, previous):
+            calls.append(1)
+            if len(calls) == 1:
+                raise OSError("native context probe failed")
+            return healthy(frontier, previous)
+
+        self.window.context = context
+        self.assertTrue(controller.attempt().new)
+        resumed = controller.attempt()
+        self.assertEqual(resumed["phase"], "waiting_fresh")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(self.window.queued), 1)
+        self.assertIsNone(controller.held())
+
+    def test_exited_owned_writer_resumes_without_a_file_change(self):
+        from unittest.mock import patch
+
+        release = json.loads(self.release.read_text())
+        release["owned_processes"] = [{"pid": 999999999}]
+        self.release.write_text(json.dumps(release))
+        controller = self.waiting_title()
+        exists = Path.exists
+
+        def alive(path):
+            return str(path) == "/proc/999999999" or exists(path)
+
+        with patch.object(Path, "exists", alive):
+            first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "owned writer remains active")
+        self.assertEqual(controller.attempt()["phase"], "waiting_fresh")
+
+    def test_hold_recorded_before_read_only_classification_stays_held(self):
+        # Pass-2 F2: a 7ee540f8 hold file has no classification; it keeps its
+        # condition gate instead of failing the supervisor with KeyError.
+        controller, _ = self.routing_hold()
+        from ops.orchestration.records import atomic_json
+
+        legacy = {
+            "held": "routing/pause changed after preparation",
+            "supervisor": str(controller.path),
+            "condition": controller.condition(),
+        }
+        atomic_json(controller.hold_path, legacy)
+        result = controller.attempt()
+        self.assertFalse(result.new)
+        self.assertEqual(result.event["held"], legacy["held"])
+        self.assertEqual(self.window.lines, [])
+
+    def test_hold_after_a_durable_effect_waits_for_a_changed_condition(self):
+        # The effect boundary: a refused queue recorded its refusal, so the
+        # supervisor must not resend it while nothing relevant has changed.
+        from ops.orchestration.native_window import QueueRefused
+
+        controller = self.waiting_title()
+        sends = []
+
+        def queue(context, frontier, previous, text):
+            sends.append(1)
+            raise QueueRefused("queue refused")
+
+        self.window.queue = queue
+        results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(controller.status()["phase"], "prompt_refused")
+        self.assertEqual(len(sends), 1)
+
+    def test_failed_package_preparation_is_not_repeated_unchanged(self):
+        # A failed preparation leaves its new package directory behind; repeating it
+        # each pass would leave another directory every wake-up.
+        from unittest.mock import patch
+        from ops.orchestration.records import private_directory
+
+        self.hold()
+        controller = self.controller()
+        packages = Path(self.config["packages"])
+
+        def prepare_clear(directory, owned, *, automatic=None):
+            private_directory(directory)
+            raise OSError("package evidence unreadable")
+
+        with patch.object(self.loop, "prepare_clear", prepare_clear):
+            results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(len(list(packages.iterdir())), 1)

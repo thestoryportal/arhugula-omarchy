@@ -84,14 +84,6 @@ def user_frontier(actual):
 HOLDS = (OSError, ValueError, KeyError, sqlite3.Error)
 
 
-class CapabilityUnavailable(OSError):
-    """A live native window/process probe failed; no file records its recovery."""
-
-    def __init__(self, probe, cause):
-        super().__init__(f"{probe} unavailable: {cause}")
-        self.probe = probe
-
-
 @dataclass(frozen=True)
 class Held:
     """A recorded hold; `new` marks only the first report of its unchanged condition."""
@@ -469,7 +461,10 @@ class AutoReset:
         return self.path.with_suffix(".hold.json")
 
     def held(self):
-        return json.loads(self.hold_path.read_text()) if self.hold_path.exists() else None
+        if not self.hold_path.exists():
+            return None
+        # A hold recorded before read-only classification keeps its condition gate.
+        return {"read_only": False, **json.loads(self.hold_path.read_text())}
 
     def condition(self):
         """Digest of every durable input a step consults, plus the lanes' user frontier.
@@ -503,26 +498,32 @@ class AutoReset:
             json.dumps(value, sort_keys=True, default=str).encode()
         ).hexdigest()
 
-    def native(self, probe, *args):
-        """Run one live native probe; its failure becomes a capability hold."""
-        try:
-            return probe(*args)
-        except HOLDS as error:
-            raise CapabilityUnavailable(probe.__name__, error) from error
+    def records(self):
+        """The durable records a step changes before any effect it must not repeat.
+
+        Every native input follows a supervisor-state intent and every reset package
+        is recorded in the journal; goal ledger and receipt writes are idempotent.
+        """
+        return (
+            [file_binding(p) if p.exists() else str(p) for p in (self.path, self.loop.path)],
+            sorted(map(str, Path(self.config["packages"]).glob("*"))),
+        )
 
     def attempt(self):
         """Step once per changed condition; an unchanged hold is never rediscovered.
 
-        A capability hold steps again each pass, because only a fresh probe can see
-        the window/process recover, but is reported once while it stays unchanged.
+        A read-only hold changed no record, so it made no native input; it steps
+        again each pass, because only a fresh live probe can see the window or a
+        process recover, but is reported once while it stays unchanged.
         """
         recorded = self.held()
         if (
             recorded is not None
-            and recorded["capability"] is None
+            and not recorded["read_only"]
             and recorded["condition"] == self.condition()
         ):
             return Held(recorded, new=False)
+        before = self.records()
         try:
             state = self.step()
         except HOLDS as error:
@@ -531,12 +532,12 @@ class AutoReset:
             event = {
                 "held": str(error),
                 "supervisor": str(self.path),
-                "capability": error.probe if isinstance(error, CapabilityUnavailable) else None,
+                "read_only": self.records() == before,
                 "condition": self.condition(),
             }
             # Probe messages carry per-run receipt paths, so identity excludes "held".
             if recorded is not None and all(
-                recorded[k] == event[k] for k in ("capability", "condition")
+                recorded[k] == event[k] for k in ("read_only", "condition")
             ):
                 return Held(recorded, new=False)
             atomic_json(self.hold_path, event)
@@ -928,8 +929,8 @@ class AutoReset:
                 if self.window.outgoing({"native_lane": frontier["native_lane"]}) != frontier["outgoing"]:
                     raise ValueError("outgoing lane changed before clear")
                 if frontier["predecessor"] is not None:
-                    self.native(predecessor_absent, frontier["predecessor"], self.window.home)
-            self.native(self.window.check)
+                    predecessor_absent(frontier["predecessor"], self.window.home)
+            self.window.check()
             state.update(phase="clear_intent", started=self.clock())
             self.save(state)
             # [LAW:effects-at-boundaries] Durable intent precedes every native input.
@@ -939,7 +940,7 @@ class AutoReset:
             return state
         if phase in ("waiting_title", "prompt_refused"):
             self.unchanged_parent(state)
-            if not self.title_matches(state, self.native(self.window.title)):
+            if not self.title_matches(state, self.window.title()):
                 return state
             frontier = self.loop.clear_package(state["reset"])
             proof = self.window.context(frontier, state["reset"]["previous_session"])
@@ -1077,7 +1078,7 @@ class AutoReset:
     def require_nonce_title(self, state):
         # [LAW:single-enforcer] Activity decoration is recognized only after
         # delivery/recovery. The waiting-title empty-context gate stays literal.
-        title = re.sub(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ", "", self.native(self.window.title))
+        title = re.sub(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ", "", self.window.title())
         if not self.title_matches(state, title):
             raise ValueError("same-window recovery nonce title mismatch")
 
