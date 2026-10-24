@@ -278,12 +278,15 @@ every candidate tested did:
   editable install is seen. An installed copy in `site-packages` is a separate
   origin: the hook keeps its pycs, and a copy that shadows the source keeps loading.
   Which origin loads is decided by synchronization, not by the cache.
-- No shared editable exists today. Across H `main`, its two lane worktrees and the
-  owned worktree, all 7 editables found point inside their own tree. H `main`'s
-  `.venv`, last written by uv 0.12.17, holds no workspace members, and the two lanes
-  have no `.venv` yet. The hook would not clear an editable pointing outside the
-  session's project directory; the contract does not cover that case, and its
-  absence rests on WS-15's ban on environments shared between worktrees.
+- No shared editable was found. At 18:05Z on 2026-10-24, 210 worktrees were
+  registered with H; 41 had a `.venv`, and every path line in their `.pth` files
+  (231, all uv workspace editables) pointed inside the worktree's own tree. The
+  other 169, including both lanes nested under H `main`, had no `.venv`. H
+  `main`'s own `.venv`, last written by uv 0.12.17, holds no workspace members.
+  Worktrees created or synced later are not covered by that inventory. The hook
+  would not clear an editable pointing outside the session's project directory;
+  the contract does not cover that case, and its absence rests on WS-15's ban on
+  environments shared between worktrees.
 
 `tools/hooks/test_precmd_clear_cache.sh` now holds these cases as a 19-check
 contract. It passes against the current hook on Python 3.11, 3.12 and 3.14 and fails
@@ -301,16 +304,17 @@ lock did not contain, reinstalled a package whose metadata had been deleted from
 
 H does not use that route. `just codex-sync` runs `uv sync --all-packages`,
 `just codex-test` runs `uv run pytest`, and the CI setup steps run the same unlocked
-sync; none passes `--locked`. On this route a warm sync took 89–365 ms and
-`uv run` started in 342–378 ms. Given a changed dependency, both commands rewrote
+sync; none passes `--locked`. Across two runs of this route a warm sync took
+22–365 ms and `uv run` started in 32–378 ms. Given a changed dependency, both commands rewrote
 `uv.lock` and succeeded instead of refusing. The added requirement was already a
 locked transitive package, so no new install was exercised. `uv run` reinstalled a
 deleted distribution before running. After `uv sync --package harness-core` removed
 the other six members, `uv run` failed with `ModuleNotFoundError` until
 `uv sync --all-packages` restored them. Both commands refused Python 3.11. uv
 ignored the uv version recorded in `.venv/pyvenv.cfg`. With `pyvenv.cfg` deleted,
-both commands still reported success while Python ran outside the environment;
-imports then failed loudly instead of loading old code.
+both commands still exited 0. `uv run` then started `.venv/bin/python` with the base
+interpreter's prefix, outside the environment, and importing `harness_core` or
+`yaml` failed with `ModuleNotFoundError`.
 
 A separate reuse record would be a second copy of the environment's identity for no
 measurable saving: warm checks already cost well under a second. None was added,
@@ -322,10 +326,11 @@ conformance of H's actual sync route is not established, and two gaps stay open
 outside this unit's paths. First, the local and CI setup commands permit lock
 mutation where WS-10 §12.4 requires `uv sync --locked`. Second, uv accepts an
 environment without `pyvenv.cfg` as intact. Behavior under a different uv version
-is untested; every probe ran uv 0.13.5. No open LIT ticket owns WS-10
-§12.4 locked setup, so WO-U21 hands both gaps to Buford for backlog routing. This
-unit filed no implementation ticket of its own, because neither rejected
-alternative produced justified scope.
+is untested; every probe ran uv 0.13.5. Both gaps are filed as
+`arhugula-harness-trial-193.9kh.2rn.8a2`, routed by Buford and not yet released for
+implementation. It scopes the local `just codex-sync` and `codex-test` route; the CI
+setup steps' unlocked sync is reported to Buford on the WO-U21 ticket for routing.
+The rejected cache and reuse alternatives produced no implementation scope.
 
 ## Re-verifying this inventory
 
