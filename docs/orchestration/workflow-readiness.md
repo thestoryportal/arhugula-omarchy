@@ -302,8 +302,9 @@ A disposition is one of four values, decided by `install_reuse` in the product's
 
 Every candidate must observe the same mandatory facts, on both the accepted side
 and the current side: at least one distribution hash and one installed package,
-the site-packages path, the import origins, the interpreter path, the OS, kernel
-and architecture, and the resource pins. A missing one makes the disposition
+each named by its file or package name, the site-packages path, the import
+origins, the interpreter path, the OS, kernel and architecture, and the resource
+pins. A missing one makes the disposition
 `unknown`, even when both sides are missing it. A blank or free-text value is not
 an observation either. Each fact has a fixed shape: a distribution hash is a
 SHA-256 digest, the paths are absolute, the import origins name a nonzero module
