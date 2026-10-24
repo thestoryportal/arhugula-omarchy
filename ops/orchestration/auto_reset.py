@@ -89,7 +89,7 @@ def live(probe, *args):
     try:
         return probe(*args)
     except HOLDS as error:
-        raise CapabilityHold(f"{probe.__name__}: {error}") from error
+        raise CapabilityHold(probe.__name__, error) from error
 
 
 class LiveWindow:
@@ -490,8 +490,8 @@ class AutoReset:
     def held(self):
         if not self.hold_path.exists():
             return None
-        # A hold recorded before capability classification keeps its condition gate.
-        return {"capability": False, **json.loads(self.hold_path.read_text())}
+        # A hold recorded before probe identity keeps its condition gate.
+        return {"probe": None, **json.loads(self.hold_path.read_text())}
 
     def condition(self):
         """Digest of every durable input a step consults, plus the lanes' user frontier.
@@ -534,7 +534,7 @@ class AutoReset:
         recorded = self.held()
         if (
             recorded is not None
-            and not recorded["capability"]
+            and recorded["probe"] is None
             and recorded["condition"] == self.condition()
         ):
             return Held(recorded, new=False)
@@ -546,12 +546,12 @@ class AutoReset:
             event = {
                 "held": str(error),
                 "supervisor": str(self.path),
-                "capability": isinstance(error, CapabilityHold),
+                "probe": error.probe if isinstance(error, CapabilityHold) else None,
                 "condition": self.condition(),
             }
             # Probe messages carry per-run receipt paths, so identity excludes "held".
             if recorded is not None and all(
-                recorded[k] == event[k] for k in ("capability", "condition")
+                recorded[k] == event[k] for k in ("probe", "condition")
             ):
                 return Held(recorded, new=False)
             atomic_json(self.hold_path, event)

@@ -1984,6 +1984,34 @@ class AutoResetTests(unittest.TestCase):
         self.assertEqual(len(self.window.queued), 1)
         self.assertIsNone(controller.held())
 
+    def test_changed_refusing_probe_is_reported_as_a_new_hold(self):
+        # Pass-4 F4: a recovered title followed by a failing context is a changed
+        # capability; the saved title hold must not hide it.
+        controller = self.waiting_title()
+        titles = []
+        healthy = self.window.title
+
+        def title():
+            titles.append(1)
+            if len(titles) == 1:
+                raise OSError("native title probe failed: receipt-1")
+            return healthy()
+
+        def context(frontier, previous):
+            raise OSError(f"native context probe failed: receipt-{len(titles)}")
+
+        self.window.title, self.window.context = title, context
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "^title: ")
+        second = controller.attempt()
+        self.assertTrue(second.new)
+        self.assertRegex(second.event["held"], "^context: ")
+        self.assertEqual(controller.held(), second.event)
+        third = controller.attempt()
+        self.assertFalse(third.new)
+        self.assertEqual(third.event, second.event)
+
     def test_exited_owned_writer_resumes_without_a_file_change(self):
         from unittest.mock import patch
 
@@ -1999,7 +2027,7 @@ class AutoResetTests(unittest.TestCase):
         with patch.object(Path, "exists", alive):
             first = controller.attempt()
         self.assertTrue(first.new)
-        self.assertRegex(first.event["held"], "owned writer remains active")
+        self.assertRegex(first.event["held"], "^owned writer: remains active")
         self.assertEqual(controller.attempt()["phase"], "waiting_fresh")
 
     def test_hold_recorded_before_capability_classification_stays_held(self):
