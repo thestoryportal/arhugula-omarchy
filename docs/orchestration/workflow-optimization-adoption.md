@@ -102,8 +102,8 @@ source of every H row is its blob at `91e76a4`; for O it is the protected bytes 
 | `justfile` (`codex-check`), `.agents/skills/codex-autonomous-loop/SKILL.md` step 7 | `cf5b85ca3da1`, `94a955ea0d8e` | `local_gate` runs `just codex-check`: sync, lint, format check, Pyright and six other checks, then non-e2e pytest | scope: expose narrow and full choices; named full-check exceptions retained | trial units | `just` recipe; skill procedure | WT-10, WT-11 | blobs | inactive |
 | `.claude/settings.json`, `.codex/hooks.json`, `tools/hooks/{postedit-lint,stop-gate,stop-loop,permission-guard}.sh` | `5b542c90e0be`, `d49faa3bdf57`, `d7af3e179f9d`, `1be2c180a449`, `561e7f392178`, `16ac5c60135b` | Agent hook map: changed-file lint/format on edit, Stop gates, permission guard (17 hook scripts wired in `settings.json`) | retain lint/format, permission and native context guards; remove only a duplicate unchanged-subject check | trial units | the agent clients' hook runners | WT-10, WT-11 | blobs | inactive |
 | `.githooks/pre-commit` | `55ac45602996` | Shipped advisory pre-commit | retain; **not installed** (`core.hooksPath` unset, `.git/hooks` holds only `*.sample`), so disabling it saves nothing | none in effect | none | WT-10 | blob | inactive |
-| `tools/hooks/precmd-clear-cache.sh` | `23dd88e7edfa` | Deletes `__pycache__`/`*.pyc` before any pytest, pyright, `uv run` or `just test` command | retain: WO-U21 rejected narrower invalidation (see Cache and sync reuse disposition) | all commands | the agent hook | WT-24; `tools/hooks/test_precmd_clear_cache.sh` cases 4–6 | blob | retained |
-| `justfile` (`codex-sync`), `uv.lock`, `uv run` | `cf5b85ca3da1`, `b165a567c5cb` | `codex-sync` runs `uv sync --all-packages`; every `uv run` checks the lock and environment before it runs | retain: WO-U21 found uv's own check sufficient and added no separate reuse layer | all commands | uv | WT-15, WT-24 | blobs | retained |
+| `tools/hooks/precmd-clear-cache.sh` | `23dd88e7edfa` | Deletes `__pycache__`/`*.pyc` before any pytest, pyright, `uv run` or `just test` command | retain: WO-U21 rejected narrower invalidation (see Cache and sync reuse disposition) | all commands | the agent hook | WT-24; `tools/hooks/test_precmd_clear_cache.sh` cases 4–7 | blob | retained |
+| `justfile` (`codex-sync`), `uv.lock`, `uv run` | `cf5b85ca3da1`, `b165a567c5cb` | `codex-sync` runs `uv sync --all-packages`; every `uv run` checks the lock and environment before it runs | retain: WO-U21 added no separate reuse layer; the unlocked route's WS-15 gaps are retained (see Cache and sync reuse disposition) | all commands | uv | WT-15, WT-24 | blobs | retained |
 | `tools/review_loop_gate.py`, `tools/merge_gate_log.py`, `tools/review_schemas/*.schema.json`, `.claude/skills/merge-gate/SKILL.md`, `.agents/skills/merge-gate/SKILL.md` | `d450e118bab2`, `ff8b76fba68f`, schema directory, `a17e15437468`, `84af30fc0c97` | Canonical review budget reducer, five-pass ceiling, merge-gate log consistency | reuse the reducer; adopt explicit concern coverage and correction progression without resetting accounting (source09 keeps its three spent passes) | all reviews | `review_loop_gate.py`; `Q1 review gate` and `merge-gate log consistency` CI | WT-12, WT-28 | blobs | inactive |
 | `.github/workflows/ci.yml`, `tools/ci_bookkeeping_diff.py` | `98c5fde744f1`, `418238132d9c` | Required graph and bookkeeping fast path above | scope: parallel graph and one coverage execution, every required context preserved | all H PRs | GitHub branch protection | WT-13, WT-14, WT-15 | blobs | inactive |
 | `tools/roadmap-audit/post-merge-refresh.sh`, `tools/roadmap-audit/session-start.sh`, `tools/hooks/prompt-context.sh`, `tools/hooks/lib.sh` | `1bb491d37d27`, `e13542889c6b`, `e660fa567798`, `52714acfcff5` | Agent hooks enforce the fixed point: `post-merge-refresh.sh` (wired at `.claude/settings.json:226` and `.codex/hooks.json:124`) emits "terminating refresh owed" after a substantive merge; `session-start.sh` (`settings.json:200`) and `prompt-context.sh` (`hooks.json:147`) apply the §12.2.1 one-ahead-HEAD exception; `lib.sh` holds their shared JSON shape | retire-after-activation for trial units, together with the CLAUDE.md §12.2 row; otherwise retain | trial units | the agent clients' hook runners | WT-16, WT-27 | blobs | inactive |
@@ -248,8 +248,11 @@ exists beyond that.
 ## Cache and sync reuse disposition (WO-U21)
 
 WO-U21 rejected both narrower alternatives. `precmd-clear-cache.sh` keeps deleting
-every project `__pycache__` and `.pyc` before a test-shaped command, and environment
-sync stays with uv's own locked check. Scripts and bounded receipts are in
+every project `__pycache__` and `.pyc` before a test-shaped command, and no separate
+sync-reuse record was added, so every `uv sync` and `uv run` still checks the
+environment itself. Rejecting the reuse layer does not show that the sync commands H
+actually runs meet WS-15; the gaps measured on that route are retained below. Scripts
+and bounded receipts are in
 `O/docs/orchestration/implementation-evidence/wo-u21-profile-coder/`; the raw logs
 they point to are on the Mac artifact share.
 
@@ -270,27 +273,59 @@ every candidate tested did:
   command recompiles the whole tree first.
 - Changing interpreter needs nothing: each interpreter reads only pycs carrying its
   own tag (checked for `cpython-311`, `cpython-312` and `cpython-314`).
+- Workspace members import from source through editable `.pth` files in the
+  worktree's own `.venv`. The hook clears that source's pycs, so an edit behind an
+  editable install is seen. An installed copy in `site-packages` is a separate
+  origin: the hook keeps its pycs, and a copy that shadows the source keeps loading.
+  Which origin loads is decided by synchronization, not by the cache.
+- No shared editable exists today. Across H `main`, its two lane worktrees and the
+  owned worktree, all 7 editables found point inside their own tree. H `main`'s
+  `.venv`, last written by uv 0.12.17, holds no workspace members, and the two lanes
+  have no `.venv` yet. The hook would not clear an editable pointing outside the
+  session's project directory; the contract does not cover that case, and its
+  absence rests on WS-15's ban on environments shared between worktrees.
 
-`tools/hooks/test_precmd_clear_cache.sh` now holds these cases as a contract. It
-passes against the current hook on Python 3.11, 3.12 and 3.14 and fails against the
-timestamp-selective, `-B`-only and worktree-pruning candidates. Keeping caches would
-also save little. The hook itself took 128–205 ms. The 55-test `harness-core`
-command took 3.2–4.9 s after clearing and 3.6–3.9 s with caches kept, which is no
-measurable difference. Compiling all 1,223 project modules from nothing, the worst
-case, took 7.9–9.8 s.
+`tools/hooks/test_precmd_clear_cache.sh` now holds these cases as a 19-check
+contract. It passes against the current hook on Python 3.11, 3.12 and 3.14 and fails
+against the timestamp-selective, `-B`-only and worktree-pruning candidates. Keeping
+caches would also save little. The hook itself took 128–205 ms. The 55-test
+`harness-core` command took 3.2–4.9 s after clearing and 3.6–3.9 s with caches
+kept, which is no measurable difference. Compiling all 1,223 project modules from
+nothing, the worst case, took 7.9–9.8 s.
 
-**Environment sync.** uv already performs the reuse check WS-15 asks for. In an
-owned worktree, a warm `uv sync --all-packages --locked` checked all 110 packages in
-73–150 ms, and `uv run --locked` started in 86–195 ms. It refused a dependency the
+**Environment sync.** Two routes were measured in the owned worktree. On the locked
+route, a warm `uv sync --all-packages --locked` checked all 110 packages in
+73–150 ms and `uv run --locked` started in 86–195 ms. It refused a dependency the
 lock did not contain, reinstalled a package whose metadata had been deleted from
-`.venv`, and refused Python 3.11 under `requires-python >=3.12`. A separate reuse
-record would be a second copy of the environment's identity for no measurable
-saving. None was added, and no environment is shared between worktrees.
+`.venv`, and refused Python 3.11 under `requires-python >=3.12`.
+
+H does not use that route. `just codex-sync` runs `uv sync --all-packages`,
+`just codex-test` runs `uv run pytest`, and the CI setup steps run the same unlocked
+sync; none passes `--locked`. On this route a warm sync took 89–365 ms and
+`uv run` started in 342–378 ms. Given a changed dependency, both commands rewrote
+`uv.lock` and succeeded instead of refusing. The added requirement was already a
+locked transitive package, so no new install was exercised. `uv run` reinstalled a
+deleted distribution before running. After `uv sync --package harness-core` removed
+the other six members, `uv run` failed with `ModuleNotFoundError` until
+`uv sync --all-packages` restored them. Both commands refused Python 3.11. uv
+ignored the uv version recorded in `.venv/pyvenv.cfg`. With `pyvenv.cfg` deleted,
+both commands still reported success while Python ran outside the environment;
+imports then failed loudly instead of loading old code.
+
+A separate reuse record would be a second copy of the environment's identity for no
+measurable saving: warm checks already cost well under a second. None was added,
+and no environment is shared between worktrees.
 
 **What stays required.** The hook and its contract remain in force. A later
-narrower proposal must pass the same contract and show a measured saving. No
-implementation ticket was filed, because neither alternative produced justified
-scope.
+narrower proposal must pass the same contract and show a measured saving. WS-15
+conformance of H's actual sync route is not established, and two gaps stay open
+outside this unit's paths. First, the local and CI setup commands permit lock
+mutation where WS-10 §12.4 requires `uv sync --locked`. Second, uv accepts an
+environment without `pyvenv.cfg` as intact. Behavior under a different uv version
+is untested; every probe ran uv 0.13.5. No open LIT ticket owns WS-10
+§12.4 locked setup, so WO-U21 hands both gaps to Buford for backlog routing. This
+unit filed no implementation ticket of its own, because neither rejected
+alternative produced justified scope.
 
 ## Re-verifying this inventory
 
