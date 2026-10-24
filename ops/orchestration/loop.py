@@ -328,6 +328,64 @@ class CapabilityHold(ValueError):
         self.probe = probe
 
 
+@dataclass(frozen=True)
+class Closeout:
+    """A parsed WS-11 trial closeout: worktree dispositions plus every obligation."""
+
+    worktrees: dict
+    required_open: tuple
+    pending: tuple
+
+
+_WORKTREE_FIELDS = ("disposition", "owner", "path", "branch", "head", "protected", "reason")
+_OBLIGATION_FIELDS = ("name", "kind", "state", "owner", "next_action")
+
+
+def parse_closeout(raw, ticket):
+    """[LAW:parse-dont-validate] closeout bytes for `ticket` to a Closeout, or ValueError.
+
+    A retained or held worktree is a valid disposition, not an unfinished deletion. An
+    asynchronous obligation may stay open because it names its owner and next action;
+    a required one is never discharged by being deferred, so it surfaces as open."""
+    doc = json.loads(raw)
+    if (
+        type(doc) is not dict
+        or doc.get("record_type") != "closeout"
+        or doc.get("schema_version") != 1
+        or doc.get("ticket") != ticket
+        or type(doc.get("worktrees")) is not list
+        or not doc.get("obligations")
+        or type(doc["obligations"]) is not list
+    ):
+        raise ValueError(f"closeout record is not a schema-1 closeout of {ticket}")
+    worktrees = {}
+    for tree in doc["worktrees"]:
+        if (
+            type(tree) is not dict
+            or set(tree) != set(_WORKTREE_FIELDS)
+            or tree["disposition"] not in ("retained", "removed", "held")
+            or type(tree["protected"]) is not list
+            or not all(
+                type(tree[k]) is str and tree[k] for k in _WORKTREE_FIELDS if k != "protected"
+            )
+        ):
+            raise ValueError(f"invalid closeout worktree disposition: {tree!r}")
+        worktrees[tree["path"]] = tree["disposition"]
+    required_open, pending = [], []
+    for item in doc["obligations"]:
+        if (
+            type(item) is not dict
+            or set(item) != set(_OBLIGATION_FIELDS)
+            or not all(type(item[k]) is str and item[k] for k in _OBLIGATION_FIELDS)
+            or item["kind"] not in ("required", "asynchronous")
+            or item["state"] not in ("met", "open")
+        ):
+            raise ValueError(f"invalid closeout obligation: {item!r}")
+        if item["state"] == "open":
+            (required_open if item["kind"] == "required" else pending).append(item["name"])
+    return Closeout(worktrees, tuple(required_open), tuple(pending))
+
+
 class Loop:
     def __init__(self, state, control, lit):
         self.path, self.control, self.lit = (
@@ -537,7 +595,10 @@ class Loop:
                 "admission": admission,
             }
 
-    def complete(self, ticket, evidence):
+    def complete(self, ticket, evidence, *, closeout=None):
+        """Count a closed leaf. A trial `closeout` record adds its own refusals: a
+        required obligation still open holds the count; retained worktrees and pending
+        asynchronous housekeeping do not, and stay visible on the completion record."""
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             data, receipts = self.lit.read(ticket)
@@ -559,11 +620,23 @@ class Loop:
                     raise ValueError("completion requires this ticket admission")
                 if ticket in excluded_scope(data, set(state["quarantine"])):
                     raise ValueError("quarantined work cannot complete")
-                state["completed"][ticket] = {
+                record = {
                     "evidence": file_binding(evidence),
                     "reads": receipts,
                     "epoch": state["epoch"],
                 }
+                if closeout is not None:
+                    parsed = parse_closeout(Path(closeout).read_bytes(), ticket)
+                    if parsed.required_open:
+                        raise ValueError(
+                            "required obligation open: " + ",".join(parsed.required_open)
+                        )
+                    record.update(
+                        closeout=file_binding(closeout),
+                        worktrees=parsed.worktrees,
+                        pending=list(parsed.pending),
+                    )
+                state["completed"][ticket] = record
                 if state["admission"] and state["admission"]["ticket"] == ticket:
                     state["admission"] = None
                 self._save(state)
@@ -1132,6 +1205,7 @@ def main():
     complete = sub.add_parser("complete")
     complete.add_argument("ticket")
     complete.add_argument("--evidence", type=Path, required=True)
+    complete.add_argument("--closeout", type=Path)
     review = sub.add_parser("review")
     review.add_argument("ticket")
     review.add_argument("--product", type=Path, required=True)
@@ -1217,7 +1291,7 @@ def main():
         elif args.command == 'finish-startup':
             result = loop.finish_startup()
         elif args.command == "complete":
-            result = loop.complete(args.ticket, args.evidence)
+            result = loop.complete(args.ticket, args.evidence, closeout=args.closeout)
         elif args.command == "review":
             result = loop.review(
                 args.ticket,

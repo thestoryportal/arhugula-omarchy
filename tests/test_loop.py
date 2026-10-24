@@ -257,6 +257,93 @@ class LoopTests(unittest.TestCase):
         )
         self.assertEqual(self.loop.bootstrap(transcript)["epoch"], 1)
 
+    def closeout(self, ticket, obligations, disposition="retained"):
+        path = self.root / f"closeout-{ticket}.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "record_type": "closeout",
+                    "schema_version": 1,
+                    "ticket": ticket,
+                    "worktrees": [
+                        {
+                            "disposition": disposition,
+                            "owner": "facade-coder",
+                            "path": "/w/u1",
+                            "branch": "feat/u1",
+                            "head": "a" * 40,
+                            "protected": ["evidence/u1"],
+                            "reason": "retained for reviewer readback",
+                        }
+                    ],
+                    "obligations": [
+                        {
+                            "name": name,
+                            "kind": kind,
+                            "state": state,
+                            "owner": "buford",
+                            "next_action": "cmt-next",
+                        }
+                        for name, kind, state in obligations
+                    ],
+                }
+            )
+        )
+        return path
+
+    def test_retained_worktree_can_close_trial(self):
+        """WT-29: a retained worktree and pending asynchronous metrics/archive do not hold
+        trial bookkeeping; the pending items stay visible with their owner."""
+        self.loop.begin("u1")
+        next(x for x in self.lit.data["issues"] if x["id"] == "u1")["status"] = "closed"
+        closeout = self.closeout(
+            "u1",
+            [
+                ("own-main", "required", "met"),
+                ("installed-acceptance", "required", "met"),
+                ("metrics", "asynchronous", "open"),
+                ("archive", "asynchronous", "open"),
+            ],
+        )
+        result = self.loop.complete("u1", self.evidence, closeout=closeout)
+        self.assertEqual(result["epoch_completed"], 1)
+        state = json.loads((self.root / "state.json").read_text())
+        record = state["completed"]["u1"]
+        self.assertEqual(record["pending"], ["metrics", "archive"])
+        self.assertEqual(record["worktrees"], {"/w/u1": "retained"})
+        self.assertEqual(self.loop.begin("u2")["epoch_completed"], 1)  # unrelated work moves
+
+    def test_async_housekeeping_cannot_close_required_obligation(self):
+        self.loop.begin("u1")
+        next(x for x in self.lit.data["issues"] if x["id"] == "u1")["status"] = "closed"
+        open_final = self.closeout(
+            "u1", [("metrics", "asynchronous", "met"), ("installed-acceptance", "required", "open")]
+        )
+        with self.assertRaisesRegex(ValueError, "required obligation open: installed-acceptance"):
+            self.loop.complete("u1", self.evidence, closeout=open_final)
+        self.assertEqual(self.loop.status()["epoch_completed"], 0)
+        for bad in (
+            self.closeout("u2", [("own-main", "required", "met")]),  # another ticket's record
+            self.closeout("u1", [("own-main", "deferred", "met")]),
+            self.closeout("u1", [("own-main", "required", "met")], disposition="pending"),
+            self.closeout("u1", []),
+        ):
+            with self.assertRaises(ValueError):
+                self.loop.complete("u1", self.evidence, closeout=bad)
+        self.assertEqual(self.loop.status()["epoch_completed"], 0)
+        # non-trial closeout keeps its existing evidence-only contract
+        self.assertEqual(self.loop.complete("u1", self.evidence)["epoch_completed"], 1)
+
+    def test_workflow_closeout_cannot_close_a_production_parent(self):
+        self.lit.data["relations"].append(
+            {"type": "parent-child", "src_id": "u7", "dst_id": "u1"}
+        )
+        self.loop.begin("u1")
+        next(x for x in self.lit.data["issues"] if x["id"] == "u1")["status"] = "closed"
+        closeout = self.closeout("u1", [("own-main", "required", "met")])
+        with self.assertRaisesRegex(ValueError, "completed parent/epic"):
+            self.loop.complete("u1", self.evidence, closeout=closeout)
+
     def test_native_close_crash_holds_next_admission_until_completion_reconciled(self):
         self.loop.begin("u1")
         next(x for x in self.lit.data["issues"] if x["id"] == "u1")["status"] = "closed"
