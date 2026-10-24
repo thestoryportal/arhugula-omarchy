@@ -49,8 +49,12 @@ class LocalAdapter:
         lit_argv=("lit",),
         artifact_root=DEFAULT_ROOT,
         ownership=lambda: nullcontext(()),
+        clearance=lambda operation: None,
     ):
         self.cwd = Path(cwd).resolve()
+        # Clears each effect's named admission operation as it runs; without a loop
+        # journal there is no grant, and the repository lease alone serializes runs.
+        self.clearance = clearance
         # Opens the active reservations, held unchanged for one whole inspection,
         # so a released owner stops covering its checkout; with none, every other
         # dirty checkout is unowned.
@@ -108,6 +112,7 @@ class LocalAdapter:
         # [LAW:single-enforcer] Every native claim passes this ownership check.
         # Native start silently transfers a same-checkout claim to another session,
         # so a current holder other than this adapter's refuses before any mutation.
+        self.clearance("implementation")
         if self.owner_args is None:
             raise Stop("claim-owner-unknown")
         if self.assignee(ticket) != holder:
@@ -131,6 +136,7 @@ class LocalAdapter:
         self.lit("comment", "add", ticket, "--body", body)
 
     def done(self, ticket):
+        self.clearance("implementation")
         self.lit("done", ticket)
 
     def assert_claim(self, ticket):
@@ -157,6 +163,7 @@ class LocalAdapter:
         return paths
 
     def inspect(self, expected_head=None, allowed=()):
+        self.clearance("artifact-inspection")
         branch = self.git("branch", "--show-current").strip()
         if not branch or branch in {"main", "master"}:
             raise Stop("isolated-branch-required")
@@ -206,6 +213,7 @@ class LocalAdapter:
         return dict(branch=branch, head=head, worktree=str(self.cwd))
 
     def verify(self):
+        self.clearance("test-preparation")
         result = capture(
             self.verify_argv, self.cwd, root=self.artifact_root, timeout=self.timeout
         )
@@ -214,6 +222,7 @@ class LocalAdapter:
 
     def commit(self, ticket, files):
         self.inspect(allowed=files)
+        self.clearance("implementation")
         self.git("diff", "--check")
         # Literal pathspecs prevent a worker receipt from staging arbitrary globs.
         self.git("--literal-pathspecs", "add", "--", *files)

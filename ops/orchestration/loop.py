@@ -263,7 +263,7 @@ class RecoveryTransfer:
         return cls(binding, grant, failed)
 
 
-def open_dependencies(data, ticket):
+def prerequisites(data, ticket):
     # A child inherits its epic's native blockers, as LIT readiness does.
     relations = data["relations"]
     scope = {ticket}
@@ -276,11 +276,39 @@ def open_dependencies(data, ticket):
         if expanded == scope:
             break
         scope = expanded
+    return {r["dst_id"] for r in relations if r["src_id"] in scope and r["type"] == "blocks"}
+
+
+def open_dependencies(data, ticket):
     closed = {i["id"] for i in data["issues"] if i.get("status") == "closed"}
-    return sorted(
-        {r["dst_id"] for r in relations if r["src_id"] in scope and r["type"] == "blocks"}
-        - closed
-    )
+    return sorted(prerequisites(data, ticket) - closed)
+
+
+def moment(stamp):
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+
+def caller_holder(transcript, proc=Path("/proc"), pid=None):
+    """The caller's own process or nearest ancestor that holds `transcript` open.
+
+    A native CLI session keeps its rollout open for its lifetime and every command
+    it runs descends from it, so this binds the caller to that session; a process
+    outside that tree cannot gain the ancestry by naming the session or journal.
+    """
+    target = os.stat(transcript)
+    pid = os.getpid() if pid is None else pid
+    while pid > 1:
+        directory = Path(proc) / str(pid)
+        for fd in (directory / "fd").iterdir():
+            try:
+                held = os.stat(fd)
+            except FileNotFoundError:
+                # An fd that closed during the scan holds nothing.
+                continue
+            if (held.st_dev, held.st_ino) == (target.st_dev, target.st_ino):
+                return pid
+        pid = int((directory / "stat").read_text().rsplit(")", 1)[1].split()[1])
+    raise ValueError("caller-not-issuer: no caller process holds the Buford transcript")
 
 
 # [LAW:types-are-the-program] What an admission clears, by name. Preparation is a
@@ -298,21 +326,28 @@ class Implementation:
     operations = IMPLEMENTATION_OPERATIONS
     release = None
 
-    def admit(self, data, blocked):
+    def admit(self, data, ticket, blocked):
         if blocked:
             raise ValueError("dependency-open: " + ",".join(blocked))
+
+    def issuer(self, session, transcript, proc):
+        # The CLI's identity check before begin remains this clearance's issuer proof.
+        return session
 
 
 IMPLEMENTATION = Implementation()
 
+# A human review gate: the closed LIT issue whose closure releases what it blocks.
+HUMAN_GATE = "role:human"
+
 
 @dataclass(frozen=True)
 class Preparation:
-    """Named preparation beside open prerequisites, minted by verified Buford.
+    """Named preparation beside open prerequisites, issued by the native Buford caller.
 
-    The release names the controlling user release this delegated admission acts
-    under; it is preserved provenance, not the authority. The authority is the
-    verified native Buford identity at the CLI boundary that mints the grant.
+    It acts under the controlling user release: the record the ticket's own closed
+    human gate closed on. The release is verified provenance, not the authority; the
+    authority is the native Buford session that the issuing caller descends from.
     """
 
     operations: frozenset
@@ -330,9 +365,76 @@ class Preparation:
             raise ValueError("preparation requires the controlling release comment")
         return cls(operations, release)
 
-    def admit(self, data, blocked):
-        if not any(c["id"] == self.release for c in data["comments"]):
-            raise ValueError(f"release-unverified: {self.release}")
+    def admit(self, data, ticket, blocked):
+        # [LAW:one-source-of-truth] Release scope is the native blocks graph: only a
+        # human gate this ticket inherits can release it, and an open one still holds.
+        issues = {i["id"]: i for i in data["issues"]}
+        gates = {
+            g for g in prerequisites(data, ticket)
+            if HUMAN_GATE in issues[g].get("labels", ())
+        }
+        held = sorted(g for g in gates if issues[g]["status"] != "closed")
+        if held:
+            raise ValueError("hold-retained: " + ",".join(held))
+        cited = [c for c in data["comments"] if c["id"] == self.release]
+        if len(cited) != 1 or cited[0]["issue_id"] not in gates:
+            raise ValueError(f"release-unverified: {self.release} is not a gate of {ticket}")
+        # The release is what the gate closed on: its last record before closure.
+        # An earlier request or a later note on the same gate releases nothing.
+        gate = issues[cited[0]["issue_id"]]
+        recorded = [
+            c for c in data["comments"]
+            if c["issue_id"] == gate["id"]
+            and moment(c["created_at"]) <= moment(gate["closed_at"])
+        ]
+        last = max(recorded, key=lambda c: moment(c["created_at"]), default={"id": None})
+        if last["id"] != self.release:
+            raise ValueError(
+                f"release-unverified: {self.release} is not the record {gate['id']} closed on"
+            )
+
+    def issuer(self, session, transcript, proc):
+        # [LAW:single-enforcer] Preparation is issued only by the native Buford
+        # session itself, checked here where every grant is minted, CLI or library.
+        if identity(transcript)["session_id"] != session:
+            raise ValueError("caller-not-issuer: Buford transcript is not the journal session")
+        caller_holder(transcript, proc)
+        return session
+
+
+def recorded_writer(state, ticket):
+    # [LAW:single-enforcer] Work is admitted only under its recorded writer
+    # reservation, so its checkout, paths, resources and reviewer precede use.
+    records = [
+        r for r in state["reservations"]
+        if r["key"] == ticket and r["kind"] == "writer"
+    ]
+    if not records:
+        raise ValueError("reservation-required: reserve the writer before admission")
+    return records[0]
+
+
+def clear(state, admission, operation):
+    """The current grant, if it is `admission`, names `operation` and its writer stands."""
+    # [LAW:single-enforcer] Every use of a grant, at the CLI or at an effect, clears here.
+    grant = state["admission"]
+    if grant is None or grant["id"] != admission:
+        raise ValueError("fresh LIT admission required")
+    if operation not in grant["operations"]:
+        raise ValueError(f"operation-not-admitted: {operation}")
+    if recorded_writer(state, grant["ticket"]) != grant["reservation"]:
+        raise ValueError("reservation changed; begin again")
+    return grant
+
+
+def journal_clearance(path, admission):
+    """Clears each effect's named operation against the journal's grant when it runs."""
+
+    def cleared(operation):
+        with Lease(Path(path).with_suffix(".lock")):
+            clear(read_journal(path), admission, operation)
+
+    return cleared
 
 
 def read_journal(path):
@@ -413,11 +515,12 @@ class NativeLit:
 
 
 class Loop:
-    def __init__(self, state, control, lit):
-        self.path, self.control, self.lit = (
+    def __init__(self, state, control, lit, proc=Path("/proc")):
+        self.path, self.control, self.lit, self.proc = (
             Path(state).absolute(),
             Path(control).absolute(),
             lit,
+            Path(proc),
         )
 
     def _read(self):
@@ -539,8 +642,9 @@ class Loop:
             # The grant records the exact open prerequisites it was admitted beside;
             # the LIT fingerprint invalidates it when any of them changes.
             blocked = open_dependencies(data, ticket)
-            clearance.admit(data, blocked)
-            reservation = self._writer(state, ticket)
+            clearance.admit(data, ticket, blocked)
+            issuer = clearance.issuer(state["session_id"], buford["transcript"], self.proc)
+            reservation = recorded_writer(state, ticket)
             issue = next(i for i in data["issues"] if i["id"] == ticket)
             if (
                 issue["status"] == "closed"
@@ -561,7 +665,7 @@ class Loop:
                 reservation=reservation,
                 operations=sorted(clearance.operations),
                 blockers=blocked,
-                issuer=state["session_id"],
+                issuer=issuer,
                 release=clearance.release,
             )
             # Only implementation clearance can later complete the ticket.
@@ -614,12 +718,7 @@ class Loop:
     def check(self, admission, operation):
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
-            grant = state["admission"]
-            if grant is None or grant["id"] != admission:
-                raise ValueError("fresh LIT admission required")
-            # [LAW:single-enforcer] The operation is cleared here, at its use.
-            if operation not in grant["operations"]:
-                raise ValueError(f"operation-not-admitted: {operation}")
+            grant = clear(state, admission, operation)
             data, receipts = self.lit.read(grant["ticket"])
             if (
                 fingerprint(data, grant["ticket"], state["goal_ticket"])
@@ -627,8 +726,6 @@ class Loop:
                 or file_binding(self.control)["sha256"] != grant["control"]
             ):
                 raise ValueError("LIT changed or pause/routing changed; begin again")
-            if self._writer(state, grant["ticket"]) != grant["reservation"]:
-                raise ValueError("reservation changed; begin again")
             return {
                 "ticket": grant["ticket"],
                 "reads": receipts,
@@ -789,18 +886,6 @@ class Loop:
             state["reservations"] = kept
             self._save(state)
             return {"released": key}
-
-    @staticmethod
-    def _writer(state, ticket):
-        # [LAW:single-enforcer] Work is admitted only under its recorded writer
-        # reservation, so its checkout, paths, resources and reviewer precede use.
-        records = [
-            r for r in state["reservations"]
-            if r["key"] == ticket and r["kind"] == "writer"
-        ]
-        if not records:
-            raise ValueError("reservation-required: reserve the writer before admission")
-        return records[0]
 
     @staticmethod
     def _reservations(state):
@@ -1371,7 +1456,6 @@ def main():
                 maintenance=args.maintenance,
                 headroom=fits and not args.headroom_hold,
                 unit=args.unit,
-                # Minted only here, after the actual Buford identity check above.
                 clearance=IMPLEMENTATION
                 if (args.prepare, args.release) == (None, None)
                 else Preparation.parse(args.prepare or (), args.release),

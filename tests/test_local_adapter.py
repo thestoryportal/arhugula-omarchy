@@ -72,22 +72,69 @@ class LocalAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
             owned.inspect()
 
+    def journal(self, *operations, reservations=()):
+        """A loop journal whose current grant clears `operations` for this checkout's writer."""
+        writer = {"kind": "writer", "key": "unit-1", "owner": "coder", "reviewer": "reviewer",
+                  "worktree": str(self.tree), "paths": ["own.txt"], "resources": []}
+        journal = Path(self.directory.name) / "state.json"
+        journal.write_text(json.dumps({
+            "version": 2, "completed": {}, "reviews": {},
+            "reservations": [writer, *reservations],
+            "admission": {"id": "grant-1", "ticket": "unit-1", "reservation": writer,
+                          "operations": sorted(operations)}}))
+        return journal
+
+    def test_runner_effects_clear_their_operation_against_the_journal_grant(self):
+        from ops.orchestration.runner import adapter_for
+
+        journal = self.journal("artifact-inspection", "test-preparation")
+        with self.assertRaisesRegex(ValueError, "requires the admission"):
+            adapter_for({"loop_state": str(journal)}, self.tree, 60)
+        prepared = adapter_for({"verify_argv": ["true"], "loop_state": str(journal),
+                                "admission": "grant-1",
+                                "artifact_root": str(Path(self.directory.name) / "artifacts")},
+                               self.tree, 60)
+        prepared.lit_argv = ["false"]
+        head = git(self.tree, "rev-parse", "HEAD")
+        (self.tree / "own.txt").write_text("owned\n")
+        # Preparation inspects and verifies; it never claims, commits or closes.
+        self.assertEqual(prepared.inspect(allowed=["own.txt"])["branch"], "isolated")
+        self.assertTrue(prepared.verify()[0])
+        for effect in (lambda: prepared.commit("unit-1", ["own.txt"]),
+                       lambda: prepared.start("unit-1"),
+                       lambda: prepared.done("unit-1")):
+            with self.assertRaisesRegex(ValueError, "operation-not-admitted: implementation"):
+                effect()
+        self.assertEqual(git(self.tree, "rev-parse", "HEAD"), head)
+        self.assertEqual(git(self.tree, "diff", "--cached", "--name-only"), "")
+        # A replaced grant stops the next effect of a run built under the old one.
+        state = json.loads(journal.read_text())
+        state["admission"] = {**state["admission"], "id": "grant-2",
+                              "operations": ["artifact-inspection", "implementation",
+                                             "test-preparation"]}
+        journal.write_text(json.dumps(state))
+        with self.assertRaisesRegex(ValueError, "fresh LIT admission required"):
+            prepared.inspect(allowed=["own.txt"])
+        implementing = adapter_for({"loop_state": str(journal), "admission": "grant-2"},
+                                   self.tree, 60)
+        self.assertTrue(implementing.commit("unit-1", ["own.txt"]))
+
     def test_runner_inspects_under_the_loop_journal_ownership(self):
         from ops.orchestration.runner import adapter_for
 
-        journal = Path(self.directory.name) / "state.json"
-        journal.write_text(json.dumps({"version": 2, "completed": {}, "reviews": {},
-            "reservations": [{"kind": "preserved", "key": "cmt-protected",
-                              "worktree": str(self.root), "paths": ["foreign.txt"]}]}))
+        journal = self.journal("artifact-inspection", reservations=[
+            {"kind": "preserved", "key": "cmt-protected",
+             "worktree": str(self.root), "paths": ["foreign.txt"]}])
         (self.root / "foreign.txt").write_text("preserved residue")
         config = {"verify_argv": ["true"]}
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
             adapter_for(config, self.tree, 60).inspect()
-        owned = adapter_for({**config, "loop_state": str(journal)}, self.tree, 60)
+        owned = adapter_for({**config, "loop_state": str(journal), "admission": "grant-1"},
+                            self.tree, 60)
         self.assertEqual(owned.inspect()["branch"], "isolated")
         # Releasing the declaration after construction stops it covering the checkout.
         state = json.loads(journal.read_text())
-        state["reservations"] = []
+        state["reservations"] = state["reservations"][:1]
         journal.write_text(json.dumps(state))
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
             owned.inspect()
@@ -96,12 +143,12 @@ class LocalAdapterTests(unittest.TestCase):
         from ops.orchestration.loop import Loop
         from ops.orchestration.runner import adapter_for
 
-        journal = Path(self.directory.name) / "state.json"
-        journal.write_text(json.dumps({"version": 2, "completed": {}, "reviews": {},
-            "reservations": [{"kind": "preserved", "key": "cmt-protected",
-                              "worktree": str(self.root), "paths": ["foreign.txt"]}]}))
+        journal = self.journal("artifact-inspection", reservations=[
+            {"kind": "preserved", "key": "cmt-protected",
+             "worktree": str(self.root), "paths": ["foreign.txt"]}])
         (self.root / "foreign.txt").write_text("preserved residue")
-        owned = adapter_for({"loop_state": str(journal)}, self.tree, 60)
+        owned = adapter_for({"loop_state": str(journal), "admission": "grant-1"},
+                            self.tree, 60)
         attempts, scan = [], owned.dirty
 
         def release_mid_scan(worktree):
@@ -114,7 +161,7 @@ class LocalAdapterTests(unittest.TestCase):
         owned.dirty = release_mid_scan
         self.assertEqual(owned.inspect()["branch"], "isolated")
         self.assertEqual(attempts, ["lease-conflict"])
-        self.assertEqual(len(json.loads(journal.read_text())["reservations"]), 1)
+        self.assertEqual(len(json.loads(journal.read_text())["reservations"]), 2)
 
     def test_unexpected_file_or_head_stops(self):
         (self.tree / "foreign.txt").write_text("another agent")
