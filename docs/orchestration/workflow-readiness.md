@@ -1,10 +1,11 @@
 # Workflow readiness register
 
 No live runtime scenario can start on this host today. Of the nine prerequisites
-in specification WS-13 section 15.1, only the Mac artifact store is ready. Docker,
-the telemetry stack, the offline embedding assets and host restore storage are
-missing; the kernel/process execution route is denied; and the session roster,
-toolchain shims and quiet-window resources each have a specific gap. Every entry
+in specification WS-13 section 15.1, two are ready: the Mac artifact store, and the
+toolchain when its binaries are called by path. Docker, the telemetry stack, the
+offline embedding assets and host restore storage are missing. The kernel/process
+execution route is denied. The session roster has one stale identity and one lane
+that cannot be measured. No quiet measurement window is reserved. Every entry
 below names who resolves it and what would make it worth re-reading.
 
 This is the WO-U18 register (plan WP-14; specification WS-13 15.1; verification
@@ -12,13 +13,12 @@ WT-18). Buford uses it to decide which scenarios can be scheduled. Runtime uses 
 to check that a scenario's prerequisites hold before starting. Reviewers use it to
 check that no missing or denied fact is being presented as a working capability.
 
-Facts were read between 2026-10-24T00:05:22Z and 00:07:05Z by profile-coder
-(Claude session `bcb70115-c73c-43ed-990b-e8d25a933c3b`) on the Omarchy guest
-(`Linux 7.2.6-1-aarch64-ARCH`, aarch64). Raw output is in the Mac store:
-`run-6t1wn5_p` holds the host probes and `run-707mnf5s` the session roster
-measurement. The probe script itself is
-`docs/orchestration/implementation-evidence/wo-u18-profile-coder-1/observe.sh` in
-the root checkout.
+Facts were read at 2026-10-24T00:13:33Z (host probes) and 00:13:34Z (session
+roster) by profile-coder (Claude session `bcb70115-c73c-43ed-990b-e8d25a933c3b`)
+on the Omarchy guest (`Linux 7.2.6-1-aarch64-ARCH`, aarch64). Raw output is in the
+Mac store: `run-jk9duutf` holds the host probes and `run-ewsj1l55` the roster
+measurement. Both were produced by the scripts in `docs/orchestration/readiness/`;
+the last section shows how to repeat them.
 
 ## Reading an entry
 
@@ -38,49 +38,58 @@ that depend on it stay held and independent work continues.
 
 ### Native team sessions/reset service
 
-- **State:** `missing`. The roster names a profile-coder session that is no longer
-  the live one, and no session can be admitted for new substantial work right now.
-- **Permission:** Buford owns roster rows and admission. Workers only read them.
+- **State:** `missing`. The roster's profile-coder row names a superseded session,
+  and Runtime cannot be measured. Admission measurement works for every other row.
+- **Permission:** Buford owns roster rows and admission decisions. Workers only
+  read them.
 - **Owner:** Buford.
 - **Environment:** `docs/orchestration/session-control.json` in the root checkout,
   `repair_paused=false`, notification thread `01a16b35-4681-7f70-b7bc-fec750f95fb7`.
-- **Evidence:** `run-707mnf5s` ran the existing `session_context admit` against
-  all eight rows. Only profile-reviewer (`01a16b33`) measured `allow`. The
-  profile-coder row still names `6bce438c`, which is complete and over the
-  225,000-token ceiling at 230,310 tokens; the live profile-coder is `bcb70115`.
-  Runtime (`f5422020`) has no request metric, so it cannot be measured. There is no
-  central reset service: continuity is each lane's own Memento handoff in its
-  existing Foot window, as `AGENTS.md` requires.
-- **Resolution:** Buford updates the profile-coder row to `bcb70115` and measures
-  admission at each assignment. An absent reset service stays a prerequisite; no
-  replacement controller is built for it.
-- **Dependent scenarios:** Any Runtime-witnessed scenario and any routed review
-  handoff to profile-coder.
+- **Evidence:** `run-ewsj1l55` ran the existing `session_context admit` against
+  all eight rows. Profile-reviewer (`01a16b33`) and facade-reviewer (`01a16b36`)
+  measured `allow`. Buford held because its session was active and near the
+  ceiling. Implementer, facade-coder and claude-coder were complete but held on
+  headroom against their task budget plus reserve. These holds are point-in-time
+  measurements that change as sessions finish or hand off; they are not a missing
+  capability. The two real gaps: the profile-coder row names `6bce438c` (complete,
+  230,310 tokens, above the 225,000 ceiling) while the live profile-coder is
+  `bcb70115`; and Runtime (`f5422020`) reports `missing-request-metric`. Session
+  continuity is each lane's own Memento handoff in its existing Foot window
+  (`AGENTS.md`). No central reset service is required, so its absence is not a
+  gap.
+- **Resolution:** Buford updates the profile-coder row to `bcb70115`. Runtime stays
+  unmeasurable until its transcript records a completed request; Buford measures
+  it again then, before any Runtime assignment.
+- **Dependent scenarios:** Roster-routed handoffs to profile-coder and any
+  Runtime-witnessed scenario.
 - **Revalidate when:** A lane clears or hands off through Memento, a roster row
   changes, or before any new assignment.
 
 ### Tools/runtime environment
 
-- **State:** `missing`. The product Python environment works, but `uv` and `just`
-  have no version on this host.
-- **Permission:** Selecting a global tool version is an operator setting. Do not
+- **State:** `ready` when tools are called by path. The mise shims for `uv` and
+  `just` have no selected version, so the bare commands fail.
+- **Permission:** Selecting a global mise version is an operator setting. Do not
   reinstall tools or substitute system Python for the product environment.
-- **Owner:** Buford, with the operator for the mise global setting.
+- **Owner:** Buford, with the operator for the shim setting.
 - **Environment:** Product `H` = `/home/robbo/Work/arhugula-build-eval` at local
-  `origin/main` `91e76a4e22ffc0b013fa14a5d680d1c991f5a1e5`; existing venv
-  `/home/robbo/Work/arhugula-build-eval/.venv`.
-- **Evidence:** `run-6t1wn5_p`: the venv has Python 3.12.14, ruff 0.15.13,
-  pyright 1.1.409 and pytest 9.0.3. `uv --version` and `just --version` both fail
-  with "mise ERROR No version is set for shim"; mise suggests `uv@0.13.5` and
-  `just@1.58.0`. Root tooling runs under the same venv Python; root CI separately
-  proves Python 3.11 compatibility.
-- **Resolution:** The operator sets the mise default to the versions the product
-  lock expects, or Buford confirms that every scheduled command uses the venv's own
-  executables. Either way, record the chosen versions here.
-- **Dependent scenarios:** The 19-step build, any `just` recipe, any `uv sync` and
-  the final installed matrix.
-- **Revalidate when:** The mise configuration, the product lock file or the venv
-  changes.
+  `origin/main` `91e76a4e22ffc0b013fa14a5d680d1c991f5a1e5`, venv
+  `/home/robbo/Work/arhugula-build-eval/.venv`;
+  `uv` at `/home/robbo/.local/share/mise/installs/uv/0.13.5/uv-aarch64-unknown-linux-gnu/uv`;
+  `just` at `/home/robbo/.local/share/mise/installs/just/1.58.0/just`.
+- **Evidence:** `run-jk9duutf`: the venv has Python 3.12.14, ruff 0.15.13,
+  pyright 1.1.409 and pytest 9.0.3. The installed binaries report uv 0.13.5 and
+  just 1.58.0. Bare `uv --version` and `just --version` fail with "mise ERROR No
+  version is set for shim". Root orchestration tooling targets Python 3.11, which
+  root CI runs (`.github/workflows/ci.yml`); locally `/usr/bin/python3` is 3.14.7
+  and no 3.11 interpreter was probed.
+- **Resolution:** Scheduled commands call `uv` and `just` by the paths above, or the
+  operator sets the mise defaults to these versions. Bare shim calls fail until
+  then.
+- **Dependent scenarios:** Any command that calls bare `uv` or `just`, including
+  the 19-step build recipes and the final installed matrix.
+- **Revalidate when:** The mise configuration, an installed tool version, the
+  product lock file or the venv changes.
 
 ### Mac artifacts
 
@@ -90,8 +99,8 @@ that depend on it stay held and independent work continues.
 - **Owner:** Buford.
 - **Environment:** `/mnt/mac`, a 9p virtio share (`rw,relatime,cache=0x5`),
   store `/mnt/mac/arhugula-artifacts` (mode 0700).
-- **Evidence:** `run-6t1wn5_p` was published through `ops.orchestration.artifacts`
-  and read back with a matching stdout SHA-256 (`52d5b5df…`). `df` shows 43,232,280,576
+- **Evidence:** `run-jk9duutf` was published through `ops.orchestration.artifacts`
+  and read back with a matching stdout SHA-256 (`1f922b21…`). `df` shows 43,228,725,248
   bytes free of 450,005,483,520, with 91 percent used.
 - **Resolution:** None needed for publication. No document sets a free-space
   threshold, so each scenario contract must state its expected log volume, and
@@ -110,7 +119,7 @@ that depend on it stay held and independent work continues.
 - **Owner:** Buford, with the user for the D4 approval.
 - **Environment:** Product venv `/home/robbo/Work/arhugula-build-eval/.venv`
   (aarch64, Python 3.12.14); user cache `~/.cache`.
-- **Evidence:** `run-6t1wn5_p`: `fastembed` and `onnxruntime` are not importable;
+- **Evidence:** `run-jk9duutf`: `fastembed` and `onnxruntime` are not importable;
   `~/.cache/fastembed` does not exist and `~/.cache/huggingface` holds only `xet`;
   `ollama` is not on PATH and `ollama.service` is not installed (`systemctl` exit 4).
   The approved asset is `Qdrant/bge-small-en-v1.5-onnx-Q` at revision `aa8f8b06`;
@@ -135,7 +144,7 @@ that depend on it stay held and independent work continues.
 - **Owner:** Buford for service setup, with the user for authentication.
 - **Environment:** Guest services `docker.service` and `containerd.service`; gVisor
   binary `/usr/local/bin/runsc`.
-- **Evidence:** `run-6t1wn5_p`: both services are `inactive` and `disabled`;
+- **Evidence:** `run-jk9duutf`: both services are `inactive` and `disabled`;
   `/run/docker.sock` is absent and `docker info` cannot connect; `runsc` is
   present. On 2026-10-05, Buford reached a running daemon through a temporary socket ACL
   (`cmt-5a471314`), and runsc was registered then (`cmt-75513c69`). That was a
@@ -157,7 +166,7 @@ that depend on it stay held and independent work continues.
 - **Owner:** Buford.
 - **Environment:** The local Tempo, OTel Collector and Grafana stack that ran on
   loopback under Compose on 2026-09-30 (`cmt-1452e534`).
-- **Evidence:** `run-6t1wn5_p`: `codex login status` reports a ChatGPT login and
+- **Evidence:** `run-jk9duutf`: `codex login status` reports a ChatGPT login and
   `claude auth status` reports a claude.ai first-party login. `ss -ltn` shows
   only DNS (53, 5355) and SSH (22) listeners; no telemetry port is open.
 - **Resolution:** Start the stack after Docker is ready, using the pinned images,
@@ -196,7 +205,7 @@ that depend on it stay held and independent work continues.
   (`cmt-dd621700`).
 - **Owner:** The user, with Buford recording the decision.
 - **Environment:** The Mac host and this guest. The guest has one disk, `/dev/vda`.
-- **Evidence:** `run-6t1wn5_p`: `/` has 23,992,385,536 bytes free (82 percent
+- **Evidence:** `run-jk9duutf`: `/` has 23,892,811,776 bytes free (82 percent
   used), down from about 65 GiB on 2026-10-02 (`cmt-6f515afd`). `/mnt/mac` is a 9p
   share used for raw logs. It is not retained storage for the memory database and
   does not prove restore. No S5 proof exists.
@@ -215,8 +224,8 @@ that depend on it stay held and independent work continues.
 - **Owner:** Buford reserves the window; Runtime measures the baseline.
 - **Environment:** This guest: 8 CPUs, 20,928,249,856 bytes of RAM and the guest
   disk above.
-- **Evidence:** `run-6t1wn5_p`: load averages were 2.54, 3.33 and 2.84. In
-  `run-707mnf5s`, four roster sessions measured `active`, and this session was
+- **Evidence:** `run-jk9duutf`: load averages were 9.72, 4.84 and 3.51. In
+  `run-ewsj1l55`, Buford and Runtime measured `active`, and this session was
   running too. This register did not locate the original CPU, memory and storage
   pins. They belong to the accepted scenario contracts, and a later, larger memory
   reading must not replace them.
@@ -240,23 +249,25 @@ record was altered and must be investigated, not re-recorded.
 
 ## Re-verifying this register
 
-Run the probes again from the root checkout. Each run writes its raw output to a
-new Mac store directory and prints the receipt:
+The three scripts in `docs/orchestration/readiness/` repeat every read above. Run
+them from the canonical root checkout `/home/robbo/Work/arhugula-omarchy`. They
+only read state, and they use this host's absolute paths: the product checkout,
+the root `session-control.json`, the specification and the retained `.local`
+denial records. Each wrapped run writes its raw output to a new Mac store
+directory and prints the receipt:
 
 ```bash
 python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy --timeout 120 -- \
-  bash docs/orchestration/implementation-evidence/wo-u18-profile-coder-1/observe.sh
+  bash docs/orchestration/readiness/observe.sh
 python3 -m ops.orchestration.artifacts --cwd /home/robbo/Work/arhugula-omarchy --timeout 120 -- \
-  python3 docs/orchestration/implementation-evidence/wo-u18-profile-coder-1/measure_roster.py
+  python3 docs/orchestration/readiness/measure_roster.py
 ```
 
 The structural check confirms that every 15.1 prerequisite has one entry with all
 fields, that states are valid, that denials are linked and unchanged, and that the
-artifact mount is not presented as restore readiness:
+artifact mount is not presented as restore readiness. It does not judge whether an
+entry's facts are true; compare them with a fresh probe run for that.
 
 ```bash
-python3 docs/orchestration/implementation-evidence/wo-u18-profile-coder-1/check_register.py \
-  docs/orchestration/workflow-readiness.md
+python3 docs/orchestration/readiness/check_register.py docs/orchestration/workflow-readiness.md
 ```
-
-These scripts are kept in the root checkout's evidence tree, not in this commit.
