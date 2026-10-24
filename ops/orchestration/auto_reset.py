@@ -84,6 +84,14 @@ def user_frontier(actual):
 HOLDS = (OSError, ValueError, KeyError, sqlite3.Error)
 
 
+class CapabilityUnavailable(OSError):
+    """A live native window/process probe failed; no file records its recovery."""
+
+    def __init__(self, probe, cause):
+        super().__init__(f"{probe} unavailable: {cause}")
+        self.probe = probe
+
+
 @dataclass(frozen=True)
 class Held:
     """A recorded hold; `new` marks only the first report of its unchanged condition."""
@@ -495,10 +503,25 @@ class AutoReset:
             json.dumps(value, sort_keys=True, default=str).encode()
         ).hexdigest()
 
+    def native(self, probe, *args):
+        """Run one live native probe; its failure becomes a capability hold."""
+        try:
+            return probe(*args)
+        except HOLDS as error:
+            raise CapabilityUnavailable(probe.__name__, error) from error
+
     def attempt(self):
-        """Step once per changed condition; an unchanged hold is never rediscovered."""
+        """Step once per changed condition; an unchanged hold is never rediscovered.
+
+        A capability hold steps again each pass, because only a fresh probe can see
+        the window/process recover, but is reported once while it stays unchanged.
+        """
         recorded = self.held()
-        if recorded is not None and recorded["condition"] == self.condition():
+        if (
+            recorded is not None
+            and recorded["capability"] is None
+            and recorded["condition"] == self.condition()
+        ):
             return Held(recorded, new=False)
         try:
             state = self.step()
@@ -508,8 +531,14 @@ class AutoReset:
             event = {
                 "held": str(error),
                 "supervisor": str(self.path),
+                "capability": error.probe if isinstance(error, CapabilityUnavailable) else None,
                 "condition": self.condition(),
             }
+            # Probe messages carry per-run receipt paths, so identity excludes "held".
+            if recorded is not None and all(
+                recorded[k] == event[k] for k in ("capability", "condition")
+            ):
+                return Held(recorded, new=False)
             atomic_json(self.hold_path, event)
             return Held(event, new=True)
         self.hold_path.unlink(missing_ok=True)
@@ -899,8 +928,8 @@ class AutoReset:
                 if self.window.outgoing({"native_lane": frontier["native_lane"]}) != frontier["outgoing"]:
                     raise ValueError("outgoing lane changed before clear")
                 if frontier["predecessor"] is not None:
-                    predecessor_absent(frontier["predecessor"], self.window.home)
-            self.window.check()
+                    self.native(predecessor_absent, frontier["predecessor"], self.window.home)
+            self.native(self.window.check)
             state.update(phase="clear_intent", started=self.clock())
             self.save(state)
             # [LAW:effects-at-boundaries] Durable intent precedes every native input.
@@ -910,7 +939,7 @@ class AutoReset:
             return state
         if phase in ("waiting_title", "prompt_refused"):
             self.unchanged_parent(state)
-            if not self.title_matches(state, self.window.title()):
+            if not self.title_matches(state, self.native(self.window.title)):
                 return state
             frontier = self.loop.clear_package(state["reset"])
             proof = self.window.context(frontier, state["reset"]["previous_session"])
@@ -1048,7 +1077,7 @@ class AutoReset:
     def require_nonce_title(self, state):
         # [LAW:single-enforcer] Activity decoration is recognized only after
         # delivery/recovery. The waiting-title empty-context gate stays literal.
-        title = re.sub(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ", "", self.window.title())
+        title = re.sub(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ", "", self.native(self.window.title))
         if not self.title_matches(state, title):
             raise ValueError("same-window recovery nonce title mismatch")
 

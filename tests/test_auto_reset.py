@@ -1915,3 +1915,43 @@ class AutoResetTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertRegex(events[0]["held"], "routing")
         self.assertEqual(self.window.lines, [])
+
+    def flaky_window(self, failures):
+        """Make the live window probe fail `failures` times, each with a fresh receipt."""
+        calls = []
+        healthy = self.window.check
+
+        def check():
+            calls.append(1)
+            if len(calls) <= failures:
+                raise OSError(f"native window command failed: receipt-{len(calls)}")
+            return healthy()
+
+        self.window.check = check
+        return calls
+
+    def test_recovered_native_capability_resumes_without_a_file_change(self):
+        # WS-04 6.2: a changed relevant capability permits the next attempt even
+        # though no file or user frontier changed.
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        calls = self.flaky_window(1)
+        first = controller.attempt()
+        self.assertTrue(first.new)
+        self.assertRegex(first.event["held"], "native window command failed")
+        resumed = controller.attempt()
+        self.assertEqual(resumed["phase"], "waiting_title")
+        self.assertEqual(len(self.window.lines), 1)
+        self.assertIsNone(controller.held())
+        self.assertGreaterEqual(len(calls), 2)
+
+    def test_unavailable_native_capability_is_reprobed_but_reported_once(self):
+        self.hold()
+        controller = self.controller()
+        controller.step()
+        calls = self.flaky_window(10)
+        results = [controller.attempt() for _ in range(3)]
+        self.assertEqual([r.new for r in results], [True, False, False])
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(self.window.lines, [])
