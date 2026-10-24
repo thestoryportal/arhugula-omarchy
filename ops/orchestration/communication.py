@@ -24,9 +24,14 @@ class Reason(enum.Enum):
     """Stable WS-18 guard reason codes; callers branch on these, never on prose."""
 
     INVALID_INPUT = "invalid_input"
+    POLICY_MISMATCH = "policy_mismatch"
     AUTHORITY_CHANGED = "authority_changed"
     AUTHORITY_UNAVAILABLE = "authority_unavailable"
+    OWNERSHIP_CONFLICT = "ownership_conflict"
     IDENTITY_MISMATCH = "identity_mismatch"
+    HEADROOM_UNKNOWN = "headroom_unknown"
+    REFRESH_REQUIRED = "refresh_required"
+    ARTIFACT_UNAVAILABLE = "artifact_unavailable"
     PUBLICATION_UNCERTAIN = "publication_uncertain"
 
 
@@ -143,18 +148,18 @@ def _field(value):
     return value
 
 
-def _stored(adapter, comment):
-    """Only the one LIT comment matching every claimed field may be pointed at."""
+def stored(adapter, comment):
+    """Return the one LIT comment matching every field ``comment`` claims."""
     # [LAW:parse-dont-validate] A VerifiedComment is a claim any caller can build;
-    # the store, reread under the lease, is the proof.
+    # the store, reread at the moment of use, is the proof.
     found = _carrying(adapter, comment.issue, f"operation: {_operation(comment.operation_id)}")
-    stored = [(c["id"], hashlib.sha256(c["body"].encode()).hexdigest()) for c in found]
-    if stored != [(comment.comment_id, comment.body_sha256)]:
+    if [(c["id"], hashlib.sha256(c["body"].encode()).hexdigest()) for c in found] != [(comment.comment_id, comment.body_sha256)]:
         raise Hold(Reason.INVALID_INPUT, f"{comment.issue} {comment.comment_id} is not the stored comment of operation {comment.operation_id}")
+    return found[0]
 
 
-def _admit(routing, recipient):
-    """Current routing, read at the moment of delivery, governs a pending pointer."""
+def routed(routing, recipient):
+    """The one current routing row for ``recipient``, read at the moment of use."""
     try:
         control = json.loads(Path(routing).read_text())
         paused = control["repair_paused"]
@@ -164,10 +169,15 @@ def _admit(routing, recipient):
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise Hold(Reason.AUTHORITY_UNAVAILABLE, f"routing {routing}: {error!r}") from error
     if paused:
-        raise Hold(Reason.AUTHORITY_CHANGED, "repair_paused is set; a pending pointer cannot resume work")
+        raise Hold(Reason.AUTHORITY_CHANGED, "repair_paused is set; a pending pointer or assignment cannot resume work")
     if [row["session_id"] for row in rows] != [recipient.session_id]:
         raise Hold(Reason.IDENTITY_MISMATCH, f"{recipient.name} is not routed to {recipient.session_id}")
-    if rows[0]["kind"] != "codex":
+    return rows[0]
+
+
+def _admit(routing, recipient):
+    """Current routing, read at the moment of delivery, governs a pending pointer."""
+    if routed(routing, recipient)["kind"] != "codex":
         raise Hold(Reason.INVALID_INPUT, f"{recipient.name} has no native codex queue")
 
 
@@ -205,7 +215,7 @@ def deliver_pointer(adapter, queue, recipient, comment, operation_id, *, sender,
     intent = dict(operation_id=operation_id, issue=comment.issue, comment_id=comment.comment_id,
                   body_sha256=comment.body_sha256, thread=recipient.session_id, text=text)
     with Lease(Path(ledger) / LOCK):
-        _stored(adapter, comment)
+        stored(adapter, comment)
         _admit(routing, recipient)
         prior = _intent(path) or dict(intent, state="comment_verified", queue_failures=[])
         if {key: prior[key] for key in intent} != intent:
