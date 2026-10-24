@@ -24,6 +24,25 @@ def sync_directory(path):
         os.close(fd)
 
 
+def refuse_uncertain(path):
+    # [LAW:single-enforcer] Writers and readers share this one residue check.
+    uncertain=path.with_name(path.name+'.publication-uncertain')
+    if uncertain.exists():
+        raise ValueError(f'uncertain publication requires explicit recovery: {uncertain}')
+    return uncertain
+
+
+def read_json(path):
+    """Read one published record. Absence raises FileNotFoundError; quarantined
+    residue refuses, because the canonical path is absent exactly when the last
+    publication may or may not have happened."""
+    path = Path(path).absolute()
+    if any(p.is_symlink() for p in (path, *path.parents)):
+        raise ValueError('record path contains a symlink')
+    refuse_uncertain(path)
+    return json.loads(path.read_text())
+
+
 def atomic_json(path, value, *, private=True):
     path = Path(path).absolute()
     directory = private_directory(path.parent) if private else path.parent
@@ -31,9 +50,7 @@ def atomic_json(path, value, *, private=True):
         raise ValueError('record path contains a symlink')
     if path.is_symlink():
         raise ValueError('record path contains a symlink')
-    uncertain=path.with_name(path.name+'.publication-uncertain')
-    if uncertain.exists():
-        raise ValueError(f'uncertain publication requires explicit recovery: {uncertain}')
+    uncertain=refuse_uncertain(path)
     fd, temporary = tempfile.mkstemp(prefix='.record-', dir=directory)
     replaced=False
     try:
