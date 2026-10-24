@@ -5,6 +5,7 @@ orchestrator, unpauses a goal, steals a claim or merges product work.
 """
 
 import argparse
+from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import importlib
@@ -282,85 +283,6 @@ def open_dependencies(data, ticket):
     )
 
 
-def implementation_clearance(data, ticket, authorization):
-    if authorization is not None:
-        raise ValueError("authorization applies only to a preparation admission")
-    blocked = open_dependencies(data, ticket)
-    if blocked:
-        raise ValueError("dependency-open: " + ",".join(blocked))
-    return {}
-
-
-PREPARATION_MARKER = "PREPARATION-AUTHORIZATION "
-# The preparation WS-05 permits beside a held prerequisite; never landing.
-PREPARATION_OPERATIONS = frozenset({"inspect", "test", "review-context", "environment"})
-
-
-@dataclass(frozen=True)
-class PreparationAuthorization:
-    record: str  # the ticket comment carrying this authorization
-    authority: str  # the controlling release comment it derives from
-    operations: frozenset
-    retains: frozenset  # blockers kept for implementation and landing
-
-
-def parse_preparation(data, ticket, authorization):
-    # [LAW:parse-dont-validate] One typed record per ticket comment, e.g.
-    # PREPARATION-AUTHORIZATION {"authority": "cmt-...", "operations": ["test"],
-    # "retains": ["<blocker id>"]}; a mention of a blocker grants nothing.
-    records = [
-        c for c in data["comments"]
-        if c["id"] == authorization and c["issue_id"] == ticket
-    ]
-    lines = [
-        line[len(PREPARATION_MARKER):]
-        for c in records
-        for line in c["body"].splitlines()
-        if line.startswith(PREPARATION_MARKER)
-    ]
-    if len(records) != 1 or len(lines) != 1:
-        raise ValueError("preparation-authorization-required")
-    try:
-        fields = json.loads(lines[0])
-    except ValueError:
-        raise ValueError("invalid preparation authorization: not JSON") from None
-    if not isinstance(fields, dict):
-        raise ValueError("invalid preparation authorization: not an object")
-    authority, operations, retains = (
-        fields.get(k) for k in ("authority", "operations", "retains")
-    )
-    comments = {c["id"] for c in data["comments"]}
-    if type(authority) is not str or authority == authorization or authority not in comments:
-        raise ValueError("invalid preparation authorization: authority")
-    if (
-        type(operations) is not list
-        or not operations
-        or not set(operations) <= PREPARATION_OPERATIONS
-    ):
-        raise ValueError("invalid preparation authorization: operations")
-    if type(retains) is not list or any(type(x) is not str for x in retains):
-        raise ValueError("invalid preparation authorization: retains")
-    return PreparationAuthorization(
-        authorization, authority, frozenset(operations), frozenset(retains)
-    )
-
-
-def preparation_clearance(data, ticket, authorization):
-    grant = parse_preparation(data, ticket, authorization)
-    omitted = [d for d in open_dependencies(data, ticket) if d not in grant.retains]
-    if omitted:
-        raise ValueError("authorization-omits-retained-gate: " + ",".join(omitted))
-    return {"authority": grant.authority, "operations": sorted(grant.operations)}
-
-
-# Each clearance raises its hold or returns the admission facts it established.
-# Only an implementation admission is landing clearance, so only it can complete.
-CLEARANCE = {
-    "implementation": implementation_clearance,
-    "preparation": preparation_clearance,
-}
-
-
 def read_journal(path):
     state = json.loads(Path(path).read_text())
     if (
@@ -374,11 +296,13 @@ def read_journal(path):
     return state
 
 
+@contextmanager
 def journal_ownership(path):
-    """Active reservations recorded in a loop journal, for checkout inspection."""
-    # Under the journal lease, so the read never sees a half-applied reservation.
+    """Active reservations, held unchanged under the journal lease while in use."""
+    # [LAW:no-ambient-temporal-coupling] The lease spans the whole decision, so no
+    # reservation can be released between reading it and relying on it.
     with Lease(Path(path).with_suffix(".lock")):
-        return [parse_reservation(r) for r in read_journal(path)["reservations"]]
+        yield [parse_reservation(r) for r in read_journal(path)["reservations"]]
 
 
 class NativeLit:
@@ -504,12 +428,7 @@ class Loop:
             "production_paused": self._control()["repair_paused"],
         }
 
-    def begin(
-        self, ticket, *, maintenance=False, headroom=True, unit=None,
-        purpose="implementation", authorization=None,
-    ):
-        if purpose not in CLEARANCE:
-            raise ValueError(f"invalid admission purpose: {purpose!r}")
+    def begin(self, ticket, *, maintenance=False, headroom=True, unit=None):
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
             control = self._control()
@@ -562,7 +481,11 @@ class Loop:
                 and any(x.startswith(ticket + "::") for x in state["unit_quarantine"])
             ):
                 raise ValueError("review unit quarantined; choose an independent unit")
-            cleared = CLEARANCE[purpose](data, ticket, authorization)
+            # Admission is implementation and landing clearance. Preparation beside
+            # an open blocker is not admitted here: no verified grant source exists.
+            blocked = open_dependencies(data, ticket)
+            if blocked:
+                raise ValueError("dependency-open: " + ",".join(blocked))
             reservation = self._writer(state, ticket)
             issue = next(i for i in data["issues"] if i["id"] == ticket)
             if (
@@ -581,10 +504,7 @@ class Loop:
                 reads=receipts,
                 iteration=state["iteration"],
                 unit=unit,
-                purpose=purpose,
-                authorization=authorization,
                 reservation=reservation,
-                **cleared,
             )
             state["admissions"][ticket] = state["admission"]
             state['startup_required'] = False
@@ -672,8 +592,6 @@ class Loop:
                 grant = state["admissions"].get(ticket)
                 if grant is None or grant["ticket"] != ticket:
                     raise ValueError("completion requires this ticket admission")
-                if grant.get("purpose") == "preparation":
-                    raise ValueError("preparation admission cannot complete")
                 if ticket in excluded_scope(data, set(state["quarantine"])):
                     raise ValueError("quarantined work cannot complete")
                 state["completed"][ticket] = {
@@ -826,7 +744,8 @@ class Loop:
         return [parse_reservation(r) for r in state["reservations"]]
 
     def ownership(self):
-        return journal_ownership(self.path)
+        with journal_ownership(self.path) as current:
+            return current
 
     def next(self):
         state = self._read()
@@ -1288,10 +1207,6 @@ def main():
     begin.add_argument(
         "--unit", help="stable shipping-unit ID under a multi-unit LIT ticket"
     )
-    begin.add_argument("--purpose", choices=sorted(CLEARANCE), default="implementation")
-    begin.add_argument(
-        "--authorization", help="LIT comment ID authorizing a preparation admission"
-    )
     reserve = sub.add_parser("reserve")
     reserve.add_argument(
         "--record", type=Path, required=True,
@@ -1383,8 +1298,6 @@ def main():
                 maintenance=args.maintenance,
                 headroom=fits and not args.headroom_hold,
                 unit=args.unit,
-                purpose=args.purpose,
-                authorization=args.authorization,
             )
         elif args.command == "reserve":
             result = loop.reserve(json.loads(args.record.read_text()))

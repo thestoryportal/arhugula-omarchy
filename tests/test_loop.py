@@ -495,72 +495,20 @@ class LoopTests(unittest.TestCase):
         state["quarantine"] = ["u2"]
         (self.root / "state.json").write_text(json.dumps(state))
         with self.assertRaisesRegex(ValueError, "quarantine"):
-            self.loop.begin("u3", purpose="preparation", authorization="none")
+            self.loop.begin("u3")
         # The quarantined unit's own open dependency is real; it is not lost or hidden.
         with self.assertRaisesRegex(ValueError, "dependency-open: u1"):
             self.loop.begin("u4")
         with self.assertRaisesRegex(ValueError, "dependency-open: u1"):
             self.loop.begin("u5")
-        # Preparation needs this ticket's own typed record: the controlling release
-        # it derives from, the permitted operations and every retained blocker.
-        def record(authority="c-release", operations=("inspect", "test"), retains=("u1",)):
-            return "PREPARATION-AUTHORIZATION " + json.dumps(
-                {"authority": authority, "operations": list(operations),
-                 "retains": list(retains)})
-
-        bodies = {
-            "c-mention": "u1",
-            "c-other": record(),
-            "c-twice": record() + "\n" + record(),
-            "c-text": "PREPARATION-AUTHORIZATION retains u1",
-            "c-list": "PREPARATION-AUTHORIZATION []",
-            "c-unknown": record(authority="cmt-missing"),
-            "c-self": record(authority="c-self"),
-            "c-landing": record(operations=("test", "land")),
-            "c-none": record(operations=()),
-            "c-gap": record(retains=()),
-            "c-slice": "Tests only beside u1.\n" + record(),
-        }
-        self.lit.data["comments"] += [
-            {"id": "c-release", "issue_id": "u7", "body": "user release of the slice"},
-            *({"id": k, "issue_id": "u4" if k == "c-other" else "u5", "body": v}
-              for k, v in bodies.items()),
-        ]
-        for authorization, reason in (
-            (None, "preparation-authorization-required"),
-            ("c-mention", "preparation-authorization-required"),
-            ("c-other", "preparation-authorization-required"),
-            ("c-twice", "preparation-authorization-required"),
-            ("c-text", "not JSON"),
-            ("c-list", "not an object"),
-            ("c-unknown", "authorization: authority"),
-            ("c-self", "authorization: authority"),
-            ("c-landing", "authorization: operations"),
-            ("c-none", "authorization: operations"),
-            ("c-gap", "authorization-omits-retained-gate: u1"),
-        ):
-            with self.assertRaisesRegex(ValueError, reason):
-                self.loop.begin("u5", purpose="preparation", authorization=authorization)
-        with self.assertRaisesRegex(ValueError, "only to a preparation"):
-            self.loop.begin("u6", authorization="c-slice")
-        # Permitted preparation proceeds without implying landing clearance.
-        grant = self.loop.begin("u5", purpose="preparation", authorization="c-slice")
-        admission = self.loop.status()["admissions"]["u5"]
-        self.assertEqual((admission["authority"], admission["operations"]),
-                         ("c-release", ["inspect", "test"]))
-        self.assertEqual(self.loop.check(grant["admission"])["ticket"], "u5")
-        u5 = next(x for x in self.lit.data["issues"] if x["id"] == "u5")
-        u5["status"] = "closed"
-        with self.assertRaisesRegex(ValueError, "preparation admission cannot complete"):
-            self.loop.complete("u5", self.evidence)
-        u5["status"] = "open"
+        # No admission infers clearance from preparation: none is offered beside u1.
+        with self.assertRaises(TypeError):
+            self.loop.begin("u5", purpose="preparation")
         self.loop.begin("u6")
         self.loop.begin("u1")
         self.close("u1")
         self.loop.begin("u5")
         self.close("u5")
-        with self.assertRaisesRegex(ValueError, "invalid admission purpose"):
-            self.loop.begin("u6", purpose="landing")
         self.assertEqual(self.loop.status()["quarantine"], ["u2"])
 
     def test_export_without_comment_or_relation_records_holds_admission(self):

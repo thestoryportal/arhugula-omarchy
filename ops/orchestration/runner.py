@@ -1,5 +1,6 @@
 """Plan or run a bounded local continuation under one repository-wide lease."""
 import argparse
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import sys
@@ -13,10 +14,10 @@ from .loop import journal_ownership
 
 
 def adapter_for(config, cwd, seconds):
-    # The loop journal owns active reservations and is re-read at each inspection;
+    # The loop journal owns active reservations, held under its lease per inspection;
     # without one nothing is declared, so every other dirty checkout holds this run.
     journal = config.get("loop_state")
-    ownership = (lambda: journal_ownership(journal)) if journal else (lambda: ())
+    ownership = (lambda: journal_ownership(journal)) if journal else (lambda: nullcontext(()))
     return LocalAdapter(
         cwd,
         config.get("verify_argv", ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]),

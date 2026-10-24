@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
@@ -54,7 +55,8 @@ class LocalAdapterTests(unittest.TestCase):
         (self.root / "notes" / "draft.md").write_text("preserved draft")
         preserved = parse({"kind": "preserved", "key": "cmt-protected",
                            "worktree": str(self.root), "paths": ["foreign.txt", "notes/"]})
-        owned = LocalAdapter(self.tree, ["git", "diff", "--check"], ownership=lambda: [preserved])
+        owned = LocalAdapter(self.tree, ["git", "diff", "--check"],
+                             ownership=lambda: nullcontext([preserved]))
         (self.tree / "own.txt").write_text("owned\n")
         self.assertEqual(owned.inspect(allowed=["own.txt"])["branch"], "isolated")
         self.assertTrue(owned.commit("unit-1", ["own.txt"]))
@@ -89,6 +91,30 @@ class LocalAdapterTests(unittest.TestCase):
         journal.write_text(json.dumps(state))
         with self.assertRaisesRegex(Stop, "dirty-tree-conflict"):
             owned.inspect()
+
+    def test_ownership_cannot_be_released_while_an_inspection_relies_on_it(self):
+        from ops.orchestration.loop import Loop
+        from ops.orchestration.runner import adapter_for
+
+        journal = Path(self.directory.name) / "state.json"
+        journal.write_text(json.dumps({"version": 2, "completed": {}, "reviews": {},
+            "reservations": [{"kind": "preserved", "key": "cmt-protected",
+                              "worktree": str(self.root), "paths": ["foreign.txt"]}]}))
+        (self.root / "foreign.txt").write_text("preserved residue")
+        owned = adapter_for({"loop_state": str(journal)}, self.tree, 60)
+        attempts, scan = [], owned.dirty
+
+        def release_mid_scan(worktree):
+            try:
+                Loop(journal, journal, None).release("cmt-protected")
+            except Stop as error:
+                attempts.append(str(error))
+            return scan(worktree)
+
+        owned.dirty = release_mid_scan
+        self.assertEqual(owned.inspect()["branch"], "isolated")
+        self.assertEqual(attempts, ["lease-conflict"])
+        self.assertEqual(len(json.loads(journal.read_text())["reservations"]), 1)
 
     def test_unexpected_file_or_head_stops(self):
         (self.tree / "foreign.txt").write_text("another agent")
