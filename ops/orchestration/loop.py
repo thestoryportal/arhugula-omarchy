@@ -433,11 +433,25 @@ def recorded_writer(state, ticket):
     return records[0]
 
 
-def clear(state, admission, operation):
-    """The current grant, if it is `admission`, names `operation` and its writer stands."""
+def granted(state, admission):
+    """The current grant, if it is `admission`."""
     grant = state["admission"]
     if grant is None or grant["id"] != admission:
         raise ValueError("fresh LIT admission required")
+    return grant
+
+
+def clear(state, admission, operation, tickets):
+    """The current grant, if it is `admission`, names `operation` and every ticket the
+    effect acts on, and its writer stands."""
+    grant = granted(state, admission)
+    # [LAW:single-enforcer] A grant is for one ticket; an effect on any other ticket
+    # refuses here, before it runs, whatever selected that ticket.
+    foreign = sorted(set(tickets) - {grant["ticket"]})
+    if foreign:
+        raise ValueError(
+            f"grant-ticket-mismatch: {grant['ticket']} does not admit " + ",".join(foreign)
+        )
     if operation not in grant["operations"]:
         raise ValueError(f"operation-not-admitted: {operation}")
     if recorded_writer(state, grant["ticket"]) != grant["reservation"]:
@@ -735,10 +749,10 @@ class Loop:
             self._save(state)
             return report
 
-    def _current(self, state, admission, operation):
+    def _current(self, state, admission, operation, tickets):
         # [LAW:single-enforcer] Every use of a grant, at the CLI or at a runner
         # effect, clears here against the current journal, LIT scope and control.
-        grant = clear(state, admission, operation)
+        grant = clear(state, admission, operation, tickets)
         data, receipts = self.lit.read(grant["ticket"])
         if (
             fingerprint(data, grant["ticket"], state["goal_ticket"])
@@ -748,24 +762,27 @@ class Loop:
             raise ValueError("LIT changed or pause/routing changed; begin again")
         return grant, data, receipts
 
-    def check(self, admission, operation):
+    def check(self, admission, operation, *tickets):
+        """Clears `operation` on the `tickets` an effect acts on; a worktree-only
+        effect names none."""
         with Lease(self.path.with_suffix(".lock")):
-            grant, _, receipts = self._current(self._read(), admission, operation)
+            grant, _, receipts = self._current(self._read(), admission, operation, tickets)
             return {
                 "ticket": grant["ticket"],
                 "reads": receipts,
                 "admission": admission,
             }
 
-    def transition(self, admission, operation, write):
-        """Performs the run's own LIT `write` under its current grant, then stands
-        the grant on the result if nothing changed beside the ticket's own progress."""
+    def transition(self, admission, operation, ticket, write):
+        """Performs the run's own LIT `write` on `ticket` under its current grant, then
+        stands the grant on the result if nothing changed beside the ticket's own
+        progress."""
         with Lease(self.path.with_suffix(".lock")):
             state = self._read()
-            grant, before, _ = self._current(state, admission, operation)
+            grant, before, _ = self._current(state, admission, operation, (ticket,))
             write()
-            after, _ = self.lit.read(grant["ticket"])
-            ticket, goal = grant["ticket"], state["goal_ticket"]
+            after, _ = self.lit.read(ticket)
+            goal = state["goal_ticket"]
             known = {c["id"] for c in before["comments"]}
             if fingerprint(beside(after, ticket, known), ticket, goal) != fingerprint(
                 beside(before, ticket, known), ticket, goal
@@ -936,6 +953,17 @@ class Loop:
     def ownership(self):
         with journal_ownership(self.path) as current:
             return current
+
+    def selection(self, admission):
+        """The work a run under `admission` may select: its granted ticket until
+        that ticket closes."""
+        # [LAW:one-source-of-truth] The grant, not native LIT ranking, names the run's
+        # work; a quarantined or unrelated ticket ranked first is never its selection.
+        with Lease(self.path.with_suffix(".lock")):
+            ticket = granted(self._read(), admission)["ticket"]
+            data, _ = self.lit.read(ticket)
+            (issue,) = [i for i in data["issues"] if i["id"] == ticket]
+            return [] if issue["status"] == "closed" else [ticket]
 
     def next(self):
         state = self._read()

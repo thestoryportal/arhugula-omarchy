@@ -16,8 +16,10 @@ def adapter_for(config, cwd, seconds):
     # The loop journal owns active reservations, held under its lease per inspection,
     # and the admission every effect of this run must clear through Loop, which
     # rereads LIT and control each time; the run's own LIT writes go through
-    # Loop.transition, so only they move the grant's LIT basis. Without a journal
-    # nothing is declared, so every other dirty checkout holds this run.
+    # Loop.transition, so only they move the grant's LIT basis. The grant also names
+    # the run's work, so the run selects only its granted ticket and every effect
+    # names the ticket it acts on. Without a journal nothing is declared, so every
+    # other dirty checkout holds this run.
     journal = config.get("loop_state")
     if journal and not all(
         type(config.get(key)) is str for key in ("admission", "loop_control")
@@ -30,9 +32,12 @@ def adapter_for(config, cwd, seconds):
 
     scoped = dict(
         ownership=lambda: journal_ownership(journal),
-        clearance=lambda operation: loop().check(config["admission"], operation),
-        transition=lambda operation, write: loop().transition(
-            config["admission"], operation, write
+        selection=lambda adapter: "\n".join(loop().selection(config["admission"])),
+        clearance=lambda operation, *tickets: loop().check(
+            config["admission"], operation, *tickets
+        ),
+        transition=lambda operation, ticket, write: loop().transition(
+            config["admission"], operation, ticket, write
         ),
     ) if journal else {}
     return LocalAdapter(

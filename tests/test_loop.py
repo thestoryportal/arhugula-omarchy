@@ -767,7 +767,7 @@ class LoopTests(unittest.TestCase):
             with self.subTest(change=change.__name__):
                 self.lit.data = copy.deepcopy(original)
                 admission = self.loop.begin("u1")["admission"]
-                self.loop.transition(admission, "implementation", claim)
+                self.loop.transition(admission, "implementation", "u1", claim)
                 self.loop.check(admission, "implementation")
                 change()
                 with self.assertRaisesRegex(ValueError, "LIT changed"):
@@ -776,6 +776,41 @@ class LoopTests(unittest.TestCase):
         self.lit.data = copy.deepcopy(original)
         admission = self.loop.begin("u1")["admission"]
         with self.assertRaisesRegex(ValueError, "beside this run's transition"):
-            self.loop.transition(admission, "implementation", lambda: (claim(), block()))
+            self.loop.transition(admission, "implementation", "u1", lambda: (claim(), block()))
         with self.assertRaisesRegex(ValueError, "LIT changed"):
             self.loop.check(admission, "implementation")
+
+    def test_a_grant_admits_effects_only_on_its_own_ticket(self):
+        # A quarantined ticket and its dependent stay outside an independent grant.
+        self.lit.data["relations"].append({"type": "blocks", "src_id": "u3", "dst_id": "u2"})
+        state = json.loads((self.root / "state.json").read_text())
+        state["quarantine"] = ["u2"]
+        (self.root / "state.json").write_text(json.dumps(state))
+        admission = self.loop.begin("u1")["admission"]
+        writes = []
+        for other in ("u2", "u3"):
+            with self.subTest(other=other):
+                with self.assertRaisesRegex(ValueError, f"grant-ticket-mismatch: u1 does not admit {other}"):
+                    self.loop.check(admission, "implementation", other)
+                with self.assertRaisesRegex(ValueError, "grant-ticket-mismatch"):
+                    self.loop.check(admission, "implementation", "u1", other)
+                with self.assertRaisesRegex(ValueError, "grant-ticket-mismatch"):
+                    self.loop.transition(admission, "implementation", other,
+                                         lambda: writes.append(other))
+        self.assertEqual(writes, [])
+        # The run's own ticket, and worktree effects naming no ticket, still clear.
+        self.assertEqual(self.loop.check(admission, "implementation", "u1")["ticket"], "u1")
+        self.assertEqual(self.loop.check(admission, "artifact-inspection")["ticket"], "u1")
+        self.loop.transition(admission, "implementation", "u1", lambda: (
+            self.lit.data["issues"][0].update(status="closed"), writes.append("u1")))
+        self.assertEqual(writes, ["u1"])
+        self.assertEqual(json.loads((self.root / "state.json").read_text())["quarantine"], ["u2"])
+
+    def test_a_run_selects_only_its_granted_ticket_until_it_closes(self):
+        stale = self.loop.begin("u2")["admission"]
+        admission = self.loop.begin("u1")["admission"]
+        self.assertEqual(self.loop.selection(admission), ["u1"])
+        with self.assertRaisesRegex(ValueError, "fresh LIT admission required"):
+            self.loop.selection(stale)
+        self.lit.data["issues"][0]["status"] = "closed"
+        self.assertEqual(self.loop.selection(admission), [])

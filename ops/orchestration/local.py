@@ -39,6 +39,18 @@ def command(argv, cwd, *, timeout=60, input=None, env=None):
     return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
 
 
+def native_next(adapter):
+    result = command([*adapter.lit_argv, "next"], adapter.cwd, timeout=adapter.timeout, env=adapter.lit_env)
+    if result.returncode == 0:
+        return result.stdout
+    # LIT 0.14 uses exit 1, not an empty successful result, for exhaustion.
+    if result.returncode == 1 and result.stderr.splitlines()[:1] == [
+        "error (code=1): no ready work"
+    ]:
+        return ""
+    raise Stop(f"lit-next-failed: {result.stderr.strip()}")
+
+
 class LocalAdapter:
     def __init__(
         self,
@@ -49,15 +61,20 @@ class LocalAdapter:
         lit_argv=("lit",),
         artifact_root=DEFAULT_ROOT,
         ownership=lambda: nullcontext(()),
-        clearance=lambda operation: None,
-        transition=lambda operation, write: write(),
+        selection=native_next,
+        clearance=lambda operation, *tickets: None,
+        transition=lambda operation, ticket, write: write(),
     ):
         self.cwd = Path(cwd).resolve()
-        # Clears each effect's named admission operation as it runs; without a loop
-        # journal there is no grant, and the repository lease alone serializes runs.
+        # Names the run's next work as `lit next` text; under a loop journal that is
+        # the grant's own ticket, without one native LIT ranking.
+        self.selection = selection
+        # Clears each effect's named admission operation, and every ticket it acts
+        # on, as it runs; without a loop journal there is no grant, and the
+        # repository lease alone serializes runs.
         self.clearance = clearance
-        # Performs this run's own LIT write under that grant, which then stands on
-        # the write's result; without a journal the write simply runs.
+        # Performs this run's own LIT write on a ticket under that grant, which then
+        # stands on the write's result; without a journal the write simply runs.
         self.transition = transition
         # Opens the active reservations, held unchanged for one whole inspection,
         # so a released owner stops covering its checkout; with none, every other
@@ -94,15 +111,7 @@ class LocalAdapter:
         return self.checked([*self.lit_argv, *args], env=self.lit_env)
 
     def next(self):
-        result = command([*self.lit_argv, "next"], self.cwd, timeout=self.timeout, env=self.lit_env)
-        if result.returncode == 0:
-            return result.stdout
-        # LIT 0.14 uses exit 1, not an empty successful result, for exhaustion.
-        if result.returncode == 1 and result.stderr.splitlines()[:1] == [
-            "error (code=1): no ready work"
-        ]:
-            return ""
-        raise Stop(f"lit-next-failed: {result.stderr.strip()}")
+        return self.selection(self)
 
     def export(self):
         return json.loads(self.lit("export"))
@@ -116,13 +125,13 @@ class LocalAdapter:
         # [LAW:single-enforcer] Every native claim passes this ownership check.
         # Native start silently transfers a same-checkout claim to another session,
         # so a current holder other than this adapter's refuses before any mutation.
-        self.clearance("implementation")
+        self.clearance("implementation", ticket)
         if self.owner_args is None:
             raise Stop("claim-owner-unknown")
         if self.assignee(ticket) != holder:
             raise Stop("claim-conflict")
         try:
-            self.transition("implementation", lambda: self.lit("start", ticket, *self.owner_args))
+            self.transition("implementation", ticket, lambda: self.lit("start", ticket, *self.owner_args))
         except Stop as error:
             raise Stop("claim-conflict") from error
         owner = self.assignee(ticket)
@@ -137,10 +146,10 @@ class LocalAdapter:
         return self.lit("show", ticket)
 
     def comment(self, ticket, body):
-        self.transition("implementation", lambda: self.lit("comment", "add", ticket, "--body", body))
+        self.transition("implementation", ticket, lambda: self.lit("comment", "add", ticket, "--body", body))
 
     def done(self, ticket):
-        self.transition("implementation", lambda: self.lit("done", ticket))
+        self.transition("implementation", ticket, lambda: self.lit("done", ticket))
 
     def assert_claim(self, ticket):
         # LIT has no read-only exported claims API. Renew only the claim this
@@ -225,7 +234,7 @@ class LocalAdapter:
 
     def commit(self, ticket, files):
         self.inspect(allowed=files)
-        self.clearance("implementation")
+        self.clearance("implementation", ticket)
         self.git("diff", "--check")
         # Literal pathspecs prevent a worker receipt from staging arbitrary globs.
         self.git("--literal-pathspecs", "add", "--", *files)
