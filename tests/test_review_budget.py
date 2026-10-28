@@ -186,3 +186,60 @@ class ReviewBudgetTests(unittest.TestCase):
         self.assertEqual(result["decision"], "fix_required")
         self.assertIn("2-head", result["blocking_findings"])
         self.assertFalse(result["admit_review"])
+
+
+class TrialGate:
+    """Product trial reducer stand-in: returns one decision for exactly one parsed policy."""
+
+    def __init__(self, decision):
+        self.decision = decision
+        self.calls = []
+
+    def parse_trial_policy(self, doc):
+        if doc.get("version") != "trial-v1":
+            raise ValueError("invalid_input: policy")
+        return ("parsed", doc["version"])
+
+    def trial_review_decision(self, rows, *, policy, unit, arc, binding):
+        self.calls.append((rows, policy, unit, arc, binding))
+        return self.decision
+
+
+def trial_decision(**fields):
+    base = dict(state="correction_review", reasons=(), completed_rounds=(),
+                admit_launch=True, next_pass="1")
+    return SimpleNamespace(**{**base, **fields})
+
+
+class TrialAccountingTests(unittest.TestCase):
+    def account(self, decision, doc=None):
+        from ops.orchestration.review_budget import trial_accounting
+
+        gate = TrialGate(decision)
+        result = trial_accounting(gate, ["row"], doc or {"version": "trial-v1"},
+                                  "u07", "arc", "binding")
+        return gate, result
+
+    def test_counts_canonical_round_identities_including_legacy_labels(self):
+        rounds = ("source09-p1", "source09-p2", "source09-p3", "arc:1:h:d", "arc:esc:h2:d")
+        gate, result = self.account(trial_decision(
+            state="review_quarantined", reasons=("review_budget_exhausted",),
+            completed_rounds=rounds, admit_launch=False, next_pass="2"))
+        self.assertEqual(result["completed_passes"], 5)
+        self.assertEqual(result["rounds"], list(rounds))
+        self.assertFalse(result["admit_review"])
+        self.assertEqual(result["reasons"], ["review_budget_exhausted"])
+        self.assertEqual(gate.calls, [(["row"], ("parsed", "trial-v1"), "u07", "arc", "binding")])
+
+    def test_legacy_three_stay_three_before_new_rounds(self):
+        _, result = self.account(trial_decision(completed_rounds=("L1", "L2", "L3")))
+        self.assertEqual(result["completed_passes"], 3)
+        self.assertTrue(result["admit_review"])
+
+    def test_invalid_policy_refuses_without_fallback(self):
+        from ops.orchestration.review_budget import trial_accounting
+
+        gate = TrialGate(trial_decision())
+        with self.assertRaisesRegex(ValueError, "invalid_input"):
+            trial_accounting(gate, [], {"version": "other"}, "u07", "arc", "binding")
+        self.assertEqual(gate.calls, [])

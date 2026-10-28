@@ -61,3 +61,16 @@ def evaluate(gate, rows, arc, head, digest, observed=(), impacts=()):
                 admit_review=count < 5 and not earlier_stop and decision == 'review_required',
                 next_pass=remaining, blocking_findings=blocking, followups=followups,
                 undisposed_findings=undisposed, earlier_stop=earlier_stop)
+
+
+def trial_accounting(gate, rows, policy_doc, unit, arc, binding):
+    """Stable-unit scheduling ceiling from the product trial reducer's round identities."""
+    # [LAW:single-enforcer] The product reducer owns round identity, the five-round ceiling
+    # and the P1 stop; the root counts its canonical rounds and never infers a pass from a
+    # report filename or a prior session's bindings.
+    decision = gate.trial_review_decision(
+        rows, policy=gate.parse_trial_policy(policy_doc), unit=unit, arc=arc, binding=binding)
+    return dict(state=decision.state, reasons=list(decision.reasons),
+                completed_passes=len(decision.completed_rounds),
+                rounds=list(decision.completed_rounds), admit_review=decision.admit_launch,
+                next_pass=decision.next_pass)
