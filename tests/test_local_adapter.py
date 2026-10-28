@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -383,9 +384,15 @@ class NativeClaimTests(unittest.TestCase):
                     self.assertEqual(self.issue()["assignee"], "claude_owner")
 
     def granted(self):
-        """A runner config holding a real Buford grant whose Loop reads this LIT store."""
-        from ops.orchestration.loop import Loop, NativeLit
+        """A runner adapter holding a real Buford grant whose Loop reads this LIT store."""
         from ops.orchestration.runner import adapter_for
+
+        with self.native(CODEX_THREAD_ID="thread-1"):
+            return adapter_for(self.grant(), self.trees["lane"], 60)
+
+    def grant(self):
+        """A runner config holding a real Buford grant for this ticket."""
+        from ops.orchestration.loop import Loop, NativeLit
 
         base, tree = self.root.parent, self.trees["lane"]
         control = base / "control.json"
@@ -398,11 +405,9 @@ class NativeClaimTests(unittest.TestCase):
         loop.reserve({"kind": "writer", "key": self.ticket, "owner": "coder",
                       "reviewer": "reviewer", "worktree": str(tree),
                       "paths": ["own.txt"], "resources": []})
-        config = {"verify_argv": ["true"], "loop_state": str(journal),
-                  "loop_control": str(control), "artifact_root": artifacts,
-                  "admission": loop.begin(self.ticket)["admission"]}
-        with self.native(CODEX_THREAD_ID="thread-1"):
-            return adapter_for(config, tree, 60)
+        return {"verify_argv": ["true"], "loop_state": str(journal),
+                "loop_control": str(control), "artifact_root": artifacts,
+                "admission": loop.begin(self.ticket)["admission"]}
 
     def test_one_grant_carries_the_run_through_its_own_ticket_transitions(self):
         # Every effect continue_work performs, in its order, under one grant.
@@ -419,6 +424,86 @@ class NativeClaimTests(unittest.TestCase):
         run.done(self.ticket)
         run.comment(self.ticket, "Committed")
         self.assertEqual(self.issue()["status"], "closed")
+
+    def test_a_grant_runs_only_its_own_ticket_past_a_quarantined_first_rank(self):
+        # WO-U15 C2r: native LIT ranks quarantined Q first, beside its dependent D. A
+        # run granted I selects, claims, works, commits and closes I and nothing else.
+        from ops.orchestration.runner import adapter_for
+
+        tree, base = self.trees["lane"], self.root.parent
+
+        def lit(*args):
+            return subprocess.run(["lit", *args], cwd=tree, check=True,
+                                  capture_output=True, text=True).stdout
+
+        def issues():
+            return {i["id"]: i for i in json.loads(lit("export"))["issues"]}
+
+        def comments(ticket):
+            return [c for c in json.loads(lit("export"))["comments"] if c["issue_id"] == ticket]
+
+        lit("new", "--title", "Quarantined unit", "--topic", "claims")
+        (quarantined,) = set(issues()) - {self.ticket}
+        lit("new", "--title", "Dependent unit", "--topic", "claims")
+        (dependent,) = set(issues()) - {self.ticket, quarantined}
+        lit("dep", "add", "--from", quarantined, "--to", dependent)
+        lit("rank", quarantined, "--top")
+        for ticket in (self.ticket, quarantined, dependent):
+            lit("update", ticket, "--labels", "capability:tests,autonomous-safe")
+        self.assertEqual({x for x in lit("next").split() if x in issues()}, {quarantined})
+        config = self.grant()
+        journal = Path(config["loop_state"])
+        state = json.loads(journal.read_text())
+        state["quarantine"] = [quarantined]
+        journal.write_text(json.dumps(state))
+        head = git(tree, "rev-parse", "HEAD")
+
+        # Every ticket effect on another ticket refuses before it runs.
+        with self.native(CODEX_THREAD_ID="thread-1"):
+            run = adapter_for(config, tree, 60)
+        (tree / "own.txt").write_text("owned\n")
+        for other in (quarantined, dependent):
+            for effect in (run.start, run.assert_claim, run.done,
+                           lambda ticket: run.comment(ticket, "evidence"),
+                           lambda ticket: run.commit(ticket, ["own.txt"])):
+                with self.subTest(other=other, effect=getattr(effect, "__name__", "lambda")):
+                    with self.assertRaisesRegex(ValueError, "grant-ticket-mismatch"):
+                        effect(other)
+        (tree / "own.txt").unlink()
+        self.assertEqual(git(tree, "rev-parse", "HEAD"), head)
+
+        # The real runner, granted I with Q first natively, works only I and then stops.
+        worked = base / "worked.txt"
+        worker = ("import json, pathlib, sys; c = json.load(sys.stdin); "
+                  "pathlib.Path('own.txt').write_text(c['active_ticket'] + '\\n'); "
+                  f"open({str(worked)!r}, 'a').write(c['active_ticket'] + '\\n'); "
+                  "print(json.dumps({'files': ['own.txt'], 'summary': 'worked',"
+                  " 'risks': [], 'stop_reason': None}))")
+        settings = base / "runner.json"
+        settings.write_text(json.dumps({**config, "goal": "granted unit only",
+                                        "worker_argv": [sys.executable, "-c", worker]}))
+        environment = {k: v for k, v in os.environ.items()
+                       if k not in ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID")}
+        result = subprocess.run(
+            [sys.executable, "-m", "ops.orchestration.runner", "run", "--config", str(settings),
+             "--cwd", str(tree), "--tickets", "2", "--seconds", "120"],
+            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+            env={**environment, "CODEX_THREAD_ID": "thread-1"}, timeout=300)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        record = json.loads(result.stdout)
+        self.assertEqual(record["stop_reason"], "queue-empty")
+        self.assertEqual([w.split(":")[0] for w in record["completed_work"]], [self.ticket])
+        self.assertEqual(worked.read_text(), self.ticket + "\n")
+        after = issues()
+        self.assertEqual((after[self.ticket]["status"], after[self.ticket]["assignee"]),
+                         ("closed", "codex_thread-1"))
+        for other in (quarantined, dependent):
+            self.assertEqual(after[other]["status"], "open")
+            self.assertNotIn("assignee", after[other])
+            self.assertEqual(comments(other), [])
+        self.assertEqual(git(tree, "rev-list", "--count", f"{head}..HEAD"), "1")
+        self.assertEqual(git(tree, "show", "HEAD:own.txt"), self.ticket)
+        self.assertEqual(json.loads(journal.read_text())["quarantine"], [quarantined])
 
     def test_a_prerequisite_opened_after_the_claim_still_stales_the_grant(self):
         run, tree = self.granted(), self.trees["lane"]
