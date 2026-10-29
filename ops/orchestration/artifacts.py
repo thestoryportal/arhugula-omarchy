@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 
-from .records import atomic_json, private_directory, sync_directory
+from .records import atomic_json, private_directory, record_path, sync_directory
 from .processes import process_stats
 
 DEFAULT_ROOT = Path("/mnt/mac/arhugula-artifacts")
@@ -50,7 +50,8 @@ def require_mac_share(mountinfo):
 
 
 def store_kind(root):
-    """Where a receipt's evidence lives; only the proved Mac share is durable."""
+    """Where a parsed `record_path` root's evidence lives; only the proved Mac share
+    is durable."""
     if root == DEFAULT_ROOT or DEFAULT_ROOT in root.parents:
         require_mac_share(MOUNTINFO.read_text())
         return "mac_share"
@@ -172,7 +173,7 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
         or timeout <= 0
     ):
         raise ValueError("literal argv and positive timeout required")
-    root = Path(root).absolute()
+    root = record_path(root)
     # The store is proved before anything runs; there is no guest-disk fallback.
     store = store_kind(root)
     root = private_directory(root)
