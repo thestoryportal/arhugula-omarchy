@@ -189,6 +189,21 @@ class DurableStoreTests(unittest.TestCase):
         )
         self.assertEqual(result["store"], "mac_share")
 
+    def test_root_escaping_the_share_through_dotdot_refuses_before_the_command_runs(self):
+        from unittest.mock import patch
+        from ops.orchestration import artifacts
+
+        store = self.root / "share" / "arhugula-artifacts"
+        escaped = store / ".." / ".." / "guest-store"
+        with patch.object(
+            artifacts, "MOUNTINFO", self.mountinfo("1 2 3 / /mnt/mac rw - 9p mac rw\n")
+        ), patch.object(artifacts, "DEFAULT_ROOT", store):
+            with self.assertRaisesRegex(ValueError, r"\.\."):
+                artifacts.capture(self.touch_marker(), Path.cwd(), root=escaped)
+        self.assertFalse(self.marker.exists())
+        # Nothing was created where the path physically resolves, on guest disk.
+        self.assertFalse((self.root / "guest-store").exists())
+
     def test_explicit_root_is_marked_test_only(self):
         from ops.orchestration.artifacts import capture
 
