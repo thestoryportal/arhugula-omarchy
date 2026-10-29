@@ -1,4 +1,11 @@
-"""Stream raw subprocess output to private disk files; emit bounded receipts."""
+"""Stream raw subprocess output to private disk files; emit bounded receipts.
+
+A receipt is what a model reads, so as printed it never exceeds
+MODEL_RECEIPT_LIMIT bytes. Everything it summarizes stays complete on disk, bound
+by size and digest: the argv, both streams and every finding line. Consumers read
+those through assignment_packet's hash-verified slices; `summary_truncated` says
+when the summary alone is not the whole finding set.
+"""
 
 import argparse
 import hashlib
@@ -12,10 +19,21 @@ import sys
 import tempfile
 import time
 
-from .records import atomic_json, private_directory, sync_directory
+from .records import atomic_json, private_directory, record_path, sync_directory
 from .processes import process_stats
 
 DEFAULT_ROOT = Path("/mnt/mac/arhugula-artifacts")
+MOUNTINFO = Path("/proc/self/mountinfo")
+MODEL_RECEIPT_LIMIT = 16 * 1024
+# The limit caps a receipt; a summary normally needs far less of it.
+SUMMARY_BUDGET = 4096
+# Published numbers are wider than the zeros measured before launch; this covers them.
+NUMERIC_SLACK = 256
+FINDING = re.compile(rb"error|fail|traceback|passed|ran \d+|^OK$", re.I)
+# Longer than any FINDING keyword.
+KEYWORD_OVERLAP = 16
+COPY_BLOCK = 64 * 1024
+TAIL_HEADER = "\n[bounded tail]\n"
 
 
 def require_mac_share(mountinfo):
@@ -31,6 +49,23 @@ def require_mac_share(mountinfo):
     raise ValueError("writable Mac share is unavailable; no guest-disk fallback")
 
 
+def store_kind(root):
+    """Where a parsed `record_path` root's evidence lives; only the proved Mac share
+    is durable."""
+    if root == DEFAULT_ROOT or DEFAULT_ROOT in root.parents:
+        require_mac_share(MOUNTINFO.read_text())
+        return "mac_share"
+    # [LAW:one-source-of-truth] An explicit root is a test store and its receipt says
+    # so; it can never stand in for production evidence.
+    return "test_only"
+
+
+def private_file(path):
+    stream = path.open("xb")
+    os.chmod(path, 0o600)
+    return stream
+
+
 def file_binding(path):
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
@@ -43,22 +78,88 @@ def file_binding(path):
     }
 
 
-def summary(paths, limit=4096):
-    # [LAW:carrying-cost] Cap even a single compiler line; retain full bytes on disk.
-    matches, tail = [], b""
+def finding_spans(source):
+    """(start, end) byte range of each whole logical line in `source` that FINDING
+    matches, its newline excluded."""
+    start, matched, carry = 0, False, b""
+    # [LAW:carrying-cost] Even one compiler line is read in bounded chunks; the carried
+    # overlap finds a keyword split between two reads of the same line.
+    for chunk in iter(lambda: source.readline(1024), b""):
+        matched = matched or FINDING.search(carry + chunk) is not None
+        carry = chunk[-KEYWORD_OVERLAP:]
+        if chunk.endswith(b"\n"):
+            if matched:
+                yield start, source.tell() - 1
+            start, matched, carry = source.tell(), False, b""
+    if matched:
+        yield start, source.tell()
+
+
+def copy_span(source, start, end, target):
+    source.seek(start)
+    for offset in range(start, end, COPY_BLOCK):
+        size = min(COPY_BLOCK, end - offset)
+        block = source.read(size)
+        if len(block) != size:
+            raise ValueError(f"{source.name} changed while its findings were copied")
+        target.write(block)
+
+
+def write_findings(paths, findings):
+    """Copy every matched logical line of `paths`, whole, into `findings`; return
+    how many."""
+    count = 0
+    with private_file(findings) as stream:
+        for path in paths:
+            with path.open("rb") as scan, path.open("rb") as source:
+                for start, end in finding_spans(scan):
+                    copy_span(source, start, end, stream)
+                    stream.write(b"\n")
+                    count += 1
+        stream.flush()
+        os.fsync(stream.fileno())
+    return count
+
+
+def output_tail(paths, size):
+    """The last `size` bytes of the streams taken in order, read from their ends."""
+    tail = b""
     for path in paths:
-        with Path(path).open("rb") as stream:
-            for chunk in iter(lambda: stream.readline(1024), b""):
-                if (
-                    re.search(rb"error|fail|traceback|passed|ran \d+|^OK$", chunk, re.I)
-                    and sum(map(len, matches)) < limit // 2
-                ):
-                    matches.append(chunk[:512])
-                tail = (tail + chunk)[-limit // 2 :]
-    header = b"\n[bounded tail]\n"
-    return (b"".join(matches)[: limit // 2 - len(header)] + header + tail).decode(
-        "utf-8", "replace"
-    )
+        with path.open("rb") as stream:
+            stream.seek(max(0, os.fstat(stream.fileno()).st_size - size))
+            tail = (tail + stream.read())[-size:]
+    return tail
+
+
+def encoded(text):
+    """Bytes `text` adds to a printed receipt: its JSON string form, quotes excluded."""
+    return len(json.dumps(text)) - 2
+
+
+def fit(text, budget, *, keep_head):
+    """The longest head (or tail) of `text` whose encoding fits in `budget` bytes."""
+
+    def part(length):
+        return text[:length] if keep_head else text[len(text) - length :]
+
+    # Escapes widen a character to as many as 12 bytes, so search on the encoding.
+    low, high = 0, len(text)
+    while low < high:
+        middle = (low + high + 1) // 2
+        low, high = (middle, high) if encoded(part(middle)) <= budget else (low, middle - 1)
+    return part(low)
+
+
+def summary(findings, findings_bytes, tail, budget):
+    """The first findings plus the output tail within `budget` encoded bytes, and
+    whether the shown findings omit any of the complete set on disk."""
+    with findings.open("rb") as stream:
+        head = stream.read(budget).decode("utf-8", "replace")
+    shown = fit(head, (budget - encoded(TAIL_HEADER)) // 2, keep_head=True)
+    rest = budget - encoded(TAIL_HEADER) - encoded(shown)
+    latest = fit(tail.decode("utf-8", "replace"), rest, keep_head=False)
+    complete = findings_bytes <= budget and shown == head
+    return shown + TAIL_HEADER + latest, not complete
 
 
 def group_active(pgid):
@@ -72,20 +173,48 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
         or timeout <= 0
     ):
         raise ValueError("literal argv and positive timeout required")
-    root = Path(root).absolute()
-    if root == DEFAULT_ROOT or DEFAULT_ROOT in root.parents:
-        require_mac_share(Path("/proc/self/mountinfo").read_text())
+    root = record_path(root)
+    # The store is proved before anything runs; there is no guest-disk fallback.
+    store = store_kind(root)
     root = private_directory(root)
     directory = Path(tempfile.mkdtemp(prefix="run-", dir=root))
     paths = [directory / "stdout.log", directory / "stderr.log"]
+    argv_path, findings_path = directory / "argv.json", directory / "findings.log"
+    # Each variable-size part of a run is a bound file, so the receipt stays fixed-size.
+    bound = dict(argv=argv_path, stdout=paths[0], stderr=paths[1], findings=findings_path)
+
+    def publishable(exit, terminal, group, elapsed, bindings, count, text, truncated):
+        return dict(
+            version=2,
+            store=store,
+            cwd=str(Path(cwd).absolute()),
+            exit=exit,
+            terminal=terminal,
+            owned_process_group=group,
+            elapsed_seconds=elapsed,
+            **bindings,
+            findings_count=count,
+            summary=text,
+            summary_truncated=truncated,
+            receipt=str(directory / "receipt.json"),
+        )
+
+    unmeasured = {name: dict(path=str(path), bytes=0, sha256="0" * 64) for name, path in bound.items()}
+    fixed = json.dumps(publishable(0, "descendants_active", 0, 0.0, unmeasured, 0, "", False))
+    # [LAW:no-ambient-temporal-coupling] The bound is proved before launch, while a
+    # refusal still has no effect.
+    if len(fixed) + NUMERIC_SLACK + encoded(TAIL_HEADER) > MODEL_RECEIPT_LIMIT:
+        raise ValueError("receipt paths leave no room within the model receipt bound")
+    with private_file(argv_path) as stream:
+        stream.write(json.dumps(argv).encode())
+        stream.flush()
+        os.fsync(stream.fileno())
     began = time.monotonic()
     launch_error = None
     terminal, code = "exited", None
     process_id = None
     # [LAW:effects-at-boundaries] No pipe buffers or raw logs enter model context.
-    with paths[0].open("xb") as stdout, paths[1].open("xb") as stderr:
-        os.chmod(paths[0], 0o600)
-        os.chmod(paths[1], 0o600)
+    with private_file(paths[0]) as stdout, private_file(paths[1]) as stderr:
         try:
             process = subprocess.Popen(
                 argv,
@@ -141,20 +270,19 @@ def capture(argv, cwd, *, root=DEFAULT_ROOT, timeout=300, input=None):
         for stream in (stdout, stderr):
             stream.flush()
             os.fsync(stream.fileno())
+    count = write_findings(paths, findings_path)
+    tail = output_tail(paths, MODEL_RECEIPT_LIMIT)
     sync_directory(directory)
-    receipt = dict(
-        version=1,
-        argv=argv,
-        cwd=str(Path(cwd).absolute()),
-        exit=code,
-        terminal=terminal,
-        owned_process_group=process_id,
-        elapsed_seconds=round(time.monotonic() - began, 3),
-        stdout=file_binding(paths[0]),
-        stderr=file_binding(paths[1]),
-        summary=summary(paths),
-        receipt=str(directory / "receipt.json"),
+    bindings = {name: file_binding(path) for name, path in bound.items()}
+    elapsed = round(time.monotonic() - began, 3)
+    measured = publishable(code, terminal, process_id, elapsed, bindings, count, "", False)
+    text, truncated = summary(
+        findings_path,
+        bindings["findings"]["bytes"],
+        tail,
+        min(SUMMARY_BUDGET, MODEL_RECEIPT_LIMIT - len(json.dumps(measured))),
     )
+    receipt = publishable(code, terminal, process_id, elapsed, bindings, count, text, truncated)
     atomic_json(directory / "receipt.json", receipt)
     if launch_error is not None:
         raise launch_error

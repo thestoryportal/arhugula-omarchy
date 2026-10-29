@@ -5,11 +5,20 @@ from pathlib import Path
 import tempfile
 
 
-def private_directory(path):
+def record_path(path):
+    """`path` made absolute, where its lexical location is its physical one."""
     path = Path(path).absolute()
-    # [LAW:parse-dont-validate] Refuse redirection at the filesystem boundary.
+    # [LAW:parse-dont-validate] Refuse redirection at the filesystem boundary: with
+    # no '..' and no symlink, a lexical parent test is a physical containment test.
+    if '..' in path.parts:
+        raise ValueError('record path contains ..')
     if any(p.is_symlink() for p in (path, *path.parents)):
         raise ValueError('record path contains a symlink')
+    return path
+
+
+def private_directory(path):
+    path = record_path(path)
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o077:
         raise ValueError('record directory must be private and owned')
