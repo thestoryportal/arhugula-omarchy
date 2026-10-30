@@ -353,7 +353,7 @@
   "tools/test_workflow_adoption.py": {
    "u01": null,
    "base": null,
-   "candidate": "228f321572a5"
+   "candidate": "61d211825353"
   },
   "tools/test_merge_gate_log.py": {
    "u01": "b69fd9e6a308",
@@ -423,7 +423,7 @@
   },
   "docs/orchestration/session-control.json": {
    "base": null,
-   "root_sha256": "f752c41f021edfa604f195951b773bc2f3f7f6f078033ba41f87e5012972f177",
+   "root_sha256": "a9858e756e499849005872482294aec44376aaa51e20cc1ffd63f5afb1a00858",
    "root_state": "untracked",
    "owner": "Buford/operator (routing, profiles, Memento ceilings)",
    "rollback": "retained in place: current routing and limits govern after any rollback"
@@ -579,6 +579,6 @@
  "O_root": {
   "path": "/home/robbo/Work/arhugula-omarchy",
   "head": "fd03988e780b9039636f46fdfb4cfdce24e1b2b3",
-  "observed_at": "2026-10-30T13:40:06Z"
+  "observed_at": "2026-10-30T15:11:40Z"
  }
 }

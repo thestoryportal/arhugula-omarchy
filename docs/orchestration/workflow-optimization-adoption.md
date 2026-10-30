@@ -348,16 +348,17 @@ publish the activation receipt or activate any consumer.
 
 | Repository | Base | Candidate |
 | --- | --- | --- |
-| `H` | `741e379cbf94bd9ddb6c158dd66028b6bb6ef8f9` | `1177ec15fe995ab098aae7ec1bfa65bd734d5d73` (branch `work/wo-u23-01a18c6b`) |
+| `H` | `741e379cbf94bd9ddb6c158dd66028b6bb6ef8f9` | `cd1c78095b32080555207c43d298c66a69181deb` (branch `work/wo-u23-01a18c6b`) |
 | `O` | `766d5a31472cf4d80a8be47890b3b00c0764104c` | the commit that carries this section (same branch name) |
 
-`H` `main` moved to `b29c52df` after the base was taken. Integration reconciles that
-at the Git gate.
+At this integration boundary, GitHub `H/main` is `741e379c`. The candidate adds
+`cd1c7809`, a test-import bootstrap correction to satisfy GitHub CI; product behavior
+is unchanged.
 
 Every carrier's blob at the U01 read, the H base and the H candidate is in
 `implementation-evidence/wo-u23-claude-coder/carrier-bindings.json`. Each O row has
 its O base blob and the SHA-256 of the bytes in the canonical root when the file was
-generated (`observed_at` 2026-10-30T13:40:06Z), with their Git state against the root
+generated (`observed_at` 2026-10-30T15:11:40Z), with their Git state against the root
 checkout's own HEAD (`fd03988e`), the row's owner and its rollback disposition. The
 Buford-owned control rows change with routing, so a later root can differ; rerun the
 script before relying on a control hash. `rebind_carriers.py` in the same
@@ -396,7 +397,7 @@ directory re-derives the file and only reads. Dispositions:
 | H refresh fixtures | retained legacy cases unchanged; WO-U23 adds the trial, unreadable-rule and consecutive-trial-landing cases to the guard and hook fixtures | per-file blobs in the bindings file |
 | H `loop_cost_baseline.py` | unaffected | unchanged since U01 |
 | H `.harness/workflow-policy.json`, `workflow_policy.py`, `workflow_boundaries.py`, `workflow_commit.py`, `workflow_evidence.py` (WO-U03 to WO-U06) | retained; `eligible_units` and `review_rules` are still empty. WO-U23 `a675d7d6` adds `activation_binds` (now shared with `select_profile`) and `refresh_rule`; `f1664ac0` adds `tracked_trial_landing` and `sha256_digest` | policy `edeeab80c8be`, `workflow_policy.py` `1c0afa8664f7` |
-| **New:** H `tools/workflow_adoption.py`, `test_workflow_adoption.py`, registered in `codex-parity-check.sh` | added by WO-U23 `0a11453e`, corrected in `fda1aec5` and `f1664ac0`. `evaluate_adoption` returns only `inactive`, `prepared` or `validated`, never `active`. An `Inventory` cannot exist without a SHA-256 digest. The gate judges the inventory's required consumers against the parsed policy and that digest, so an omitted carrier, an unrelated consumer, a policy defect or another inventory version holds `policy_mismatch`; review, CI, own-main, active writers and release hold with their WS-18 codes. `plan_rollback` stays `rollback_required` and binds the prior `PolicyBinding` (policy and versioned activation binding), the prior carrier versions and a by-value ledger snapshot. Only `verify_rollback` returns `rolled_back`, after it observes those controls and carrier versions restored, reconciled intents and retained records, counters and authority. No input can replay an intent or restore a hold the user superseded | `4f1d17e2a55c`, `228f321572a5`, `97c59115d544` |
+| **New:** H `tools/workflow_adoption.py`, `test_workflow_adoption.py`, registered in `codex-parity-check.sh` | added by WO-U23 `0a11453e`, corrected in `fda1aec5` and `f1664ac0`. `evaluate_adoption` returns only `inactive`, `prepared` or `validated`, never `active`. An `Inventory` cannot exist without a SHA-256 digest. The gate judges the inventory's required consumers against the parsed policy and that digest, so an omitted carrier, an unrelated consumer, a policy defect or another inventory version holds `policy_mismatch`; review, CI, own-main, active writers and release hold with their WS-18 codes. `plan_rollback` stays `rollback_required` and binds the prior `PolicyBinding` (policy and versioned activation binding), the prior carrier versions and a by-value ledger snapshot. Only `verify_rollback` returns `rolled_back`, after it observes those controls and carrier versions restored, reconciled intents and retained records, counters and authority. No input can replay an intent or restore a hold the user superseded | `4f1d17e2a55c`, `61d211825353`, `97c59115d544` |
 | **New:** H O1 (`0087cdbb`) | `merge_gate_log.trial_review_decision` takes no caller `doc_only`. It derives doc-only from Git with the reducer's one predicate, and permitted gate-row appends do not count toward it | `ba9c1837388f` |
 | **New:** H O2 (`f28c9e92`) | under the trial reducer, a legacy one-lens closing pass 3 completes a cycle whose passes 1 and 2 were concern-complete; an incomplete pass 1 keeps its concerns missing | `test_review_loop_gate.py` |
 
@@ -435,6 +436,11 @@ while any of them is open:
    consumer, review, CI, own-main, writer and carrier-version facts, and publishing
    the receipt last (WO-U24). Its
    fixtures prove refusal; they are not live acceptance.
+4. Pass 5's unresolved F1: the trial walk checks historical landings against the
+   current checkout's `finding_record` contract, including landings without a
+   tracked contract at their own revision. Correct that historical-contract
+   binding before activation. All five independent review verdicts remain RED;
+   the user accepted this limitation for the inactive U23 landing only.
 
 ## Re-verifying this inventory
 

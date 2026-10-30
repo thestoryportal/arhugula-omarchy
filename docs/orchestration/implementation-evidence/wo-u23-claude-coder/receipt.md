@@ -155,3 +155,23 @@ push-to-main branch, is added to activation hold 1.
 2026-10-30T13:40:06Z. `rebind_carriers.py` now also binds `tools/finding_record.py`. The
 adoption inventory carries the new candidate blobs for `CLAUDE.md`, the guard,
 `finding_record.py`, the deterministic-context note, `justfile` and `ci.yml`.
+
+
+## Inactive landing exception and GitHub CI correction
+
+All five independent source-review passes ended RED. Pass 5 retains F1: historical
+trial membership uses the current checkout's `finding_record` contract even where
+the landing revision has no tracked contract. The user explicitly accepted that
+limitation for this inactive landing (U23 cmt-daa77da8); it remains an activation
+hold in the adoption document. No sixth review or independent approval is claimed.
+
+GitHub CI on H `1177ec15` rejected the new test's sibling import because the test
+did not put `tools/` on `sys.path` first. Author commit
+`cd1c78095b32080555207c43d298c66a69181deb` adds only that test bootstrap.
+The product source and all original findings remain unchanged. The author's
+reported 34 passing tests and clean coverage guard are author checks, not an
+independent review. Required GitHub checks on the new head govern the merge.
+
+Buford re-derived `carrier-bindings.json` for that H head and the current protected
+root observation. Buford performs the remaining pushes and merges under the user's
+sole-integrator instruction; no further local test or review gate is added.
