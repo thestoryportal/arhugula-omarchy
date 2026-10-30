@@ -1,0 +1,434 @@
+{
+ "H": {
+  "CLAUDE.md": {
+   "u01": "42cd1892fe1e",
+   "base": "42cd1892fe1e",
+   "candidate": "42cd1892fe1e"
+  },
+  "CONTEXT.md": {
+   "u01": "804b20860125",
+   "base": "804b20860125",
+   "candidate": "804b20860125"
+  },
+  "AGENTS.md": {
+   "u01": "ac8fc32e0374",
+   "base": "ac8fc32e0374",
+   "candidate": "ac8fc32e0374"
+  },
+  "docs/governance/roadmap-protocol.md": {
+   "u01": "952e39bb2aaf",
+   "base": "952e39bb2aaf",
+   "candidate": "952e39bb2aaf"
+  },
+  "tools/hooks/safe-merge.sh": {
+   "u01": "fed768c3e34c",
+   "base": "2460a16d0a76",
+   "candidate": "2460a16d0a76"
+  },
+  "tools/merge_door.py": {
+   "u01": "d86ad0f7093d",
+   "base": "cfe756e94831",
+   "candidate": "cfe756e94831"
+  },
+  "tools/roadmap_status_refresh.py": {
+   "u01": "453f99f3c4f3",
+   "base": "453f99f3c4f3",
+   "candidate": "453f99f3c4f3"
+  },
+  ".claude/skills/ship-pr/SKILL.md": {
+   "u01": "1947ae34f517",
+   "base": "1947ae34f517",
+   "candidate": "1947ae34f517"
+  },
+  ".agents/skills/ship-pr/SKILL.md": {
+   "u01": "b5f0a4e46e50",
+   "base": "b5f0a4e46e50",
+   "candidate": "2f6552460318"
+  },
+  ".claude/skills/roadmap-continue/SKILL.md": {
+   "u01": "63b7bb32b44f",
+   "base": "63b7bb32b44f",
+   "candidate": "63b7bb32b44f"
+  },
+  ".codex/notes/discipline-digest.md": {
+   "u01": "a52b847ea8e5",
+   "base": "a52b847ea8e5",
+   "candidate": "a8368a7c59d3"
+  },
+  ".codex/notes/deterministic-context-workflow.md": {
+   "u01": "df0b94543db7",
+   "base": "df0b94543db7",
+   "candidate": "df0b94543db7"
+  },
+  "tools/codex_context_guard.py": {
+   "u01": "3a08cc02797c",
+   "base": "a11af2d48f32",
+   "candidate": "a11af2d48f32"
+  },
+  "tools/codex_loop.py": {
+   "u01": "1a4538cd0784",
+   "base": "1a4538cd0784",
+   "candidate": "1a4538cd0784"
+  },
+  "justfile": {
+   "u01": "cf5b85ca3da1",
+   "base": "a7eb7026e9e5",
+   "candidate": "a7eb7026e9e5"
+  },
+  ".agents/skills/codex-autonomous-loop/SKILL.md": {
+   "u01": "94a955ea0d8e",
+   "base": "94a955ea0d8e",
+   "candidate": "94a955ea0d8e"
+  },
+  ".claude/settings.json": {
+   "u01": "5b542c90e0be",
+   "base": "5b542c90e0be",
+   "candidate": "5b542c90e0be"
+  },
+  ".codex/hooks.json": {
+   "u01": "d49faa3bdf57",
+   "base": "d49faa3bdf57",
+   "candidate": "d49faa3bdf57"
+  },
+  "tools/hooks/postedit-lint.sh": {
+   "u01": "d7af3e179f9d",
+   "base": "d7af3e179f9d",
+   "candidate": "d7af3e179f9d"
+  },
+  "tools/hooks/stop-gate.sh": {
+   "u01": "1be2c180a449",
+   "base": "ce6dee5a33d0",
+   "candidate": "ce6dee5a33d0"
+  },
+  "tools/hooks/stop-loop.sh": {
+   "u01": "561e7f392178",
+   "base": "561e7f392178",
+   "candidate": "561e7f392178"
+  },
+  "tools/hooks/permission-guard.sh": {
+   "u01": "16ac5c60135b",
+   "base": "16ac5c60135b",
+   "candidate": "16ac5c60135b"
+  },
+  ".githooks/pre-commit": {
+   "u01": "55ac45602996",
+   "base": "e1694209e242",
+   "candidate": "e1694209e242"
+  },
+  "tools/hooks/precmd-clear-cache.sh": {
+   "u01": "23dd88e7edfa",
+   "base": "23dd88e7edfa",
+   "candidate": "23dd88e7edfa"
+  },
+  "uv.lock": {
+   "u01": "b165a567c5cb",
+   "base": "b165a567c5cb",
+   "candidate": "b165a567c5cb"
+  },
+  "tools/review_loop_gate.py": {
+   "u01": "d450e118bab2",
+   "base": "3cf2221b2841",
+   "candidate": "c47114468d72"
+  },
+  "tools/merge_gate_log.py": {
+   "u01": "ff8b76fba68f",
+   "base": "30c65aff5a91",
+   "candidate": "ba9c1837388f"
+  },
+  "tools/review_schemas": {
+   "u01": "3c5709088601",
+   "base": "3c1fcbe40210",
+   "candidate": "3c1fcbe40210"
+  },
+  ".claude/skills/merge-gate/SKILL.md": {
+   "u01": "a17e15437468",
+   "base": "a17e15437468",
+   "candidate": "a17e15437468"
+  },
+  ".agents/skills/merge-gate/SKILL.md": {
+   "u01": "84af30fc0c97",
+   "base": "84af30fc0c97",
+   "candidate": "84af30fc0c97"
+  },
+  ".github/workflows/ci.yml": {
+   "u01": "98c5fde744f1",
+   "base": "ec356aea8e5f",
+   "candidate": "ec356aea8e5f"
+  },
+  "tools/ci_bookkeeping_diff.py": {
+   "u01": "418238132d9c",
+   "base": "ef06035f5189",
+   "candidate": "ef06035f5189"
+  },
+  "tools/roadmap-audit/post-merge-refresh.sh": {
+   "u01": "1bb491d37d27",
+   "base": "1bb491d37d27",
+   "candidate": "1bb491d37d27"
+  },
+  "tools/roadmap-audit/session-start.sh": {
+   "u01": "e13542889c6b",
+   "base": "e13542889c6b",
+   "candidate": "e13542889c6b"
+  },
+  "tools/hooks/prompt-context.sh": {
+   "u01": "e660fa567798",
+   "base": "e660fa567798",
+   "candidate": "e660fa567798"
+  },
+  "tools/hooks/lib.sh": {
+   "u01": "52714acfcff5",
+   "base": "bece188dd4c3",
+   "candidate": "bece188dd4c3"
+  },
+  ".claude/skills/two-lane/SKILL.md": {
+   "u01": "94237dbf1501",
+   "base": "94237dbf1501",
+   "candidate": "94237dbf1501"
+  },
+  ".agents/skills/two-lane/SKILL.md": {
+   "u01": "8cc55ad7988e",
+   "base": "8cc55ad7988e",
+   "candidate": "8cc55ad7988e"
+  },
+  ".codex/notes/leg-brief-template.md": {
+   "u01": "a211489808a7",
+   "base": "a211489808a7",
+   "candidate": "d43814018d9f"
+  },
+  ".codex/notes/claude-codex-parity.md": {
+   "u01": "c875a687ecdc",
+   "base": "c875a687ecdc",
+   "candidate": "c875a687ecdc"
+  },
+  "tools/arc_exit_report.py": {
+   "u01": "d9b90161bbb2",
+   "base": "d9b90161bbb2",
+   "candidate": "d9b90161bbb2"
+  },
+  "tools/arc_metrics.py": {
+   "u01": "e3559464a957",
+   "base": "e3559464a957",
+   "candidate": "e3559464a957"
+  },
+  "tools/lanes_pilot.py": {
+   "u01": "b12e30a3a98a",
+   "base": "b12e30a3a98a",
+   "candidate": "b12e30a3a98a"
+  },
+  "tools/prime_report.py": {
+   "u01": "7b9081ec2ba2",
+   "base": "7b9081ec2ba2",
+   "candidate": "7b9081ec2ba2"
+  },
+  "tools/branch_hygiene_batch.py": {
+   "u01": "5db95a6d05dd",
+   "base": "5db95a6d05dd",
+   "candidate": "5db95a6d05dd"
+  },
+  ".harness/roadmap_status.md": {
+   "u01": "b6be9b66ddc7",
+   "base": "b812a9be3445",
+   "candidate": "b812a9be3445"
+  },
+  "Project_Roadmap_v1.md": {
+   "u01": "d2cf3dee5465",
+   "base": "d2cf3dee5465",
+   "candidate": "d2cf3dee5465"
+  },
+  "tools/test_roadmap_status_refresh.py": {
+   "u01": "2222c80902da",
+   "base": "2222c80902da",
+   "candidate": "2222c80902da"
+  },
+  "tools/test_roadmap_status_consumers.py": {
+   "u01": "ecf727906e2a",
+   "base": "ecf727906e2a",
+   "candidate": "ecf727906e2a"
+  },
+  "tools/test_roadmap_ritual_smoke.py": {
+   "u01": "0c4835ac378b",
+   "base": "0c4835ac378b",
+   "candidate": "0c4835ac378b"
+  },
+  "tools/test_codex_context_guard.py": {
+   "u01": "cde4706f4bc5",
+   "base": "10fa6a0e3f4b",
+   "candidate": "10fa6a0e3f4b"
+  },
+  "tools/test_merge_door.py": {
+   "u01": "48262e20c64d",
+   "base": "3606edca864f",
+   "candidate": "3606edca864f"
+  },
+  "tools/test_codex_workflow_parity.py": {
+   "u01": "e3fb0a98c214",
+   "base": "e246e7b9d4dd",
+   "candidate": "e246e7b9d4dd"
+  },
+  "tools/test_arc_exit_report.py": {
+   "u01": "b0c6c349a130",
+   "base": "b0c6c349a130",
+   "candidate": "b0c6c349a130"
+  },
+  "tools/test_branch_hygiene_batch.py": {
+   "u01": "9197d10943a7",
+   "base": "9197d10943a7",
+   "candidate": "9197d10943a7"
+  },
+  "tools/test_ci_bookkeeping_filter.py": {
+   "u01": "3b026f1f6334",
+   "base": "29213cdbbfe6",
+   "candidate": "29213cdbbfe6"
+  },
+  "tools/hooks/test_lib.sh": {
+   "u01": "48891e3ed908",
+   "base": "9f10b6c8815d",
+   "candidate": "9f10b6c8815d"
+  },
+  "tools/hooks/test_prompt_context.sh": {
+   "u01": "e5bf29a9a66b",
+   "base": "e5bf29a9a66b",
+   "candidate": "e5bf29a9a66b"
+  },
+  "tools/hooks/test_skill_exit_report.sh": {
+   "u01": "526d6bc2309e",
+   "base": "526d6bc2309e",
+   "candidate": "526d6bc2309e"
+  },
+  "tools/hooks/test_skill_two_lane.sh": {
+   "u01": "5d08e324e8e2",
+   "base": "5d08e324e8e2",
+   "candidate": "5d08e324e8e2"
+  },
+  "tools/roadmap-audit/test_post_merge_refresh.sh": {
+   "u01": "92f32784fdec",
+   "base": "92f32784fdec",
+   "candidate": "92f32784fdec"
+  },
+  "tools/roadmap-audit/test_session_start.sh": {
+   "u01": "9c8e73dc2514",
+   "base": "9c8e73dc2514",
+   "candidate": "9c8e73dc2514"
+  },
+  "tools/codex-parity-check.sh": {
+   "u01": "6699bd572926",
+   "base": "a80403fc4d8d",
+   "candidate": "97c59115d544"
+  },
+  "tools/loop_cost_baseline.py": {
+   "u01": "5779f7686c31",
+   "base": "5779f7686c31",
+   "candidate": "5779f7686c31"
+  },
+  ".harness/workflow-policy.json": {
+   "u01": null,
+   "base": "edeeab80c8be",
+   "candidate": "edeeab80c8be"
+  },
+  "tools/workflow_policy.py": {
+   "u01": null,
+   "base": "003d1f03c13e",
+   "candidate": "003d1f03c13e"
+  },
+  "tools/workflow_boundaries.py": {
+   "u01": null,
+   "base": "138071a45072",
+   "candidate": "138071a45072"
+  },
+  "tools/workflow_commit.py": {
+   "u01": null,
+   "base": "5a248f064bd8",
+   "candidate": "5a248f064bd8"
+  },
+  "tools/workflow_evidence.py": {
+   "u01": null,
+   "base": "47f7347f359d",
+   "candidate": "47f7347f359d"
+  },
+  "tools/workflow_adoption.py": {
+   "u01": null,
+   "base": null,
+   "candidate": "e80c7788f244"
+  },
+  "tools/test_workflow_adoption.py": {
+   "u01": null,
+   "base": null,
+   "candidate": "2d02f20cff2e"
+  },
+  "tools/test_merge_gate_log.py": {
+   "u01": "b69fd9e6a308",
+   "base": "615b20d47ae1",
+   "candidate": "a47b908bc0fe"
+  },
+  "tools/test_review_loop_gate.py": {
+   "u01": "842d13337eef",
+   "base": "cf65b7cd18e2",
+   "candidate": "7f488462e353"
+  }
+ },
+ "O": {
+  "AGENTS.md": {
+   "base": "23c29f84d7d7"
+  },
+  "CLAUDE.md": {
+   "base": "23aa2220564b"
+  },
+  "docs/orchestration/paired-lanes-framework.md": {
+   "base": null
+  },
+  "docs/orchestration/context-policy.md": {
+   "base": "c092fcb6c79a"
+  },
+  "docs/orchestration/communication.md": {
+   "base": "ff2b5bcd9fab"
+  },
+  "docs/orchestration/authorization.md": {
+   "base": null
+  },
+  "docs/orchestration/memento-current.md": {
+   "base": null
+  },
+  "docs/orchestration/session-control.json": {
+   "base": null
+  },
+  "docs/orchestration/launch-profiles.json": {
+   "base": null
+  },
+  "ops/orchestration/loop.py": {
+   "base": "3ef9528ef0ce"
+  },
+  "ops/orchestration/local.py": {
+   "base": "65b9f533e3c2"
+  },
+  "ops/orchestration/artifacts.py": {
+   "base": "f60fe23fd241"
+  },
+  "ops/orchestration/records.py": {
+   "base": "2a397d2cbcfb"
+  },
+  "ops/orchestration/review_budget.py": {
+   "base": "2d585e225b2d"
+  },
+  "ops/orchestration/auto_reset.py": {
+   "base": "adc44bab0e04"
+  },
+  "ops/orchestration/goal_lineage.py": {
+   "base": "5e6c75f57e62"
+  },
+  "ops/orchestration/native_window.py": {
+   "base": "f969b44cfb2f"
+  },
+  "ops/orchestration/native_goal.py": {
+   "base": "b43a9cbd8273"
+  },
+  "ops/orchestration/startup.py": {
+   "base": "04c166d471c0"
+  },
+  "ops/orchestration/session_context.py": {
+   "base": "12039cd6df46"
+  },
+  ".github/workflows/ci.yml": {
+   "base": "d1d09ff96bd9"
+  }
+ }
+}

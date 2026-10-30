@@ -6,10 +6,11 @@ current carrier, the enforcer, how it is disposed of, how that is verified and w
 rollback restores it from. It also byte-binds the protected root work that `main`
 does not contain.
 
-**Adoption state: `inactive`.** No carrier has been changed, no gate disabled and no
-activation receipt exists (`O/.local/buford-loop/workflow-activation.json` is
-absent). Every row's status is `inactive` until its own unit lands. Until WP-17
-activation, the existing gates govern everything listed here.
+**Adoption state: `inactive`.** No gate is disabled and no activation receipt exists
+(`O/.local/buford-loop/workflow-activation.json` is absent). WO-U23 re-bound every
+row to the current bases and gave it a disposition (see WO-U23 reconciliation). That
+section names the activation holds that remain. Until WP-17 activation, the existing
+gates govern everything listed here.
 
 Facts were read at 2026-10-23T22:46:14Z by claude-coder (session
 `1c4c420e-3207-45b6-830b-c741708760cd`) against:
@@ -333,6 +334,96 @@ routed by Buford and not yet released for implementation:
 `arhugula-harness-trial-193.9kh.2rn.lh9` covers the setup steps in `ci.yml` and
 `pr-metadata.yml`. The rejected cache and reuse alternatives produced no
 implementation scope.
+
+## WO-U23 reconciliation
+
+WO-U23 (plan WP-17; WS-01, WS-17, WS-18; WT-27, WT-28) re-binds the rows above to
+the bases it was released on and states the compatible inactive set. It does not
+publish the activation receipt or activate any consumer.
+
+| Repository | Base | Candidate |
+| --- | --- | --- |
+| `H` | `741e379cbf94bd9ddb6c158dd66028b6bb6ef8f9` | `3cae3282bd2f92e89677d27ff616c0e6bcbbffd4` (branch `work/wo-u23-01a18c6b`) |
+| `O` | `766d5a31472cf4d80a8be47890b3b00c0764104c` | the commit that carries this section (same branch name) |
+
+`H` `main` moved to `b29c52df` after the base was taken. Integration reconciles that
+at the Git gate.
+
+Every carrier's blob at the U01 read, the H base and the H candidate is in
+`implementation-evidence/wo-u23-claude-coder/carrier-bindings.json`. The O rows
+are under the O base, and `rebind_carriers.py` in the same directory re-derives
+the file. Dispositions:
+
+- **retained**: legacy behavior stays in force.
+- **replaced**: a landed or WO-U23 change now carries the rule.
+- **retired**: the rule is removed. No row is retired before activation.
+- **unaffected**: the trial does not touch the row.
+
+| Inventory row | WO-U23 disposition | Consumer/fixture version at candidate |
+| --- | --- | --- |
+| O guidance (`AGENTS.md`, `CLAUDE.md`, framework/context/communication/authorization/memento-current, roles) | retained; still protected root work. Framework, authorization and memento-current are absent from O base | protected bytes; O base blobs in the bindings file |
+| O `session-control.json`, `launch-profiles.json`, `.promptctl/memento.conf` | retained; Buford/operator owned | protected bytes (absent from O base) |
+| O `loop.py`, `local.py`, `artifacts.py`/`records.py`, `review_budget.py`, `startup.py`/`session_context.py` | retained (reuse) | O base blobs |
+| O `auto_reset.py`, `goal_lineage.py`, `native_window.py`, `native_goal.py` | retained; native refresh is an activation hold (below) | O base blobs |
+| O `.git/hooks/pre-push`, O `ci.yml` | retained | installed hook; O base blob |
+| H `CLAUDE.md` §12.2/§12.2.1 | retained; trial scoping is an activation hold (below) | `42cd1892fe1e`, unchanged since U01 |
+| H `safe-merge.sh`, `merge_door.py`, `roadmap_status_refresh.py` | replaced by WO-U08: `merge_door.landing_profile` keeps the legacy refresh and gives a `trial` landing none, only under a matching activation | `2460a16d0a76`, `cfe756e94831`, refresh unchanged |
+| H `.agents/skills/ship-pr` step 6, `.codex/notes/leg-brief-template.md` step 4 | replaced by WO-U23 `3cae3282`: the refresh is named legacy-only, and a trial landing under a published activation has none | `2f6552460318`, `d43814018d9f` |
+| H `.claude/skills/ship-pr`, `roadmap-continue` | retained; no immediate-next-commit sentence to scope | unchanged since U01 |
+| H `.codex/notes/discipline-digest.md` | replaced by WO-U23 `96e28798`: immediate refresh scoped to legacy landings; "CI is ~75s, poll at ~80s" replaced by waiting on actual CI status | `a8368a7c59d3` |
+| H `AGENTS.md`, `CONTEXT.md` | retained; AGENTS line 26 already allows "post-merge refresh or explicit non-applicability" | unchanged since U01 |
+| H deterministic-context note, `codex_context_guard.py`, `codex_loop.py` | retained; the drift check is an activation hold (below) | guard `a11af2d48f32` |
+| H `justfile`, `codex-autonomous-loop` skill | retained; `justfile` changed only by `39e2878f` (setup lock-drift refusal), and the narrow/full trial choice is not exposed yet | `a7eb7026e9e5`; skill unchanged |
+| H hook map and edit/Stop/permission hooks | retained (`stop-gate.sh` gained WO-U06's staged-content binding, `3081a9a1`) | `stop-gate.sh` `ce6dee5a33d0`; others unchanged |
+| H `.githooks/pre-commit` | unaffected; still not installed | `e1694209e242` |
+| H `precmd-clear-cache.sh`, `uv`/`codex-sync` | retained (WO-U21) | unchanged since U01 |
+| H `review_loop_gate.py`, `merge_gate_log.py`, schemas, merge-gate skills | replaced by WO-U07 and WO-U23 O1/O2 (below); populating the policy and amending skill/schema legality are activation holds | `c47114468d72`, `ba9c1837388f`, schemas `3c1fcbe40210`; skills unchanged |
+| H `ci.yml`, `ci_bookkeeping_diff.py` | replaced by WO-U09/WO-U10 | `ec356aea8e5f`, `ef06035f5189` |
+| H refresh hooks (`post-merge-refresh.sh`, `session-start.sh`, `prompt-context.sh`, `lib.sh`) | retained; trial scoping is an activation hold (below) | `lib.sh` `bece188dd4c3`; others unchanged |
+| H two-lane skills, `claude-codex-parity.md` | retained; recipes for operator-invoked legacy lanes | unchanged since U01 |
+| H `arc_exit_report.py`, `arc_metrics.py`, `lanes_pilot.py`, `prime_report.py`, `branch_hygiene_batch.py` | retained; trial landings are an activation hold (below) | unchanged since U01 |
+| H `.harness/roadmap_status.md`, `Project_Roadmap_v1.md` | retained until activation | `b812a9be3445`; roadmap unchanged |
+| H refresh fixtures | retained; WO-U23's edits leave every pinned phrase intact | per-file blobs in the bindings file |
+| H `loop_cost_baseline.py` | unaffected | unchanged since U01 |
+| H `.harness/workflow-policy.json`, `workflow_policy.py`, `workflow_boundaries.py`, `workflow_commit.py`, `workflow_evidence.py` (WO-U03 to WO-U06) | retained; `eligible_units` and `review_rules` are still empty | `edeeab80c8be`, `003d1f03c13e` |
+| **New:** H `tools/workflow_adoption.py`, `test_workflow_adoption.py`, registered in `codex-parity-check.sh` | added by WO-U23 `0a11453e`. `evaluate_adoption` returns only `inactive`, `prepared` or `validated`, never `active`. It holds on a missing or stale consumer, review, CI, own-main result, active writer or release, using the WS-18 reason codes. `plan_rollback` carries the ledger unchanged, returns uncertain intents for reconciliation with no replay and never restores holds the user has superseded | `e80c7788f244`, `2d02f20cff2e`, `97c59115d544` |
+| **New:** H O1 (`0087cdbb`) | `merge_gate_log.trial_review_decision` takes no caller `doc_only`. It derives doc-only from Git with the reducer's one predicate, and permitted gate-row appends do not count toward it | `ba9c1837388f` |
+| **New:** H O2 (`f28c9e92`) | under the trial reducer, a legacy one-lens closing pass 3 completes a cycle whose passes 1 and 2 were concern-complete; an incomplete pass 1 keeps its concerns missing | `test_review_loop_gate.py` |
+
+**O3 disposition.** The trial policy needs a stable LIT unit ID bound to
+review arc `trial-a3-source-09` (WS-01 §3.1). No original record supplies one. The
+merge-gate log and `.harness/review-evidence/a3-contract-authority/` name the arc
+only as "unit trial-a3-source-09". LIT `193.5i4` is a follow-up that carries notes,
+not the arc's unit. Populating the policy is therefore an activation hold on that
+missing binding; no ID was invented. The arc's three spent passes are already
+canonical log rows, which the landed reducer counts once the arc is a member:
+
+- pass 1: `06cf6778`/`007a5787`, complete
+- pass 2: `af75b888`/`777cc833`, complete
+- pass 3: `af75b888`/`224c30d7`, complete (one lens)
+
+A legacy `rounds` entry repeating them would double-count. The only P1, from
+gemini in pass 1, was rejected. The trial streak counts only passes after pass 1,
+so the original streak is 0. The log has no stop row. The five-pass ceiling and
+those three passes are unchanged.
+
+**Activation holds.** WO-U23 implements none of these, and WO-U24 cannot activate
+while any of them is open:
+
+1. The O3 unit-ID binding above. Once it exists: populate `eligible_units` and
+   `review_rules` from the originals, and amend the merge-gate skills,
+   `review_schemas` and the launcher/emit/decision consumers together so the
+   trial progression is legal.
+2. Trial-aware drift and refresh enforcement. `codex_context_guard.py`
+   `ROADMAP_STATUS_DRIFT` and the `post-merge-refresh.sh`, `session-start.sh` and
+   `prompt-context.sh` hooks still require a terminating refresh after every
+   substantive merge. A trial landing would fail them. `CLAUDE.md` §12.2 and the
+   arc reporting tools need the same trial scoping.
+3. The WO-U14 native refresh receipt, plus WO-U19 installed evidence for the final
+   candidate.
+4. Wiring `workflow_adoption.evaluate_adoption` to real consumer, review, CI,
+   own-main and writer facts, and publishing the receipt last (WO-U24). Its
+   fixtures prove refusal; they are not live acceptance.
 
 ## Re-verifying this inventory
 
