@@ -34,7 +34,7 @@ tools/hooks/test_skill_two_lane.sh tools/roadmap-audit/test_post_merge_refresh.s
 tools/roadmap-audit/test_session_start.sh tools/codex-parity-check.sh tools/loop_cost_baseline.py
 .harness/workflow-policy.json tools/workflow_policy.py tools/workflow_boundaries.py tools/workflow_commit.py
 tools/workflow_evidence.py tools/workflow_adoption.py tools/test_workflow_adoption.py
-tools/test_merge_gate_log.py tools/test_review_loop_gate.py""".split()
+tools/test_merge_gate_log.py tools/test_review_loop_gate.py tools/finding_record.py""".split()
 O_PATHS = """AGENTS.md CLAUDE.md docs/orchestration/paired-lanes-framework.md docs/orchestration/context-policy.md
 docs/orchestration/communication.md docs/orchestration/authorization.md docs/orchestration/memento-current.md
 docs/orchestration/session-control.json docs/orchestration/launch-profiles.json ops/orchestration/loop.py

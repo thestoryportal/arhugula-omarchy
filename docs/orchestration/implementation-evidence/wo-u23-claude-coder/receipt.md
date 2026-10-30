@@ -123,3 +123,35 @@ hash (`f752c41f021e…`), which Buford's routing of the reviewer successor chang
 | guard schema evaluation against `jsonschema.validate`, and a stdlib-only run under `/usr/bin/python3 -I` | `u23-pass4-parser-probes.log` | no disagreements across 4,195 live log rows and 213 mutations. Under the system interpreter a live `no_finding` row yields its arc, the probe row yields none, and `jsonschema` is never imported |
 | whole `tools/` pytest at `47cac285` (`--continue-on-collection-errors`) | `u23-pass4-tools-pytest.log` | 4388 passed, 4 skipped, 36 failed, 7 collection errors. The 36 failures are the same tests by name as at pass 3 |
 | ruff check/format, pyright on the guard with the same `f1664ac0` config, `git diff --check` | `u23-pass4-lint.log` | ruff clean. Pyright reports 156 errors against 162 at `f1664ac0`, none in the changed range. Diff check clean |
+
+## Pass-5 correction (finding F1 of pass 4)
+
+Native `94d7c2a3-9e99-4b98-9ce3-9abed6bcd3af` wrote this correction. H candidate
+`1177ec15fe995ab098aae7ec1bfa65bd734d5d73` (one commit on `47cac285`). This is the last
+of the five original review passes. Raw logs are in
+`/mnt/mac/arhugula-artifacts/wo-u23-claude-coder-40f8274e/pass5/`.
+
+| Finding | Correction |
+| --- | --- |
+| F1 | Pass 4's schema-subset parser accepted rows the canonical writer refuses, such as a `no_finding` row timestamped `9999-99-99T99:99:99Z`. The subset evaluator is deleted. `finding_record.admit_appended` now exposes the writers' own append contract (`validate` plus the prior-row invariants, in log order), and the guard's trial walk admits appended rows only through it. Rows a writer would refuse no longer qualify: an impossible timestamp, a `finding_id` that disagrees with its producer, or a reused `finding_id` that changes an earlier row's arc |
+
+The contract needs `jsonschema`, which `/usr/bin/python3` lacks. Only
+`--allow-roadmap-drift` callers now walk trial landings (`derive(trial_membership=…)`),
+and the walk loads the contract only once the policy at that revision enrolls an arc.
+CI's guard step and `just codex-context-check-ci` run under `uv run python`. Every caller
+without the flag keeps the one-step legacy owed-lag reading on stdlib Python. `CLAUDE.md`
+§12.2 and the Codex deterministic-context note say so. The one remaining
+system-interpreter caller with the flag, the Codex stop gate's GitHub Actions
+push-to-main branch, is added to activation hold 1.
+
+| Check | Raw log | Result |
+| --- | --- | --- |
+| the reviewer's pass-4 probe (impossible-timestamp row, then a normal landing) against the pass-4 guard and this candidate | `u23-pass5-red-proof.log` | pass-4 guard: `owed_lag` True. This candidate: False. A canonical row is True under both |
+| the guard run on an enrolled two-trial-landing fixture under `/usr/bin/python3` and the venv, with and without the flag | `u23-pass5-interpreter-probes.log` | system Python without the flag: exit 0, `owed_lag` False. System Python with the flag: loud `ModuleNotFoundError: jsonschema`. The venv with the flag: `owed_lag` True, `ROADMAP_STATUS_LAG_EXPECTED` |
+| ruff, pyright against `47cac285` on the same config, `git diff --check`, and seven affected modules | `u23-pass5-lint.log` | clean. Pyright reports 156 errors in the guard and 125 in `finding_record`, the same as at `47cac285`. The affected modules ran 572 passed |
+| whole `tools/` pytest at `1177ec15` (`--continue-on-collection-errors`) | `u23-pass5-tools-pytest.log` | 4391 passed, 4 skipped, 36 failed, 7 collection errors. The 36 failures are the same tests by name as at pass 3 |
+
+`carrier-bindings.json` is regenerated for H `1177ec15` at `observed_at`
+2026-10-30T13:40:06Z. `rebind_carriers.py` now also binds `tools/finding_record.py`. The
+adoption inventory carries the new candidate blobs for `CLAUDE.md`, the guard,
+`finding_record.py`, the deterministic-context note, `justfile` and `ci.yml`.

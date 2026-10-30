@@ -3,7 +3,7 @@
   "CLAUDE.md": {
    "u01": "42cd1892fe1e",
    "base": "42cd1892fe1e",
-   "candidate": "583b9b53fd96"
+   "candidate": "ecbffd95289d"
   },
   "CONTEXT.md": {
    "u01": "804b20860125",
@@ -58,12 +58,12 @@
   ".codex/notes/deterministic-context-workflow.md": {
    "u01": "df0b94543db7",
    "base": "df0b94543db7",
-   "candidate": "df0b94543db7"
+   "candidate": "42255d2ed9fe"
   },
   "tools/codex_context_guard.py": {
    "u01": "3a08cc02797c",
    "base": "a11af2d48f32",
-   "candidate": "570ce63759bd"
+   "candidate": "84089edb01ef"
   },
   "tools/codex_loop.py": {
    "u01": "1a4538cd0784",
@@ -73,7 +73,7 @@
   "justfile": {
    "u01": "cf5b85ca3da1",
    "base": "a7eb7026e9e5",
-   "candidate": "a7eb7026e9e5"
+   "candidate": "421085d0a5f9"
   },
   ".agents/skills/codex-autonomous-loop/SKILL.md": {
    "u01": "94a955ea0d8e",
@@ -153,7 +153,7 @@
   ".github/workflows/ci.yml": {
    "u01": "98c5fde744f1",
    "base": "ec356aea8e5f",
-   "candidate": "ec356aea8e5f"
+   "candidate": "597ec15aa80c"
   },
   "tools/ci_bookkeeping_diff.py": {
    "u01": "418238132d9c",
@@ -253,7 +253,7 @@
   "tools/test_codex_context_guard.py": {
    "u01": "cde4706f4bc5",
    "base": "10fa6a0e3f4b",
-   "candidate": "b0c5c94ad3ed"
+   "candidate": "ddd3f0bbdcc9"
   },
   "tools/test_merge_door.py": {
    "u01": "48262e20c64d",
@@ -364,6 +364,11 @@
    "u01": "842d13337eef",
    "base": "cf65b7cd18e2",
    "candidate": "7f488462e353"
+  },
+  "tools/finding_record.py": {
+   "u01": "2d7503ac1956",
+   "base": "2d7503ac1956",
+   "candidate": "135c607005cc"
   }
  },
  "O": {
@@ -574,6 +579,6 @@
  "O_root": {
   "path": "/home/robbo/Work/arhugula-omarchy",
   "head": "fd03988e780b9039636f46fdfb4cfdce24e1b2b3",
-  "observed_at": "2026-10-30T13:24:52Z"
+  "observed_at": "2026-10-30T13:40:06Z"
  }
 }
