@@ -31,7 +31,7 @@ On pyright: the CI pyright include does not cover `tools/`. The O1 hunk adds one
 825, 839 and 846.
 
 `carrier-bindings.json` is the output of `rebind_carriers.py <H> 91e76a4e… 741e379c… <H candidate> <O> 766d5a31… /home/robbo/Work/arhugula-omarchy`
-(regenerated for pass 2; see below).
+(regenerated for passes 2 and 3; see below).
 The source09 reducer replay used the real `.harness/merge-gate-log.jsonl` rows at
 the H candidate. Passes 1, 2 and 3 each replay as complete, and pass 3 closes the
 cycle.
@@ -61,3 +61,32 @@ The 20 pytest failures are 12 `test_codex_workflow_parity` setup recipes (no
 `just` version for the mise shim), 6 `test_workflow_commit` cases ("the uv
 interpreter identity is unavailable") and 2 `test_branch_hygiene_batch` recipe
 cases. None of these modules' subjects changed in this correction.
+
+## Pass-3 correction (findings F1–F4 of pass 2)
+
+Native `d19ad720-b5c8-429d-94a7-f269c814eeba` took over from `629aacdb` at its
+ceiling and wrote this correction. H candidate `f1664ac032d6787dfb873bce6fb7e4f0205329f2`
+(one commit on `fda1aec5`). Raw logs are in
+`/mnt/mac/arhugula-artifacts/wo-u23-claude-coder-40f8274e/pass3/`.
+
+| Finding | Correction |
+| --- | --- |
+| F1 | Pass 2's activation hold 2 is resolved without a new activation binding. WS-01 §3.1 already says CI "verifies tracked membership, the unit/arc bindings in the canonical review records and the policy at its checked-out revision". `workflow_policy.tracked_trial_landing` is that test: a squash landing whose appended `.harness/merge-gate-log.jsonl` rows bind exactly one arc the policy at the same revision enrolls. The guard's caller-gated owed lag (`--allow-roadmap-drift`, CI only) now walks back through such landings to the last verified refresh. Consecutive trial landings pass; a legacy landing in the chain, a two-arc or unenrolled landing, a rewritten log or an unparseable policy still drift. Session-start and preflight keep the receipt-bound rule. `CLAUDE.md` §12.2 says so |
+| F2 | `Inventory` requires a SHA-256 digest (`workflow_policy.sha256_digest`), so the blank-digest probe now raises `PolicyError` naming `inventory.digest` |
+| F3 | `plan_rollback` binds a `PolicyBinding` (policy plus versioned activation binding; blank identities refuse). `verify_rollback` takes the observed binding and stays `rollback_required`, with `controls not restored`, when it is absent or different |
+| F4 | `carrier-bindings.json` regenerated against the protected root at `observed_at` 2026-10-30T12:48:13Z. `session-control.json` is now `a84002bab7a5…`. It was `7c35f04badec…` in the pass-2 binding, which stays in O `04bd41cb`. The inventory now calls these observed hashes, not current ones, because Buford's control rows change with routing |
+
+| Check | Raw log | Result |
+| --- | --- | --- |
+| new guard fixtures against the pass-2 owed-lag code (red proof), then the guard, policy and adoption suites on the candidate | `u23-pass3-red-proof.log` | the consecutive-trial and trial-then-legacy cases fail on the old code; 204 passed on the candidate |
+| whole `tools/` pytest at `f1664ac0` (`--continue-on-collection-errors`) | `u23-pass3-tools-pytest.log` | 4380 passed, 4 skipped, 36 failed, 7 collection errors |
+| the 16 failures outside pass 2's set, at `fda1aec5` (scratch worktree, since removed) | `baseline-fda1aec5-extra-modules.log` | the same 16 failures |
+| ruff check/format on the changed tools, pyright on `workflow_adoption.py`/`workflow_policy.py`, `git diff --check fda1aec5..f1664ac0` | `u23-pass3-lint.log` | clean |
+
+The 36 failures are pass 2's 20 plus 16 in modules that pass 2 did not run
+(`test_arc_close_recipe`, `test_b104_installed_public_witness`, `test_codex_loop`,
+`test_loop_status_isolation`, `test_merge_gate_emit_all`, `test_r500_multitenant_selfhosted`,
+`test_tools_test_coverage_guard`). All 16 fail the same way at `fda1aec5`. The 7
+collection errors import workspace packages (`harness_as`, `harness_runtime`) that the
+eval venv does not install. No shell hook changed in this correction, so pass 2's
+shell receipts still cover the same inputs.

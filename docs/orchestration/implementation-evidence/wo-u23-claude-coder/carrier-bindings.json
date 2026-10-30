@@ -3,7 +3,7 @@
   "CLAUDE.md": {
    "u01": "42cd1892fe1e",
    "base": "42cd1892fe1e",
-   "candidate": "79c3980d29a6"
+   "candidate": "c67793ecabf5"
   },
   "CONTEXT.md": {
    "u01": "804b20860125",
@@ -63,7 +63,7 @@
   "tools/codex_context_guard.py": {
    "u01": "3a08cc02797c",
    "base": "a11af2d48f32",
-   "candidate": "47d0e6f89e36"
+   "candidate": "4b0980e7a26a"
   },
   "tools/codex_loop.py": {
    "u01": "1a4538cd0784",
@@ -253,7 +253,7 @@
   "tools/test_codex_context_guard.py": {
    "u01": "cde4706f4bc5",
    "base": "10fa6a0e3f4b",
-   "candidate": "892ee470cffd"
+   "candidate": "0cca4f805aab"
   },
   "tools/test_merge_door.py": {
    "u01": "48262e20c64d",
@@ -328,7 +328,7 @@
   "tools/workflow_policy.py": {
    "u01": null,
    "base": "003d1f03c13e",
-   "candidate": "44d6255e7d4d"
+   "candidate": "1c0afa8664f7"
   },
   "tools/workflow_boundaries.py": {
    "u01": null,
@@ -348,12 +348,12 @@
   "tools/workflow_adoption.py": {
    "u01": null,
    "base": null,
-   "candidate": "b13bca841a7a"
+   "candidate": "4f1d17e2a55c"
   },
   "tools/test_workflow_adoption.py": {
    "u01": null,
    "base": null,
-   "candidate": "ed61bdcdf52f"
+   "candidate": "228f321572a5"
   },
   "tools/test_merge_gate_log.py": {
    "u01": "b69fd9e6a308",
@@ -418,7 +418,7 @@
   },
   "docs/orchestration/session-control.json": {
    "base": null,
-   "root_sha256": "7c35f04badec0f97c399aac06db46e5941b33337e56f44ce519b6b96ab2a7c00",
+   "root_sha256": "a84002bab7a544684d1bf00a29d8945461b5db6b40aa623610b8f60736e62839",
    "root_state": "untracked",
    "owner": "Buford/operator (routing, profiles, Memento ceilings)",
    "rollback": "retained in place: current routing and limits govern after any rollback"
@@ -573,6 +573,7 @@
  },
  "O_root": {
   "path": "/home/robbo/Work/arhugula-omarchy",
-  "head": "fd03988e780b9039636f46fdfb4cfdce24e1b2b3"
+  "head": "fd03988e780b9039636f46fdfb4cfdce24e1b2b3",
+  "observed_at": "2026-10-30T12:48:13Z"
  }
 }

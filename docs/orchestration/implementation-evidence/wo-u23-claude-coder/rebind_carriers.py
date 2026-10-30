@@ -1,9 +1,11 @@
 """Re-derive the WO-U23 carrier bindings: H blobs at the U01 read, the U23 base and the
-candidate head; O blobs at its base, plus the current SHA-256 and Git state of the bytes
-in the canonical O root, with each row's owner and rollback disposition. Read-only: it
+candidate head; O blobs at its base, plus the SHA-256 and Git state of the bytes in the
+canonical O root at the recorded observation time, with each row's owner and rollback
+disposition. Buford-owned control rows change with routing, so a later root can differ. Read-only: it
 stages, rewrites and restores nothing. Prints JSON; exits nonzero if a path is missing at
 the H candidate or an O row has no recorded owner."""
 
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -109,7 +111,8 @@ def main(h: str, h_u01: str, h_base: str, h_cand: str, o: str, o_base: str, o_ro
         ["git", "-C", o_root, "rev-parse", "HEAD"], capture_output=True, text=True, check=True
     ).stdout.strip()
     # root_state is relative to the canonical root checkout's own HEAD, recorded here
-    rows = {"H": {}, "O": {}, "O_root": {"path": o_root, "head": root_head}}
+    observed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = {"H": {}, "O": {}, "O_root": {"path": o_root, "head": root_head, "observed_at": observed_at}}
     for p in H_PATHS:
         rows["H"][p] = {
             r: blob(h, rev, p)
