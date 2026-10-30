@@ -40,12 +40,14 @@ def _observed(admission, *reasons, session=None):
 
 
 def released(data, unit):
-    """A closed human gate the unit inherits releases it from the production pause."""
+    """The unit inherits at least one human gate and every one is closed. [LAW:single-enforcer]
+    the rule `loop.Preparation.admit` applies: an open inherited gate still holds."""
     issues = {i["id"]: i for i in data["issues"]}
-    return any(
-        issues[gate]["status"] == "closed" and HUMAN_GATE in issues[gate].get("labels", ())
-        for gate in prerequisites(data, unit)
-    )
+    gates = [
+        issues[gate] for gate in prerequisites(data, unit)
+        if HUMAN_GATE in issues[gate].get("labels", ())
+    ]  # fmt: skip
+    return bool(gates) and all(gate["status"] == "closed" for gate in gates)
 
 
 def admission(data, control, unit, operation, measure):

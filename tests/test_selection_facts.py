@@ -111,6 +111,27 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(self.judge(snapshot(gate="open"), control(paused=False))["admission"],
                          "confirmed")
 
+    def test_one_closed_gate_does_not_mask_another_open_inherited_gate(self):
+        # pass-2 F2: every inherited human gate must be closed, as Preparation.admit requires
+        for direct, inherited in (("closed", "open"), ("open", "closed")):
+            with self.subTest(direct=direct, inherited=inherited):
+                data = snapshot(gate=direct)
+                data["issues"] += [
+                    {"id": "trial.epic", "status": "open", "labels": []},
+                    {"id": "trial.second", "status": inherited, "labels": ["role:human"]},
+                ]
+                data["relations"] += [
+                    {"src_id": UNIT, "dst_id": "trial.epic", "type": "parent-child"},
+                    {"src_id": "trial.epic", "dst_id": "trial.second", "type": "blocks"},
+                ]
+                observed = self.judge(data)
+                self.assertEqual((observed["admission"], observed["reasons"]),
+                                 ("contradicted", ["production-paused"]))
+        both = snapshot()
+        both["issues"].append({"id": "trial.second", "status": "closed", "labels": ["role:human"]})
+        both["relations"].append({"src_id": UNIT, "dst_id": "trial.second", "type": "blocks"})
+        self.assertEqual(self.judge(both)["admission"], "confirmed")
+
     def test_gate_is_inherited_through_the_parent_epic(self):
         data = snapshot()
         data["issues"].append({"id": "trial.epic", "status": "open", "labels": []})
