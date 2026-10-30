@@ -3,7 +3,7 @@
   "CLAUDE.md": {
    "u01": "42cd1892fe1e",
    "base": "42cd1892fe1e",
-   "candidate": "42cd1892fe1e"
+   "candidate": "79c3980d29a6"
   },
   "CONTEXT.md": {
    "u01": "804b20860125",
@@ -38,12 +38,12 @@
   ".claude/skills/ship-pr/SKILL.md": {
    "u01": "1947ae34f517",
    "base": "1947ae34f517",
-   "candidate": "1947ae34f517"
+   "candidate": "04c956a9da77"
   },
   ".agents/skills/ship-pr/SKILL.md": {
    "u01": "b5f0a4e46e50",
    "base": "b5f0a4e46e50",
-   "candidate": "2f6552460318"
+   "candidate": "79b118c095ac"
   },
   ".claude/skills/roadmap-continue/SKILL.md": {
    "u01": "63b7bb32b44f",
@@ -63,7 +63,7 @@
   "tools/codex_context_guard.py": {
    "u01": "3a08cc02797c",
    "base": "a11af2d48f32",
-   "candidate": "a11af2d48f32"
+   "candidate": "47d0e6f89e36"
   },
   "tools/codex_loop.py": {
    "u01": "1a4538cd0784",
@@ -163,22 +163,22 @@
   "tools/roadmap-audit/post-merge-refresh.sh": {
    "u01": "1bb491d37d27",
    "base": "1bb491d37d27",
-   "candidate": "1bb491d37d27"
+   "candidate": "cbfaca88221b"
   },
   "tools/roadmap-audit/session-start.sh": {
    "u01": "e13542889c6b",
    "base": "e13542889c6b",
-   "candidate": "e13542889c6b"
+   "candidate": "08db5f8a7441"
   },
   "tools/hooks/prompt-context.sh": {
    "u01": "e660fa567798",
    "base": "e660fa567798",
-   "candidate": "e660fa567798"
+   "candidate": "fc9934411fdf"
   },
   "tools/hooks/lib.sh": {
    "u01": "52714acfcff5",
    "base": "bece188dd4c3",
-   "candidate": "bece188dd4c3"
+   "candidate": "d0a9559c0cc1"
   },
   ".claude/skills/two-lane/SKILL.md": {
    "u01": "94237dbf1501",
@@ -193,7 +193,7 @@
   ".codex/notes/leg-brief-template.md": {
    "u01": "a211489808a7",
    "base": "a211489808a7",
-   "candidate": "d43814018d9f"
+   "candidate": "b1b77602fac4"
   },
   ".codex/notes/claude-codex-parity.md": {
    "u01": "c875a687ecdc",
@@ -253,7 +253,7 @@
   "tools/test_codex_context_guard.py": {
    "u01": "cde4706f4bc5",
    "base": "10fa6a0e3f4b",
-   "candidate": "10fa6a0e3f4b"
+   "candidate": "892ee470cffd"
   },
   "tools/test_merge_door.py": {
    "u01": "48262e20c64d",
@@ -288,7 +288,7 @@
   "tools/hooks/test_prompt_context.sh": {
    "u01": "e5bf29a9a66b",
    "base": "e5bf29a9a66b",
-   "candidate": "e5bf29a9a66b"
+   "candidate": "4d5965786828"
   },
   "tools/hooks/test_skill_exit_report.sh": {
    "u01": "526d6bc2309e",
@@ -303,12 +303,12 @@
   "tools/roadmap-audit/test_post_merge_refresh.sh": {
    "u01": "92f32784fdec",
    "base": "92f32784fdec",
-   "candidate": "92f32784fdec"
+   "candidate": "e064b296d1e3"
   },
   "tools/roadmap-audit/test_session_start.sh": {
    "u01": "9c8e73dc2514",
    "base": "9c8e73dc2514",
-   "candidate": "9c8e73dc2514"
+   "candidate": "5609b3dfd01e"
   },
   "tools/codex-parity-check.sh": {
    "u01": "6699bd572926",
@@ -328,7 +328,7 @@
   "tools/workflow_policy.py": {
    "u01": null,
    "base": "003d1f03c13e",
-   "candidate": "003d1f03c13e"
+   "candidate": "44d6255e7d4d"
   },
   "tools/workflow_boundaries.py": {
    "u01": null,
@@ -348,12 +348,12 @@
   "tools/workflow_adoption.py": {
    "u01": null,
    "base": null,
-   "candidate": "e80c7788f244"
+   "candidate": "b13bca841a7a"
   },
   "tools/test_workflow_adoption.py": {
    "u01": null,
    "base": null,
-   "candidate": "2d02f20cff2e"
+   "candidate": "ed61bdcdf52f"
   },
   "tools/test_merge_gate_log.py": {
    "u01": "b69fd9e6a308",
@@ -368,67 +368,211 @@
  },
  "O": {
   "AGENTS.md": {
-   "base": "23c29f84d7d7"
+   "base": "23c29f84d7d7",
+   "root_sha256": "7452f8dcab3212d816dd309d3a35bf636cedae0c24acd16435ee5bdcda54657e",
+   "root_state": "tracked-M",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   },
   "CLAUDE.md": {
-   "base": "23aa2220564b"
+   "base": "23aa2220564b",
+   "root_sha256": "cc1aa4ed8b6c31c91bd8bd57914032a6b53d60debf7727d42711f192805cf28e",
+   "root_state": "tracked-M",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   },
   "docs/orchestration/paired-lanes-framework.md": {
-   "base": null
+   "base": null,
+   "root_sha256": "76cfbaf8ce7e2e26cffa22d9c393a029d6fba8be2392849d1c8e5da4a73514c9",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   },
   "docs/orchestration/context-policy.md": {
-   "base": "c092fcb6c79a"
+   "base": "c092fcb6c79a",
+   "root_sha256": "0dc12fde6adc6553700805ab29c739c9ba2acaddddc9f5daf8fe99360f4251f4",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   },
   "docs/orchestration/communication.md": {
-   "base": "ff2b5bcd9fab"
+   "base": "ff2b5bcd9fab",
+   "root_sha256": "3d95bb8b59edd1279788f986cdd0a6dc255a73da639477193c68292d1680e836",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   },
   "docs/orchestration/authorization.md": {
-   "base": null
+   "base": null,
+   "root_sha256": "45eb5e65102ec7457903e8189123f8dad73bec83ba60273cb08bf1b228a3fba4",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   },
   "docs/orchestration/memento-current.md": {
-   "base": null
+   "base": null,
+   "root_sha256": "ece8f29488a989aa2f511a480ac5ff6ff19f7b64c40d4894bd715864c7e41b67",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   },
   "docs/orchestration/session-control.json": {
-   "base": null
+   "base": null,
+   "root_sha256": "7c35f04badec0f97c399aac06db46e5941b33337e56f44ce519b6b96ab2a7c00",
+   "root_state": "untracked",
+   "owner": "Buford/operator (routing, profiles, Memento ceilings)",
+   "rollback": "retained in place: current routing and limits govern after any rollback"
   },
   "docs/orchestration/launch-profiles.json": {
-   "base": null
+   "base": null,
+   "root_sha256": "5e6033b2d9edc6db2924f2f825e823d7ba3f63961943c236587786cb73c94be1",
+   "root_state": "untracked",
+   "owner": "Buford/operator (routing, profiles, Memento ceilings)",
+   "rollback": "retained in place: current routing and limits govern after any rollback"
   },
   "ops/orchestration/loop.py": {
-   "base": "3ef9528ef0ce"
+   "base": "3ef9528ef0ce",
+   "root_sha256": "f5fdfef081b518cb6eb9d018b60fb72e0251bbe946cab032f35e86766a78594d",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/local.py": {
-   "base": "65b9f533e3c2"
+   "base": "65b9f533e3c2",
+   "root_sha256": "61241e9aa8207522202a71c6d1b899cebcc81e34eea1d80226093fb0b23fd00e",
+   "root_state": "tracked-M",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/artifacts.py": {
-   "base": "f60fe23fd241"
+   "base": "f60fe23fd241",
+   "root_sha256": "91127a9079f827b5927195e39fae8d80e54b82f6a8fe9874dc272c6437d0d525",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/records.py": {
-   "base": "2a397d2cbcfb"
+   "base": "2a397d2cbcfb",
+   "root_sha256": "c0e047015734e0f2f8c9372eb95853ce65d51b8cc851b093b8d89bd626815dd3",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/review_budget.py": {
-   "base": "2d585e225b2d"
+   "base": "2d585e225b2d",
+   "root_sha256": "041ddb8bf5feaa2ca4924d084eac57d1d8cae20693893a77735799bbd3bd2ca4",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/auto_reset.py": {
-   "base": "adc44bab0e04"
+   "base": "adc44bab0e04",
+   "root_sha256": "06d9713c2dff9e3bb1a9de64674b5aae3b7ec6fcd1f91e8dddde26d90888ee34",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/goal_lineage.py": {
-   "base": "5e6c75f57e62"
+   "base": "5e6c75f57e62",
+   "root_sha256": "8f8ffd76288a1f739c5b3173e827a054bf2e11917237b1b94ab1a1ef3976e578",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/native_window.py": {
-   "base": "f969b44cfb2f"
+   "base": "f969b44cfb2f",
+   "root_sha256": "24b149685abdb44f5b8b53669b8d53714a0314051399ab31faf98a3728e94108",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/native_goal.py": {
-   "base": "b43a9cbd8273"
+   "base": "b43a9cbd8273",
+   "root_sha256": "548db1fd43f6f9dee41c534005c32ff2e24965aaf33d7f75f97a6527285c0175",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/startup.py": {
-   "base": "04c166d471c0"
+   "base": "04c166d471c0",
+   "root_sha256": "4462983d6c5930cf46c01fc04918bc6716fa74fadbebcc388f2da1cd0566c977",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   "ops/orchestration/session_context.py": {
-   "base": "12039cd6df46"
+   "base": "12039cd6df46",
+   "root_sha256": "201472d934da9c12b03e4febbea2d08fab3c2f6a77184c264973d182d44e4781",
+   "root_state": "untracked",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
   },
   ".github/workflows/ci.yml": {
-   "base": "d1d09ff96bd9"
+   "base": "d1d09ff96bd9",
+   "root_sha256": "24a48b05357504b87aecf17e478b49e27de2a608fb30e3f4e00a92288aa805ae",
+   "root_state": "clean",
+   "owner": "root orchestration tooling (O main)",
+   "rollback": "retained: a Git-tracked revision; protected dirty bytes are preserved, never reset"
+  },
+  ".promptctl/memento.conf": {
+   "base": null,
+   "root_sha256": "2a4f8ed2bcab4e0d56c34377ff7c009bf9d73ab3e9924572afa583e5f9eabbcf",
+   "root_state": "untracked",
+   "owner": "Buford/operator (routing, profiles, Memento ceilings)",
+   "rollback": "retained in place: current routing and limits govern after any rollback"
+  },
+  "docs/orchestration/roles/buford.md": {
+   "base": "cd3ead22eb82",
+   "root_sha256": "91f7acfd41a496a219b2815fe94bd01eb6245790a18448606c4b54620e0a19ac",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
+  },
+  "docs/orchestration/roles/claude-coder.md": {
+   "base": null,
+   "root_sha256": "f7837ea35b61d23cdcf99a3316b7b3291cfdcc4fc2fac624cee5dacb7c72db6b",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
+  },
+  "docs/orchestration/roles/codex-reviewer.md": {
+   "base": null,
+   "root_sha256": "5cc823a3e0f02a216d91ba82d09d6e87384939cbfe0e6afa430f13f23526dc50",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
+  },
+  "docs/orchestration/roles/facade-coder.md": {
+   "base": null,
+   "root_sha256": "0d1371a66e716ca36fb26f647c2e35d668a25f510e3746b119f1bb186aeea339",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
+  },
+  "docs/orchestration/roles/implementer.md": {
+   "base": null,
+   "root_sha256": "7475a2df158973656e99adceeb4e26cba320638f486e4769d32403d028d95779",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
+  },
+  "docs/orchestration/roles/reviewer.md": {
+   "base": null,
+   "root_sha256": "bb282eb193c986c25f51d1ba87666fc6499b36c534d2220cc9cd0ff343040adc",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
+  },
+  "docs/orchestration/roles/runtime.md": {
+   "base": null,
+   "root_sha256": "fdb8e17352405baadd1218bf3a36bffa391ef7dd2ebf344b0869445b832eae8d",
+   "root_state": "untracked",
+   "owner": "protected root guidance; user-directed edits via Buford",
+   "rollback": "retained in place: rollback restores no root bytes, and these hashes are the version a restored set binds"
   }
+ },
+ "O_root": {
+  "path": "/home/robbo/Work/arhugula-omarchy",
+  "head": "fd03988e780b9039636f46fdfb4cfdce24e1b2b3"
  }
 }

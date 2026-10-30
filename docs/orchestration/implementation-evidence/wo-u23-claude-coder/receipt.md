@@ -30,7 +30,34 @@ On pyright: the CI pyright include does not cover `tools/`. The O1 hunk adds one
 `rw._git` reportPrivateUsage, the same pattern the module already uses on lines
 825, 839 and 846.
 
-`carrier-bindings.json` is the output of `rebind_carriers.py <H> 91e76a4e… 741e379c… HEAD <O> 766d5a31…`.
+`carrier-bindings.json` is the output of `rebind_carriers.py <H> 91e76a4e… 741e379c… <H candidate> <O> 766d5a31… /home/robbo/Work/arhugula-omarchy`
+(regenerated for pass 2; see below).
 The source09 reducer replay used the real `.harness/merge-gate-log.jsonl` rows at
 the H candidate. Passes 1, 2 and 3 each replay as complete, and pass 3 closes the
 cycle.
+
+## Pass-2 correction (findings F1–F4 of pass 1)
+
+Native `629aacdb-a86b-41bb-94f4-856e43ccbf16` took over from `1545f6e8` at its
+ceiling and wrote the correction. H candidate `fda1aec5f08b650e30b02b106f3db770a83070b9`
+(commits `a675d7d6`, `1fc5b5cb`, `fda1aec5` on `3cae3282`). Raw logs are in
+`/mnt/mac/arhugula-artifacts/wo-u23-claude-coder-40f8274e/pass2/`.
+
+| Finding | Correction |
+| --- | --- |
+| F1 | `workflow_policy.refresh_rule` (built on `activation_binds`, which `select_profile` now shares) reads `trial` only under an activation of the tracked policy. The guard's drift check, its new `refresh-rule` command and the three refresh hooks consume it. `CLAUDE.md` §12.1/§12.2, both ship-pr carriers and the leg-brief sequence are scoped to legacy landings. Without an activation every enforcer behaves as before. The guard's CI step cannot see the private receipt; that is activation hold 2 |
+| F2 | `evaluate_adoption` judges the inventory's required consumers against the parsed policy and inventory digest. New fixtures: omitted required carrier, unrelated-only consumer, policy defect, another inventory version |
+| F3 | `plan_rollback` stays `rollback_required`; only `verify_rollback` returns `rolled_back`, after observed restoration, reconciled intents and retained records, counters and authority. The snapshot is by value; a fixture mutates the adopted ledger after planning |
+| F4 | each O row now has its current root SHA-256, Git state against the root HEAD `fd03988e`, owner and rollback disposition |
+
+| Check | Raw log | Result |
+| --- | --- | --- |
+| affected pytest at `fda1aec5` (20 modules: review/gate log, adoption, arc exit, parity, guard, door, policy, finding record, boundaries, commit, governance router, citation resolver, axis pins, artifact heads, refresh classes, roadmap status refresh/consumers/ritual, branch hygiene) | `u23-pass2-affected-pytest.log` | 1367 passed, 1 skipped, 20 failed |
+| the same failing modules at the pass-1 head `3cae3282` (scratch clone) | `baseline-3cae3282.log` | same failures |
+| all `tools/hooks/test_*.sh` and `tools/roadmap-audit/test_*.sh` | `shell-fixtures.log`, `sh-*.log` | rc=0 except `test_lane_init.sh` (2), `test_loop_lib.sh` (2), `test_permission_guard.sh` (1), all identical at `3cae3282` |
+| ruff check/format, pyright, `bash -n`, `git diff --check` | `u23-pass2-lint.log` | clean; shellcheck is not installed on this host, so the hook edits are not shellchecked |
+
+The 20 pytest failures are 12 `test_codex_workflow_parity` setup recipes (no
+`just` version for the mise shim), 6 `test_workflow_commit` cases ("the uv
+interpreter identity is unavailable") and 2 `test_branch_hygiene_batch` recipe
+cases. None of these modules' subjects changed in this correction.
