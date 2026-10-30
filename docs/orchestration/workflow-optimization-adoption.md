@@ -348,7 +348,7 @@ publish the activation receipt or activate any consumer.
 
 | Repository | Base | Candidate |
 | --- | --- | --- |
-| `H` | `741e379cbf94bd9ddb6c158dd66028b6bb6ef8f9` | `f1664ac032d6787dfb873bce6fb7e4f0205329f2` (branch `work/wo-u23-01a18c6b`) |
+| `H` | `741e379cbf94bd9ddb6c158dd66028b6bb6ef8f9` | `47cac2854c794ac36fed267bf1af82d0510f8e6f` (branch `work/wo-u23-01a18c6b`) |
 | `O` | `766d5a31472cf4d80a8be47890b3b00c0764104c` | the commit that carries this section (same branch name) |
 
 `H` `main` moved to `b29c52df` after the base was taken. Integration reconciles that
@@ -357,7 +357,7 @@ at the Git gate.
 Every carrier's blob at the U01 read, the H base and the H candidate is in
 `implementation-evidence/wo-u23-claude-coder/carrier-bindings.json`. Each O row has
 its O base blob and the SHA-256 of the bytes in the canonical root when the file was
-generated (`observed_at` 2026-10-30T12:48:13Z), with their Git state against the root
+generated (`observed_at` 2026-10-30T13:24:52Z), with their Git state against the root
 checkout's own HEAD (`fd03988e`), the row's owner and its rollback disposition. The
 Buford-owned control rows change with routing, so a later root can differ; rerun the
 script before relying on a control hash. `rebind_carriers.py` in the same
@@ -371,17 +371,17 @@ directory re-derives the file and only reads. Dispositions:
 | Inventory row | WO-U23 disposition | Consumer/fixture version at candidate |
 | --- | --- | --- |
 | O guidance (`AGENTS.md`, `CLAUDE.md`, framework/context/communication/authorization/memento-current, roles) | retained; still protected root work, owned through user-directed Buford edits. Rollback restores no root bytes; a restored set binds these hashes | root SHA-256 per path at `observed_at` in the bindings file, for example framework `76cfbaf8ce7e…`, `AGENTS.md` `7452f8dcab32…`. Framework, authorization, memento-current and most role files are absent from O base |
-| O `session-control.json`, `launch-profiles.json`, `.promptctl/memento.conf` | retained; Buford/operator owned. Current routing and limits govern after any rollback | root SHA-256 at `observed_at` `a84002bab7a5…`, `5e6033b2d9ed…`, `2a4f8ed2bcab…` (all absent from O base). `session-control.json` was `7c35f04badec…` in the pass-2 binding, before Buford routed the reviewer successor |
+| O `session-control.json`, `launch-profiles.json`, `.promptctl/memento.conf` | retained; Buford/operator owned. Current routing and limits govern after any rollback | root SHA-256 at `observed_at` `f752c41f021e…`, `5e6033b2d9ed…`, `2a4f8ed2bcab…` (all absent from O base). `session-control.json` was `7c35f04badec…` in the pass-2 binding and `a84002bab7a5…` in the pass-3 binding; each change followed a Buford routing update |
 | O `loop.py`, `local.py`, `artifacts.py`/`records.py`, `review_budget.py`, `startup.py`/`session_context.py` | retained (reuse) | O base blobs; current root SHA-256 and state in the bindings file |
 | O `auto_reset.py`, `goal_lineage.py`, `native_window.py`, `native_goal.py` | retained; native refresh is an activation hold (below) | O base blobs; current root SHA-256 and state in the bindings file |
 | O `.git/hooks/pre-push`, O `ci.yml` | retained | installed hook; O base blob |
-| H `CLAUDE.md` §12.1/§12.2/§12.2.1 | replaced by WO-U23 `1fc5b5cb` and `f1664ac0`: a trial-scope paragraph says the refresh audit governs legacy landings, that under a published activation the merge door rules on each landing, and that CI judges tracked membership instead of the receipt | `c67793ecabf5` |
+| H `CLAUDE.md` §12.1/§12.2/§12.2.1 | replaced by WO-U23 `1fc5b5cb`, `f1664ac0` and `47cac285`: a trial-scope paragraph says the refresh audit governs legacy landings, that under a published activation the merge door rules on each landing, and that CI judges tracked membership instead of the receipt | `583b9b53fd96` |
 | H `safe-merge.sh`, `merge_door.py`, `roadmap_status_refresh.py` | replaced by WO-U08: `merge_door.landing_profile` keeps the legacy refresh and gives a `trial` landing none, only under a matching activation | `2460a16d0a76`, `cfe756e94831`, refresh unchanged |
 | H `.agents/skills/ship-pr` steps 4–7, `.claude/skills/ship-pr` refresh section, `.codex/notes/leg-brief-template.md` step 4 | replaced by WO-U23 `1fc5b5cb`: steps 4–6 and the Claude refresh section govern a legacy landing; the leg-brief gives the legacy and trial merge sequences separately | `79b118c095ac`, `04c956a9da77`, `b1b77602fac4` |
 | H `.claude/skills/roadmap-continue` | retained; no immediate-next-commit sentence to scope | unchanged since U01 |
 | H `.codex/notes/discipline-digest.md` | replaced by WO-U23 `96e28798`: immediate refresh scoped to legacy landings; "CI is ~75s, poll at ~80s" replaced by waiting on actual CI status | `a8368a7c59d3` |
 | H `AGENTS.md`, `CONTEXT.md` | retained; AGENTS line 26 already allows "post-merge refresh or explicit non-applicability" | unchanged since U01 |
-| H `codex_context_guard.py` | replaced by WO-U23 `a675d7d6` and `f1664ac0`: under `workflow_policy.refresh_rule` = `trial` the drift check warns `ROADMAP_STATUS_TRIAL_UNPINNED` instead of the hard `ROADMAP_STATUS_DRIFT`; `refresh-rule` gives the hooks the same reading. CI cannot read the receipt, so its `--allow-roadmap-drift` owed lag walks back through tracked trial landings (`workflow_policy.tracked_trial_landing`: appended merge-gate-log rows binding one arc the policy at that revision enrolls) to the last verified refresh; consecutive trial landings pass, and a legacy landing in the chain still drifts. Without enrolled arcs or an activation it is unchanged | `4b0980e7a26a` |
+| H `codex_context_guard.py` | replaced by WO-U23 `a675d7d6`, `f1664ac0` and `47cac285`: under `workflow_policy.refresh_rule` = `trial` the drift check warns `ROADMAP_STATUS_TRIAL_UNPINNED` instead of the hard `ROADMAP_STATUS_DRIFT`; `refresh-rule` gives the hooks the same reading. CI cannot read the receipt, so its `--allow-roadmap-drift` owed lag walks back through tracked trial landings (`workflow_policy.tracked_trial_landing`: appended merge-gate-log rows that are all canonical finding records under that revision's schema, include a `finding` or `no_finding` verdict and bind one arc the policy at that revision enrolls) to the last verified refresh; consecutive trial landings pass, and a legacy landing in the chain still drifts. Without enrolled arcs or an activation it is unchanged | `570ce63759bd` |
 | H deterministic-context note, `codex_loop.py` | retained | unchanged since U01 |
 | H `justfile`, `codex-autonomous-loop` skill | retained; `justfile` changed only by `39e2878f` (setup lock-drift refusal), and the narrow/full trial choice is not exposed yet | `a7eb7026e9e5`; skill unchanged |
 | H hook map and edit/Stop/permission hooks | retained (`stop-gate.sh` gained WO-U06's staged-content binding, `3081a9a1`) | `stop-gate.sh` `ce6dee5a33d0`; others unchanged |

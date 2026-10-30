@@ -3,7 +3,7 @@
   "CLAUDE.md": {
    "u01": "42cd1892fe1e",
    "base": "42cd1892fe1e",
-   "candidate": "c67793ecabf5"
+   "candidate": "583b9b53fd96"
   },
   "CONTEXT.md": {
    "u01": "804b20860125",
@@ -63,7 +63,7 @@
   "tools/codex_context_guard.py": {
    "u01": "3a08cc02797c",
    "base": "a11af2d48f32",
-   "candidate": "4b0980e7a26a"
+   "candidate": "570ce63759bd"
   },
   "tools/codex_loop.py": {
    "u01": "1a4538cd0784",
@@ -253,7 +253,7 @@
   "tools/test_codex_context_guard.py": {
    "u01": "cde4706f4bc5",
    "base": "10fa6a0e3f4b",
-   "candidate": "0cca4f805aab"
+   "candidate": "b0c5c94ad3ed"
   },
   "tools/test_merge_door.py": {
    "u01": "48262e20c64d",
@@ -418,7 +418,7 @@
   },
   "docs/orchestration/session-control.json": {
    "base": null,
-   "root_sha256": "a84002bab7a544684d1bf00a29d8945461b5db6b40aa623610b8f60736e62839",
+   "root_sha256": "f752c41f021edfa604f195951b773bc2f3f7f6f078033ba41f87e5012972f177",
    "root_state": "untracked",
    "owner": "Buford/operator (routing, profiles, Memento ceilings)",
    "rollback": "retained in place: current routing and limits govern after any rollback"
@@ -574,6 +574,6 @@
  "O_root": {
   "path": "/home/robbo/Work/arhugula-omarchy",
   "head": "fd03988e780b9039636f46fdfb4cfdce24e1b2b3",
-  "observed_at": "2026-10-30T12:48:13Z"
+  "observed_at": "2026-10-30T13:24:52Z"
  }
 }

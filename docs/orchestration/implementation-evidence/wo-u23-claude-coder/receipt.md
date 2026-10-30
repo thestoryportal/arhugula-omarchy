@@ -90,3 +90,36 @@ The 36 failures are pass 2's 20 plus 16 in modules that pass 2 did not run
 collection errors import workspace packages (`harness_as`, `harness_runtime`) that the
 eval venv does not install. No shell hook changed in this correction, so pass 2's
 shell receipts still cover the same inputs.
+
+## Pass-4 correction (finding F1 of pass 3)
+
+Native `94d7c2a3-9e99-4b98-9ce3-9abed6bcd3af` took over from `d19ad720` at its
+ceiling and wrote this correction. H candidate `47cac2854c794ac36fed267bf1af82d0510f8e6f`
+(one commit on `f1664ac0`). The reviewer accepted F2–F4 at pass 3, so no O or H change
+touches them. Raw logs are in
+`/mnt/mac/arhugula-artifacts/wo-u23-claude-coder-40f8274e/pass4/`.
+
+| Finding | Correction |
+| --- | --- |
+| F1 | The CI owed-lag walk now counts a landing as a trial landing only when every row it appends to `.harness/merge-gate-log.jsonl` is a canonical finding record under `tools/review_schemas/finding_record.schema.json` at the landing's own revision, and at least one row is a `finding` or `no_finding` verdict. The pass-3 probe row `{"arc_id":"wo-fx","record_kind":"bogus"}` no longer qualifies, and neither does a valid row with no verdict (for example `reviewer_unavailable`), an extra key, a malformed `ts`, a boolean `round_n` or a revision without the schema. `workflow_policy.tracked_trial_landing` still decides enrollment from the resulting arc set. `CLAUDE.md` §12.2 states the narrower test |
+
+CI runs the guard on `/usr/bin/python3`, which has no `jsonschema`, so the guard cannot
+call `finding_record.validate`. It instead evaluates the tracked schema for exactly the
+keywords that schema uses (`type`, `enum`, `required`, `properties`,
+`additionalProperties: false`, `minLength`, `pattern`, `minimum`) and rejects a schema
+containing any other keyword. The code marks this as a `[LAW:single-enforcer]` exception.
+`finding_record.validate` still owns write-time validity; its extra semantic checks are
+not repeated in the guard.
+
+`carrier-bindings.json` is regenerated for H `47cac285` at `observed_at`
+2026-10-30T13:24:52Z. Only the `CLAUDE.md`, `codex_context_guard.py` and
+`test_codex_context_guard.py` candidate blobs changed, plus the root `session-control.json`
+hash (`f752c41f021e…`), which Buford's routing of the reviewer successor changed after
+12:48Z. The adoption inventory carries the new H candidate, blobs and observation.
+
+| Check | Raw log | Result |
+| --- | --- | --- |
+| the pass-4 guard tests against the pass-3 guard `f1664ac0`, with only the schema-path constant the fixture reads added | `u23-pass4-red-proof.log` | the 8 new F1 tests fail; the other 14 selected tests pass |
+| guard schema evaluation against `jsonschema.validate`, and a stdlib-only run under `/usr/bin/python3 -I` | `u23-pass4-parser-probes.log` | no disagreements across 4,195 live log rows and 213 mutations. Under the system interpreter a live `no_finding` row yields its arc, the probe row yields none, and `jsonschema` is never imported |
+| whole `tools/` pytest at `47cac285` (`--continue-on-collection-errors`) | `u23-pass4-tools-pytest.log` | 4388 passed, 4 skipped, 36 failed, 7 collection errors. The 36 failures are the same tests by name as at pass 3 |
+| ruff check/format, pyright on the guard with the same `f1664ac0` config, `git diff --check` | `u23-pass4-lint.log` | ruff clean. Pyright reports 156 errors against 162 at `f1664ac0`, none in the changed range. Diff check clean |
