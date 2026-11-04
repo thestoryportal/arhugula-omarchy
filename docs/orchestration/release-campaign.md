@@ -221,6 +221,13 @@ deliverable. Apply these rules within the existing campaign and records:
   review needs a named unresolved risk, its question and disposition; do not require
   primary plus artifact plus three lenses by default. Correction authors cannot
   approve their own work. Preserve findings and original spent budgets/passes.
+- The later direct user instruction, "Eliminate the gemini requirement", removes
+  mandatory Gemini/Antigravity and different-model-family routing. A separate
+  independent reviewer session may use the author's model family; neither the
+  author nor a correction author can approve their own changes. Remove mandatory
+  Gemini fallback/shadow steps from active delivery. Preserve historical findings,
+  passes and the rejected external disclosure, but do not treat that disclosure's
+  pending approval as a prerequisite or retry it as part of this change.
 - Correction review verifies the fix, changed behavior and affected regressions
   against the previous reviewed head. Reopen the full diff only for an actual
   scope/behavior change. Batch findings and corrections within the existing claim.

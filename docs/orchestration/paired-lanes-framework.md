@@ -94,6 +94,14 @@ candidate CI remains; independently admitted isolated work continues while CI ru
 Generated Git/LIT status or milestone snapshot refresh replaces a mandatory separate
 status PR cycle. Existing recorded legacy review/refresh obligations remain.
 
+The subsequent direct user instruction, "Eliminate the gemini requirement", removes
+mandatory Gemini/Antigravity and different-model-family routing. Independence is a
+separate reviewer session and actual authorship, not a vendor or model-family test.
+Keep frozen-candidate evidence, findings, spent passes and the prohibition on author
+or correction-author self-approval. Gemini/Antigravity is not a required fallback;
+the pending disclosure approval is no longer a prerequisite for this work. Preserve
+the actual rejected disclosure as history without retrying that effect.
+
 Each actor writes its own concise findings, evidence, verdict and release in LIT.
 The pair exchanges clarification, concrete findings and subsequent frozen
 correction pointers directly within the released unit. Preserve substantive

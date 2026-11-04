@@ -1,3 +1,83 @@
+# Current direct user correction — 2026-11-04 21:12 UTC
+
+The controlling user directly said **"Eliminate the gemini requirement"** in native
+01a1a855 at21:12:35.987Z, msg_01a1a868-1593-79d2-8389-d43de17e3e6b. Exact receipt:
+O/.local/release-campaign-20261103/buford-continuation-01a1a855/eliminate-gemini-user-instruction.json.
+This is new implementation authority. The former pending Antigravity disclosure
+question is SUPERSEDED, not approved: do not send that diff or retry the denied
+effect. Use one independent reviewer session; same model family is permitted,
+author/correction-author self-approval remains forbidden. Preserve old denials,
+findings/passes and full campaign scope. No routine new HIL for this correction.
+
+Canonical AGENTS/framework/campaign amended, read back and diff-check clean:
+204e04a9 /019ff134 /71cacb03. Only these3 instruction files and this bounded STATE
+are owned in O; unrelated dirty/deleted/untracked work stays protected. Executable
+product correction is NOT YET implemented: actual capacity admission HOLD at
+191742input,33258remaining<35000required (effective225000,20000budget/15000reserve),
+plus active-turn status. No ceiling/model/permission/budget change. Native goalNULL.
+Owner-local Memento is required for fresh admitted implementation, not completion.
+
+NEXT: SAME W=O/.worktrees/delivery-throughput-20261104, branchops/delivery-throughput-20261104,
+original frozen clean43b460d5 unpushed, no PR/review rows/pass spent. Preserve43b as
+old freeze, make a new owned correction commit/freeze under this direct instruction.
+Remove the Gemini/Antigravity mandate coherently from docs/governance/delivery-policy.md
+(lines35..50), both runners' ship-pr/merge-gate/roadmap-continue carriers, productW
+root AGENTS/CLAUDE/CONTEXT and discipline digest as applicable. Preserve optional tools
+and historical evidence; no mandatory fallback or shadow step. IMPORTANT ACTUAL
+EXECUTABLE restriction: tools/review_loop_gate.py around751..892 maps producers
+codex_review_wrapper->codex/gemini_review_wrapper->gemini and filters all judgments
+whose route is in binding.authors. Reconcile that enforcement with actual separate
+reviewer identity; do not simply remove prose, spoof a reviewer/vendor/producer or
+let author/correction-author self-approve. Inspect existing native reviewer/schema
+identity seams, focused regression checks, consumer coherence and immutable review
+binding. Use verified registered peers; no child/new-window substitute. Obtain one
+actual independent review of the new freeze, required exact CI, safe merge/main
+and own-main before claiming workflow delivered. No alternate denied disclosure.
+
+PR1699 integration is PREPARED, still OPEN/unmerged. Exact head94058e50373893bbe0ca79825b2a6b3896f268a9,
+basebe163134df2acdd94e0e0d83574ef6eb529cffa3, reviewed merge_tree3ae4e7adf7a2705cf0177d1139369b95b8a49a8c.
+All24 reported PR checks success; canonical exact CI binding reducer PASS/binding_exact,
+run41909314506 attempt1, all required jobs succeeded, workflow_blob597ec15aa80c9ae680dbbf98ec9be60ce5b395e6.
+Receipt O/.local/release-campaign-20261103/buford-continuation-01a1a855/pr1699-exact-ci.json;
+LIT cmt-da5f600f-6f7c-4afd-af17-24a06f5110bb. No rerun/watch/review needed unchanged.
+RuntimeW holder host-runtime-resume-refusal-value-20261104-a5c72916/index22 created
+with existing lane-init; reservation runtime-resume-refusal-value PENDING/gen2 binds
+exact branch/head/base/tree/PR1699. Disjoint check PASS against1 active peer; clean,
+preflightPASS. Only origin/main fetched; protected Hlocalmainb29c52df untouched.
+No merge lease/drain. Actual old checkout profile=legacy mandates refresh via wrapper;
+its --no-refresh is a bypass recording owed refresh/HIL, not the approved workflow.
+Do not silently restore removed refresh, fabricate activation, use raw merge or run
+unreviewed workflow. Integrate the reviewed corrected workflow, then supported source
+landing after actual crossover/exactCI reconciliation. StorageUNSELECTED/UNBOUND and
+RuntimeB7v1.137 lines187..220 still hold acceptance/exposure; no installed/fullU-RT-160
+acceptance or resource-window/restore proof exists. Full38/122/six-category decision owed.
+
+Native current root01a1a855 gpt6.1sol/high/on-request/workspace-write/auto_review,
+actual first task input exact bottle205203Z-356716; same owner3645:start11580 via
+Memento SessionStart. Effective225000 with no override (predecessor350000 NOT
+restored); canonical routing aligned and only Buford metadata changed at Startup.
+Completed Startup externally measured ALLOW cmt-4503bcdb (112940input), pointer
+consumed once; no second central permission. Current verified implementer84e and
+authorbeb3 native routing subsequently reconciled preserving all budgets/pauses.
+Authorbeb3 actual handoff205116Z-355783 first input, sameFoot13877/Claude13881:start69217,
+Opus5.5/high/auto; completed Startup76867/225000,110000required ALLOW observed.
+Reviewer84e sameFoot13878/Codex13882:start69217, gpt6sol/medium/on-request/workspace-write;
+original Runtime reviewer824 GREEN pass2 retained. No new candidate reservation assumed.
+
+DELIVERY UNCERTAINTY: reviewer native queue01a1a85c-7023-7f82-b196-bb4c1c86af69
+for cmt-0f666f10 consumed20:59:58 with task_complete21:00:46, no replay. Author
+targeted pointer typing ran against verified address0xaaab06677ae0/pid13877, then
+receipt write failed because parent directory was absent. Return was NOT submitted;
+subprocess stdout/exit not retained. DO NOT resend typing or blindly Return, clear,
+capture terminal or route through another actor/transport. Preserve composer until
+actual contents verified by an authorized means. Receipt author-delivery-uncertain.json
+in current root .local directory; LIT cmt-169a73ca. This holds that uncertain input,
+not independent admitted work. Existing terminal-capture denial remains. No new
+native author effect. Current no-Gemini instruction is controlling direction for
+future independent review selection, not permission to repeat that uncertain input.
+
+---
+
 # Final native queue disposition — 2026-11-04
 
 Both pending native pointers are now actually consumed once: reviewer capacity

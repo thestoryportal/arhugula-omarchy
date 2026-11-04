@@ -23,6 +23,12 @@ isolated work while CI gates landing/release. Extra specialty review needs a nam
 risk. Required exact-candidate CI, installed acceptance, recovery proof, spent
 passes and actual denials remain. See release-campaign.md's delivery correction.
 
+The user's later instruction, "Eliminate the gemini requirement", removes mandatory
+Gemini/Antigravity and different-model-family reviewer routing. Use one independent
+reviewer session; the author's model family does not disqualify a different reviewer.
+The author and correction author cannot approve their own changes. Do not invoke
+Gemini/Antigravity or revive the pending disclosure request as a required gate.
+
 ## Start with the context needed for this action
 
 Run `lit quickstart` first. Then follow **Startup** in
