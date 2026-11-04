@@ -52,9 +52,9 @@
       "kind": "claude",
       "reserve": 50000,
       "role": "profile-coder",
-      "session_id": "d906a9dc-f4e8-4814-aa40-07c92ab17ede",
+      "session_id": "c1ee631a-ce42-4a69-8d17-cca4851bb052",
       "task_budget": 60000,
-      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/d906a9dc-f4e8-4814-aa40-07c92ab17ede.jsonl"
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/c1ee631a-ce42-4a69-8d17-cca4851bb052.jsonl"
     },
     {
       "ceiling": 225000,

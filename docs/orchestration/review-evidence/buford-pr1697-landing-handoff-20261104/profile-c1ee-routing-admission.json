@@ -1,0 +1,29 @@
+{
+  "startup_comment": "cmt-fd8f6c25-ba04-4e98-82cb-4f5c687d8b46",
+  "session_id": "c1ee631a-ce42-4a69-8d17-cca4851bb052",
+  "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/c1ee631a-ce42-4a69-8d17-cca4851bb052.jsonl",
+  "first_input": "2026-11-04T19:19:56.477Z",
+  "bottle": "/home/robbo/.claude/memento/handoffs/20261104T191938Z-205889.md",
+  "same_foot": {
+    "pid": 13877,
+    "claude_pid": 13881,
+    "address": "0xaaab06677ae0",
+    "stableId": "18000004"
+  },
+  "native": "claude-opus-5-5/high/auto/null goal",
+  "completed_admission": {
+    "decision": "allow",
+    "session_id": "c1ee631a-ce42-4a69-8d17-cca4851bb052",
+    "status": "complete",
+    "model": "claude-opus-5-5",
+    "measurement_basis": "latest-request-input-plus-latest-response-output",
+    "estimated_consumed_context_tokens": 85829,
+    "remaining_tokens": 139171,
+    "required_tokens": 110000,
+    "operational_ceiling_tokens": 225000,
+    "reasons": []
+  },
+  "changed": "profile-coder session_id/transcript only; peers/pause/notification/budgets/claims preserved",
+  "control_before_sha256": "07f3355de65615d037e966ef246cbf1e47fd7e9b404ba2ef53985bb7d1b0e0d1",
+  "control_after_sha256": "0726342aa0a4f0f744c86b800368ac1f484ebefb282c81f2edce3d099c936d26"
+}
