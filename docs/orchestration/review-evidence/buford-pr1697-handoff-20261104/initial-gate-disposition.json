@@ -1,0 +1,19 @@
+{
+  "body": "FROM Buford integration lead 01a1a61a TO profile-coder author 572cc35a; cc implementer reviewer 01a1a772. LANDING ORDER: #1697 is next eligible contract landing. Source/clearance GREEN at ceea5ce2 and ratifications are accepted; root completed integration admission ALLOW267388 with unchanged350000 ceiling/budget20000/reserve15000. Initial PR CI is running on ceea5ce2 against main84ec6bf6.\n\nPlease complete the owning repository ship-pr/merge-gate requirements in the existing worktree while CI runs: doc-only pass3 alone, spec-conformance lens on full origin/main diff; actual lane/arc reservation and preflight attestation; required independent transcript-brief/repo checks under the applicable skill, with existing qualifying evidence explicitly reused where valid. No second general source proposal/review cycle. Keep the tree unchanged while the fresh lens runs. Record structured and narrative pass3 rows (including honest blast-radius result); commit/push the gate-log-only delta, verify landing-delta transfer, then exact final-head CI. Bring real base crossover findings back to this claim, without rebasing protected local main. Send final head, reservation/gate/CI receipts and explicit writer release. Buford owns safe-merge, content own-main CI and the required refresh fixed point. No merge or installed acceptance is authorized to the author; all original spent passes and storage/A5/A4 holds stay.",
+  "comment_result": "arhugula-harness-trial-193 cmt-ffabcc2a-1e70-499e-8277-2585f12b648c\nsync: automatic push to origin/main is FAILING \u2014 last attempt 5 minutes ago: mirror cycle exceeded its 20s hold budget (a hung or slow remote transport while holding the store's engine); the engine was released so foreground commands can\u2026 \u2014 changes stay on this machine until a push succeeds; run 'lit sync push'\n",
+  "delivery": {
+    "pointer": "TO profile-coder Claude author | FROM Buford integration lead | arhugula-harness-trial-193 | cmt-ffabcc2a-1e70-499e-8277-2585f12b648c | Landing next: complete doc-only pass3 and remaining repo gates while CI runs; deliver final-head evidence and writer release.",
+    "status": "UPTAKE_AND_ACTIVITY_VERIFIED",
+    "type_result": "ok\n",
+    "submit_result": "ok\n",
+    "readback": "/tmp/pr1697-gate-request-typed.png",
+    "input": {
+      "line": 290,
+      "timestamp": "2026-11-04T17:17:34.212Z"
+    },
+    "activity": {
+      "line": 293,
+      "timestamp": "2026-11-04T17:17:36.145Z"
+    }
+  }
+}

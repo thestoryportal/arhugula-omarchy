@@ -1,0 +1,80 @@
+{
+  "notification_thread": "01a1a61a-f404-7111-bcbc-09b3cf261d76",
+  "repair_paused": true,
+  "sessions": [
+    {
+      "ceiling": 350000,
+      "kind": "codex",
+      "reserve": 15000,
+      "role": "buford",
+      "session_id": "01a1a61a-f404-7111-bcbc-09b3cf261d76",
+      "task_budget": 20000,
+      "transcript": "/home/robbo/.codex/sessions/2026/11/04/rollout-2026-11-04T03-29-06-01a1a61a-f404-7111-bcbc-09b3cf261d76.jsonl"
+    },
+    {
+      "ceiling": 225000,
+      "kind": "codex",
+      "reserve": 15000,
+      "role": "implementer",
+      "session_id": "01a1a772-4eff-71d2-acd5-788b426665fe",
+      "task_budget": 50000,
+      "transcript": "/home/robbo/.codex/sessions/2026/11/04/rollout-2026-11-04T09-44-08-01a1a772-4eff-71d2-acd5-788b426665fe.jsonl"
+    },
+    {
+      "ceiling": 225000,
+      "kind": "claude",
+      "reserve": 50000,
+      "role": "facade-coder",
+      "session_id": "f766d778-4b22-4c31-be84-b602e9d927a4",
+      "task_budget": 45000,
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/f766d778-4b22-4c31-be84-b602e9d927a4.jsonl"
+    },
+    {
+      "ceiling": 225000,
+      "kind": "claude",
+      "reserve": 50000,
+      "role": "claude-coder",
+      "session_id": "71908b48-0b86-452d-b765-01e80961c401",
+      "task_budget": 60000,
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/71908b48-0b86-452d-b765-01e80961c401.jsonl"
+    },
+    {
+      "ceiling": 225000,
+      "kind": "claude",
+      "reserve": 50000,
+      "role": "runtime",
+      "session_id": "b7aa34c5-a90c-44ec-8e8d-d0ee666e738c",
+      "task_budget": 15000,
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/b7aa34c5-a90c-44ec-8e8d-d0ee666e738c.jsonl"
+    },
+    {
+      "ceiling": 225000,
+      "kind": "claude",
+      "reserve": 50000,
+      "role": "profile-coder",
+      "session_id": "f1535753-2bf6-4349-b27b-26a71c96c6f3",
+      "task_budget": 60000,
+      "transcript": "/home/robbo/.claude/projects/-home-robbo-Work-arhugula-omarchy/f1535753-2bf6-4349-b27b-26a71c96c6f3.jsonl"
+    },
+    {
+      "ceiling": 225000,
+      "kind": "codex",
+      "reserve": 15000,
+      "role": "profile-reviewer",
+      "session_id": "01a1a596-1b48-75e1-b357-b486e1749888",
+      "task_budget": 25000,
+      "transcript": "/home/robbo/.codex/sessions/2026/11/04/rollout-2026-11-04T01-04-00-01a1a596-1b48-75e1-b357-b486e1749888.jsonl"
+    },
+    {
+      "ceiling": 225000,
+      "kind": "codex",
+      "reserve": 15000,
+      "role": "facade-reviewer",
+      "session_id": "01a1a5ea-0372-7661-aaaf-f77f8a8e127a",
+      "task_budget": 45000,
+      "transcript": "/home/robbo/.codex/sessions/2026/11/04/rollout-2026-11-04T02-35-39-01a1a5ea-0372-7661-aaaf-f77f8a8e127a.jsonl"
+    }
+  ],
+  "ticket": "arhugula-harness-trial-193",
+  "version": 1
+}

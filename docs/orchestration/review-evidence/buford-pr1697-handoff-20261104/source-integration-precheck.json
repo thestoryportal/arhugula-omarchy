@@ -1,0 +1,26 @@
+{
+  "at": "2026-11-04T17:12:59.675863+00:00",
+  "status": "EXACT_CLEARANCE_APPLY_GREEN_ROOT_PRECHECK_PUBLICATION_OWNER_ACTIVE",
+  "head": "ceea5ce282bfc4a1c6cc987547cf82230ebdd1d7",
+  "tree": "4dc28cca455e89d5f1243ce4206299c0ac0d3d2a",
+  "freeze_sha256": "2264df67d8fc3ea6a8a374ec6b0df63aafc0ff69ac2522b1fad6d774afa2a848",
+  "verified_correction_files": 4,
+  "prior_apply": "d9da1dc0 all22 hashes/six markers root-verified; correction leaves them unchanged except pointer cells",
+  "independent_review": "cmt-cf5b2327-d6f1-463e-a2fc-332228033b6e",
+  "review_sha256": "2d71a2f7dfcfd2416ef65b33ff5dd4394463f4b6a039f256d9a79535cacba48d",
+  "ratifications": [
+    "cmt-7cc5fc50",
+    "cmt-9733f3e9"
+  ],
+  "root_application_disposition": "Within delegated mechanical six-marker/status/provenance/head-pointer apply, exact reviewed semantics and A5/A4/storage gates preserved; independent correction GREEN retained. No self-independent review claimed.",
+  "publication_owner": "572cc35a-4ebe-4869-8108-34e18f9987c7",
+  "remaining": [
+    "Owned branch push and docs PR",
+    "Applicable repository gate cycle and exact final-head CI",
+    "Current-base reconciliation and safe-merge attestation",
+    "Verified content main/post-main CI and refresh cycle",
+    "Bounded implementation follow-on and separately admitted installed acceptance"
+  ],
+  "physical_storage": "Buford-owned UNSELECTED/UNBOUND, gate before accepted 160a behavior/resume exposure; does not block docs PR",
+  "goal": "Full38rows122criteria plus independent six-category release remains open"
+}
