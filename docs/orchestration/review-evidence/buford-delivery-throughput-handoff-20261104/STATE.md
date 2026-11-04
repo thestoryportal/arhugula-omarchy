@@ -1,3 +1,18 @@
+# Final native queue disposition — 2026-11-04
+
+Both pending native pointers are now actually consumed once: reviewer capacity
+cmt-76d53603 (record cmt-64e77bc9), then author publication/writer release
+cmt-23a7f7e0. Final read-only root queue check reports **PENDING_SELF0**. No deletion,
+replay or reset was used to drain it. Current root-owned exactCI watch exec23588
+remains running with no terminal result; /tmp/buford-pr1699-ci-watch.txt is retained.
+Root remains at actual capacity HOLD and invokes owner-local Memento once next;
+this is not source acceptance, integration completion or full campaign completion.
+Earlier queue-pending statements below describe the preceding boundary and are
+superseded by this actual consumption result. No goal/settings/budgets/permissions
+changed. The workflow external-disclosure denial remains unapproved and unretried.
+
+---
+
 # New Runtime integration boundary — 2026-11-04 20:48 UTC
 
 Root01a1a832 is at actual capacity HOLD: latest-request input319441, ceiling350000,
