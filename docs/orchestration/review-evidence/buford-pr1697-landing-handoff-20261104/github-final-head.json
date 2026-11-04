@@ -1,0 +1,195 @@
+{
+  "observed": "2026-11-04; live GitHub plugin GET before any merge door invocation",
+  "pr": {
+    "number": 1697,
+    "url": "https://github.com/thestoryportal/arhugula-harness/pull/1697",
+    "state": "open",
+    "merged": false,
+    "mergeable": true,
+    "mergeable_state": "clean",
+    "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+    "base": "84ec6bf6943f1c88f4715f38af6e1cb348dd14b1",
+    "branch": "docs/runtime-resume-supersession-contract"
+  },
+  "checks": {
+    "total": 25,
+    "all_success": true,
+    "runs": [
+      {
+        "name": "pytest (all axis packages) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126804051946"
+      },
+      {
+        "name": "axis isolation — harness-as",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999949"
+      },
+      {
+        "name": "axis isolation — harness-od",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999902"
+      },
+      {
+        "name": "Q3 evidence + closure gate — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999546"
+      },
+      {
+        "name": "axis isolation — harness-cp",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999523"
+      },
+      {
+        "name": "CLAUDE.md citations (I-1 resolution gate) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999513"
+      },
+      {
+        "name": "axis isolation — harness-core",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999485"
+      },
+      {
+        "name": "Codex context guard (anti-rot gate) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999402"
+      },
+      {
+        "name": "axis isolation — harness-is",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999396"
+      },
+      {
+        "name": "axis isolation — harness-cxa",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999389"
+      },
+      {
+        "name": "merge-gate log consistency (C-HE-23 §2 reducer) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999336"
+      },
+      {
+        "name": "arc ledger (tally gate) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999272"
+      },
+      {
+        "name": "tools/ test coverage guard + codex-loop tests — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999227"
+      },
+      {
+        "name": "Q1 review gate (structured artifact) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999204"
+      },
+      {
+        "name": "clearance corpus (frontmatter gate) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999192"
+      },
+      {
+        "name": "codex compatibility regressions (parity suite)",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999118"
+      },
+      {
+        "name": "substitution ledger (tally gate) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999110"
+      },
+      {
+        "name": "pyright (strict) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999074"
+      },
+      {
+        "name": "split-brain ledger backstop — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999073"
+      },
+      {
+        "name": "ruff (lint + format) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999030"
+      },
+      {
+        "name": "semantic overlay (drift gate) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798999006"
+      },
+      {
+        "name": "package tests (all axis packages, with coverage)",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798998992"
+      },
+      {
+        "name": "classify diff (bookkeeping fast path)",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386873/job/126798806844"
+      },
+      {
+        "name": "PR title shape (metadata gate) — blocking",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386768/job/126796360492"
+      },
+      {
+        "name": "Verify design-substrate edits route through back-flow",
+        "status": "completed",
+        "conclusion": "success",
+        "head": "1f9271487af687b692e5f3ff435c5326229d830b",
+        "url": "https://github.com/thestoryportal/arhugula-harness/actions/runs/41893386751/job/126796359232"
+      }
+    ]
+  }
+}
