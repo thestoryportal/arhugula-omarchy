@@ -11,6 +11,10 @@ The user's 2026-11-04 execution correction is integrated in release-campaign.md
 acceptance evidence. Continue an unchanged released claim after verified native
 continuity and completed measured admission; do not add a routine central ALLOW.
 Full release scope, independent review and actual permission denials remain binding.
+The later **Delivery throughput correction** permits isolated inactive source/test
+preparation while storage is established, and removes repeated Buford ratification
+for witness/prose fixes that preserve the ratified behavior. Apply the actual
+acceptance/exposure gate; do not park all code behind an environment prerequisite.
 
 ## Start with the context needed for this action
 

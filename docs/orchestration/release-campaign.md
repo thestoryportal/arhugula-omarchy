@@ -1,6 +1,6 @@
 # Trial 193 release campaign
 
-Revision: release-campaign-20261104-v2. Status: user-accepted operating amendment.
+Revision: release-campaign-20261104-v3. Status: user-accepted operating amendment.
 
 ## Authority and completion boundary
 
@@ -194,6 +194,39 @@ unchanged released work plus verified continuity and completed admission proceed
 new scope, unratified behavior, denied effects and live-resource acquisition do not.
 One lane's failed handoff does not suspend independently admitted lanes. Preserve
 the failed lane's no-replay boundary and route that specific recovery to its owner.
+
+### Delivery throughput correction accepted directly on 2026-11-04
+
+The user requires substantially faster delivery after the B-310 preparation claim
+at 10:43 UTC took until PR #1697's merge at 19:32 UTC. Optimize elapsed time to
+reviewed, installed behavior; another proposal or coordination artifact is not the
+deliverable. Apply these rules within the existing campaign and records:
+
+- Keep one author and an independent reviewer with a coherent implementation
+  package. Build the runnable slice and its discriminating tests together. Reopen
+  a settled contract only for a concrete new behavior or interface conflict.
+- Return findings together at each existing review pass; consolidate corrections
+  before the next permitted pass. The pair resolves test/witness and prose fixes
+  directly when they preserve the ratified behavior. Those fixes do not require
+  another Buford ratification. A changed normative contract still requires its
+  independent review and ratification; original findings and spent passes remain.
+- Apply prerequisites at their actual consuming transition. Specifically, Runtime
+  v1.137 Rule B7 item 4 holds **implementation acceptance and resume exposure**
+  until retained storage is ratified and bound. It permits isolated inactive
+  B-310/B-313/B-314 source/test preparation and independent review while Buford
+  establishes that storage. Record explicit paths, provisional inputs and the
+  independent reviewer in LIT first. Provider-free temporary-root tests establish
+  behavior only; they do not establish the installed root or release that gate.
+- Buford works the actual integration/environment blocker while the pair builds
+  eligible code. Reuse qualifying review/test evidence for unchanged inputs;
+  rerun affected checks and required CI. Continue admitted unchanged claims
+  without acknowledgment rounds or repeated startup/adoption receipts. Use
+  session continuity at the existing context/ownership boundaries.
+
+Do not turn “storage is not yet selected” into “all code must wait.” Hold acceptance
+and exposure at B7, and keep the isolated eligible implementation moving. Record
+review, integration and CI waiting from existing timestamps alongside delivered
+behavior; no new monitoring service, ticket hierarchy or review-budget reset.
 
 ### Evidence and reporting
 
