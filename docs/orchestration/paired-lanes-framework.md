@@ -160,6 +160,21 @@ reservation. Native closeout is checked at Stop boundaries, not a mid-turn kill
 switch. Inspect effective Memento settings and align admission metadata; never
 restore a number remembered from an old role or framework.
 
+For the owner-local Memento invocation, use the active installed entrypoint as
+one direct command: `finalize-session -- 'handoff message'`. Put an actual active
+`--goal 'condition'` before `--`; keep a null goal null. Preserve multiline text
+with shell quoting (an apostrophe inside single quotes is written `'\''`). Include
+the literal `--`: it is part of the existing narrow Claude allow-rule shape.
+Do not copy the separator-free examples or append `| tail`, `; echo` or another
+wrapper to the invocation; those are different command text for permission review.
+Read the normal tool result directly. This does not authorize changing permission
+rules, modes, models, ceilings or transports. After an actual denial, stop and
+record it under the installed skill's failure rule; a corrected invocation still
+needs the controlling user's new direction before another attempt. A prior
+one-attempt approval is consumed by that attempt, including a denial. When tempted
+to think "the same handoff worked before," check the exact command and approval
+scope: replaying an old shape can strand the lane again.
+
 A continuation carries role/peer, current ticket and exact comment, frozen head,
 worktree/paths, findings and spent-pass pointers, holds, owned handles, unrun steps
 and next action. Carry an actual active native goal verbatim; null remains null.
