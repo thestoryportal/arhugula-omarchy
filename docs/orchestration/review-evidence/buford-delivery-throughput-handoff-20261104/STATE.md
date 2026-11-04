@@ -1,3 +1,73 @@
+# Current no-Gemini executable correction — 2026-11-04 21:26 UTC
+
+SAME owned W/branch/arc, new **preservation commit a95173532860847661cc3eea44eb21428f285f01**
+over old freeze43b460d5/basebe163134. Worktree clean, unpushed, no PR or independent
+review/pass/CI/merge. This is WIP preserved at measured capacity HOLD, not accepted
+or frozen-ready delivery. Preserve43b and the actual prior external disclosure denial.
+
+Implemented in22 explicit owned files: native-session adapter and behavioral tests;
+finding envelope/schema carry actual reviewer_session and material author_sessions;
+cycle reducer admits independent session evidence without a same-family exclusion,
+while retaining conservative historical route provenance for old rows. The adapter
+uses the existing Codex producer honestly, reads ONLY the latest completed native
+assistant final (actual phase=final_answer and older channel=final), derives UUID
+from actual native-store metadata, binds exact code+participants through existing
+six-field verdict schema, and uses existing admission/log lock/round accounting.
+Author/correction-author self-approval and dropped prior author identities refuse.
+Initial/correction wrapper passes no longer auto-fallback to Gemini on unavailable.
+Current delivery procedure and root/both-runner carriers name any independent native
+session, no mandatory Gemini/fallback/shadow. Optional legacy tooling/history retained.
+No native review was executed or imported; binding-only smoke used old43b as expected.
+
+Actual source authors to retain in next review binding: Buford807
+01a1a807-02cb-7c90-b83c-c4d09102b56d (originalWIP), Buford832
+01a1a832-d0d3-7db3-a399-d64e5513bfac (43b), and current Buford86b
+01a1a86b-3f82-7e61-9e50-02ce77592db8 (a951 correction). Reviewer84e is independent.
+Verify all actual authors at freeze; do not infer that a model family is an author.
+
+Checks: focused native/reducer/wrapper/finding suite419PASS; new real-gate native
+import/duplicate refusal1PASS (239deselected); changed-envelope consumers
+merge_gate_log/arc_metrics/shadow_trial296PASS; Ruff8files+formatPASS; diff-checkPASS;
+preflight and codex-closeout exit0 (OPEN_PRS_UNAVAILABLE sandbox and milestone-status/
+overlay reminders); overlay411nodes/36seamsPASS. Logs copied into
+O/.local/release-campaign-20261103/buford-continuation-01a1a86b/. New module/test are
+included in22-file commit; no full local suite duplication. Old43b 757/265/hook/PD8
+proof applies only to unchanged inputs; no repeat needed without impact reason.
+
+**Static-check limitation retained:** explicitly passing tools/*.py to strict Pyright
+produced551errors/3warnings across old untyped tools and new adapter; log retained.
+Tools are outside configured project include roots. Do NOT call that targeted check
+PASS. Prior project Pyright0errors covered unchanged harness roots; next successor
+must disposition the new-tool diagnostics appropriately and check focused identity/
+schema/adjudication/consumer behavior before claiming new freeze ready. No project
+settings/type policy changed and no full local type suite rerun here. The schema
+extension is backward-compatible optional provenance; native rows require both
+identity fields, nonempty UUID authors, and immutability through adjudication.
+
+Root actual86b first bottle211546Z-384157 observed21:16:12.321Z; MementoSessionStart
+sameowner3645:11580/nooverride; nativegpt6.1sol/high/on-request/workspace-write/auto_review,
+goalNULL. Canonical Startup fully read/adopted. Only Buford routing changed, peers/
+pauses/budgets retained. External completedStartup ALLOW cmt-ed0e8905 verified:
+103539input,121461remaining,35000required. Current actual admit HOLD202324input,
+22676remaining<35000required (225000ceiling,20000budget+15000reserve), also active turn.
+No ceiling/model/permission/budget change. No further substantive source work before
+fresh continuation admission. Own Memento required, not task completion.
+
+Reviewer84e current native sameFoot13878/Codex13882:start69217, gpt6sol/medium/on-request/
+workspace-write; last completed turn21:19:36 input88257, effective225000, own50000+15000
+admitALLOW/136743remaining observed. No new review reservation made or pass spent.
+After fresh root admission: finish bounded source/static/identity consumer disposition,
+freeze+attest new exact candidate in same arc, verify/admit/reserve actual native
+reviewer once, deliver existing LIT pointer and verify uptake. Native reviewer writes
+its own evidence and completes final schema verdict; root adapter imports only after
+actual completed turn. Then required exactCI/safe merge/own-main; no children/window
+or denied external route. PR1699 exactCI/prepared landing and all original holds below
+remain unchanged. Authorbeb3 composer uncertainty remains; no input/capture/replay.
+Root read-only queuePENDING_SELF0; no deletion/reset-to-drain. Full38/122/six-category
+campaign remains owed; no goal is created/resumed/narrowed/completed.
+
+---
+
 # Current direct user correction — 2026-11-04 21:12 UTC
 
 The controlling user directly said **"Eliminate the gemini requirement"** in native
