@@ -1,3 +1,81 @@
+# New Runtime integration boundary — 2026-11-04 20:48 UTC
+
+Root01a1a832 is at actual capacity HOLD: latest-request input319441, ceiling350000,
+remaining30559 <35000 required (20000budget/15000reserve), plus active-turn status.
+No ceiling/budget/model/permission changes; goal remains null. Preserve/release and
+owner-local Memento after pending native pointers are actually consumed. No new
+substantial integration/implementation in this context; this is not task completion.
+
+**Ready source delivery:** author published **PR1699**
+https://github.com/thestoryportal/arhugula-harness/pull/1699 at exact frozen
+**94058e50373893bbe0ca79825b2a6b3896f268a9**, tree
+3ae4e7adf7a2705cf0177d1139369b95b8a49a8c, basebe163134. W is
+O/.worktrees/runtime-resume-refusal-value-20261104, branchfeat/runtime-resume-refusal-value,
+clean. Author writer release is **cmt-23a7f7e0-140b-49a3-89de-6f1b37c9bb9d**;
+claim remains open for any returned CI/landing correction.
+
+Independent reviewer824 pass1 cmt-ad9a3f9f at65f76c6c found decoder-limit errors
+escaping the strict parser. Author correction94058e50 normalizes ValueError and
+RecursionError to ResumeRefusalProtocolError with chained cause and two negative
+tests. Independent pass2 **GREEN cmt-75a4510d-d28f-4789-96b3-916f00febe39** at94058e50,
+82 focused tests pass independently; preceding nine-arm mapping/flags/depth/schema
+and B319 carry remain qualifying unchanged evidence. Actual author/Buford GREEN
+uptake was verified by reviewer at cmt-cbcc7036; do not repeat review or spend passes.
+
+**CI scheduled and observed:** exact candidate PR run **41909314506** is active;
+latest observed pending jobs are package tests and Codex compatibility parity;
+no failed jobs observed. PR metadata41909314469 succeeded. Current basebe163134 own-main
+CI **41899401965 succeeded**. Root-owned `gh run watch --exit-status` is running as
+exec session **23588**, log **/tmp/buford-pr1699-ci-watch.txt**; inspect actual result,
+never rerun merely for a context change. No merge, own-main candidate result,
+installation or acceptance claimed. Current remote PR head/base match the freeze.
+
+**Next executable transition:** after actual admission, take the released writer
+checkout for integration, establish its holder-bound lane/reservation (author never
+bound .harness/.lane-id; reservations show runtime-resume-refusal-value=null), run
+actual disjoint/crossover checks, bind required exact-head/base CI and reviewed merge
+tree, and use only the holder-bound safe merge path for any eligible landing. Preserve
+the current all-seven correction: no extra default review stack or mandatory separate
+status-PR cycle. The Runtime checkout is still old baseline workflow code; do not run
+unreviewed workflow43b460d5 as a shortcut or manufacture activation/no-refresh proof.
+Determine the actual supported consuming transition against current authority and
+record the exact disposition. CI can continue independently of the held workflow PR.
+
+B7 item4 was read in Runtimev1.137 lines187..220: implementation acceptance/resume
+exposure require ratified/bound retained storage and C-IS-01 companion. Storage is
+still UNSELECTED/UNBOUND. Candidate is inactive source-only: no production caller of
+resume_refusal, only declaration of superseded error and projection matching it,
+no raise site/CLI/journal/root change. Keep installed acceptance and resume exposure
+held. This source prep/CI is not fullU-RT-160 acceptance or full release; no Runtime
+live window/venue/restore/storage was acquired. H localmainb29c52df remains untouched.
+
+**Peers:** reviewer824 capacity handoff cmt-76d53603 (input171494,53506 remaining<65000)
+retains GREEN/pass1/pass2; no successor native identity/admission verified by root.
+Authorb603 native bottle20261104T200853Z-270951.md observed in first real handoff input,
+actual existingFoot13877/Claude13881 start69217, Opus5.5/high/auto verified; author
+source corrections/publication done. Latest root inspect at20:43:41 was active input
+167410+228output=167638, insufficient for retained60000/50000 new substantial work.
+Own Startup/adoption was recorded previously; author proposes groundingU-IS-21/U-OD-62
+only under recorded scope and actual admission. No new source claim released by root.
+Canonical author/reviewer routing is still stale; verify actual current native peers
+and reconcile promptly after admission, without another routine central permission.
+
+**Queue drain before root Memento:** read-only queue inspection found TWO pending
+pointers, neither deleted or replayed: reviewer capacity cmt-76d53603,
+queue01a1a84d-3c0f-70a0-9254-f8cd27bfe2c7; author publication/writer release cmt-23a7f7e0,
+queue01a1a851-3a90-7700-b0be-bb1f71a49c17. Both exact LIT bodies are read and preserved
+above, but native consumption still requires ending bounded turns. Do not call a
+reset to drain them. Old read-only inspection exec19390 completed normally; a later
+attempt to stop its absent PID failed before any effect, no peer process killed.
+
+Below remains the separate workflow implementation boundary and actual external
+review disclosure denial. That denied candidate43b460d5 was not approved by the later
+Runtime GREEN/administrative messages; no retry, alternate reviewer transport or
+permission/model change. No active goal is created/resumed/completed; full38/122 and
+six-category decision remain owed.
+
+---
+
 # Current successor boundary — 2026-11-04
 
 Buford native 01a1a832-d0d3-7db3-a399-d64e5513bfac verified the exact bottle/native
