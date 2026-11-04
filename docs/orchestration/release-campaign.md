@@ -1,6 +1,6 @@
 # Trial 193 release campaign
 
-Revision: release-campaign-20261104-v3. Status: user-accepted operating amendment.
+Revision: release-campaign-20261104-v4. Status: user-accepted operating amendment.
 
 ## Authority and completion boundary
 
@@ -217,6 +217,24 @@ deliverable. Apply these rules within the existing campaign and records:
   establishes that storage. Record explicit paths, provisional inputs and the
   independent reviewer in LIT first. Provider-free temporary-root tests establish
   behavior only; they do not establish the installed root or release that gate.
+- Default to one independent review of the frozen candidate. Additional specialty
+  review needs a named unresolved risk, its question and disposition; do not require
+  primary plus artifact plus three lenses by default. Correction authors cannot
+  approve their own work. Preserve findings and original spent budgets/passes.
+- Correction review verifies the fix, changed behavior and affected regressions
+  against the previous reviewed head. Reopen the full diff only for an actual
+  scope/behavior change. Batch findings and corrections within the existing claim.
+- Generate current status from Git/PR state and live LIT, or refresh the tracked
+  snapshot at a meaningful milestone in the next substantive change. A separate
+  mandatory roadmap-refresh PR, its PR CI and its own-main CI cycle are removed.
+  The safe merge door still requires the actual content merge's own-main success;
+  preserve an already recorded legacy refresh intent until resolved.
+- Use focused local behavioral/static checks and qualify unchanged evidence by
+  input impact. Do not mandate a duplicate full local suite before equivalent
+  remote CI. Required CI on the actual candidate and unresolved failures remain.
+- CI gates landing/release; independently admitted isolated source, tests and
+  acceptance preparation continue while it runs. Reconcile actual overlap at Git
+  gates and re-establish affected review/CI on the resulting revision.
 - Buford works the actual integration/environment blocker while the pair builds
   eligible code. Reuse qualifying review/test evidence for unchanged inputs;
   rerun affected checks and required CI. Continue admitted unchanged claims

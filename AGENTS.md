@@ -16,6 +16,13 @@ preparation while storage is established, and removes repeated Buford ratificati
 for witness/prose fixes that preserve the ratified behavior. Apply the actual
 acceptance/exposure gate; do not park all code behind an environment prerequisite.
 
+The user-approved all-seven delivery correction also selects one independent
+review by default, correction-delta review, generated/milestone status without a
+separate refresh PR, focused local checks with qualifying reuse, and independent
+isolated work while CI gates landing/release. Extra specialty review needs a named
+risk. Required exact-candidate CI, installed acceptance, recovery proof, spent
+passes and actual denials remain. See release-campaign.md's delivery correction.
+
 ## Start with the context needed for this action
 
 Run `lit quickstart` first. Then follow **Startup** in

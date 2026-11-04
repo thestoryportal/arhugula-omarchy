@@ -85,6 +85,15 @@ inspects that immutable candidate and relevant surrounding code; source/tests
 stay read-only to the reviewer. Authorship of a correction disqualifies its author
 from independently approving it.
 
+The accepted delivery correction defaults to one independent review. Add specialty
+review only for a named unresolved risk. Review corrections and affected regressions
+on the delta, retaining qualifying unchanged evidence and original findings/passes;
+a material behavior/scope change can require a full review. Focused local checks do
+not require a duplicate full suite before equivalent remote CI. Required exact
+candidate CI remains; independently admitted isolated work continues while CI runs.
+Generated Git/LIT status or milestone snapshot refresh replaces a mandatory separate
+status PR cycle. Existing recorded legacy review/refresh obligations remain.
+
 Each actor writes its own concise findings, evidence, verdict and release in LIT.
 The pair exchanges clarification, concrete findings and subsequent frozen
 correction pointers directly within the released unit. Preserve substantive
