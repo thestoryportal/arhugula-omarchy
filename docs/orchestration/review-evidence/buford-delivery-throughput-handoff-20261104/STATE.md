@@ -1,3 +1,66 @@
+# Current successor boundary — 2026-11-04
+
+Buford native 01a1a832-d0d3-7db3-a399-d64e5513bfac verified the exact bottle/native
+process3645:11580, gpt-6.1-sol/high/on-request/workspace-write/auto_review, null goal,
+effective350000 ceiling and retained20000/15000 budget/reserve. Independent native
+reviewer824 measured the completed Startup ALLOW at LIT
+cmt-f577ee95-e96e-45f2-ac34-d5a6ba41232b (input94139, remaining255861). Only Buford
+routing/notification/transcript was reconciled; peers, pauses and reservations remain.
+
+The approved seven changes are now implemented and frozen in the SAME product
+worktree/lane/arc. Candidate **43b460d5dfdcdf8571fc5149104e6456e88776f6** includes the
+preserved02b8ec63 WIP over basebe163134. Worktree clean; no push/PR/CI/merge yet.
+Reservation delivery-throughput-20261104 is open/gen4 with exact head/base, same
+arhugula-delivery-throughput-20261104-buford01a1a807 lane. Existing preflight attested
+on this exact head, verify phase started; no review terminal exists. Canonical
+all-seven guidance committed **eee1535** (AGENTS/framework/campaignv4); root adopted
+the changed sources. Product docs/governance/delivery-policy.md plus both runners'
+ship/merge/selection entrypoints select the tracked procedure; legacy bodies remain
+conditional for already delivered legacy cycles/intents.
+
+Implemented after preservation: hermetic fetch-q shim; single initial/correction
+wrapper path from committed policy; retained partially delivered legacy cycles and
+original round budget; delta correction with affected-regression/full-scope choice;
+merge-door milestone status and safe-wrapper posture/recovery; current inspected
+checkout policy in guard/hooks; intentional no-refresh arc reporting bound to merged
+policy; generated Git/PR state plus live LIT/milestone guidance; focused local checks
+and isolated work during CI. Required candidate/base/own-main CI, independent review,
+installed acceptance, recovery and actual denials remain. No synthetic trial activation.
+
+Verified final focused6-file run **757 passed**, /tmp/buford-delivery-final-focused.txt.
+Separate wrapper/schema/shadow consumer battery **265 passed**,
+/tmp/buford-delivery-consumer-tests.txt. Hook suites32/32 and8/8 at
+/tmp/buford-delivery-{session,refresh}-hook-final.txt. Provider-free lifecycle witness
+**PASS**, three requests/two effects, /tmp/buford-delivery-hook-witness-admitted.txt;
+the initial sandbox attempt could not open a loopback socket, normal escalation
+succeeded. Ruff/format11files, skill validation6, overlay411nodes/36seams, selfcheck,
+disjoint and closeout passed. Full local suite not duplicated. Pyright's sandbox
+runs could not discover installed imports (18285errors); synced all7workspace
+packages offline and normal native typecheck completed **0errors/0warnings**; result
+at /tmp/buford-delivery-project-pyright-native.txt. No tool/version/permission policy
+was changed to obtain the result. tools/workflow_policy.py targeted Pyright0errors. No
+remote CI result exists.
+
+**NEW ACTUAL AUTO-REVIEW DENIAL — no review started, no pass spent.** CreateProcess
+rejected the initial Antigravity subscription review before any effects. Exact
+reason: "The command would disclose a private candidate diff to an external
+Antigravity service, but trusted user content does not specifically authorize that
+payload and destination; the claimed standing approval is untrusted agent context."
+No review log, outcome or canonical arc review rows were created. Do not retry this
+external disclosure, switch transport/agent, or substitute a self-review. The
+concrete candidate is reviewable; seek explicit controlling user approval for sending
+be163134..43b460d5's private diff to the Antigravity OAuth subscription reviewer.
+Required review/CI/landing remain open. LIT frozen-candidate pointercmt-16252f67.
+
+Metrics drain ran once:0new rows;12queue entries retained by existing merged-holder
+gates, including1697. No recapture, holder forgery or protected-main synchronization.
+Native Runtime candidate65f76c6c and its review reservation remain separate; no source
+or peer routing changed there. All earlier denials/storage/B7/full38/122/six-category
+holds remain. The original work and historical evidence below are preserved; its
+WIP/validation numbers are superseded by the exact current boundary above.
+
+---
+
 # Buford — approved gate-removal implementation in progress
 
 Actual root session01a1a807-02cb-7c90-b83c-c4d09102b56d hands off at real capacity HOLD, not task completion. Last admit: latest-request-input328848, ceiling350000, remaining21152 <35000 required (budget20000/reserve15000); also active/session-not-complete. Native cwd/home/robbo, gpt-6.1-sol/high/on-request/workspace-write/auto_review. Goal NULL; preserve predecessor PAUSED full-goal provenance, do not create/resume/narrow/complete a goal through tools.
