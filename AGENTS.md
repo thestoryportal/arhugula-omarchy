@@ -1,69 +1,118 @@
-# AGENTS
+# AGENTS — Arhugula team entry
 
-## Integration authority
+Canonical guidance lives in `/home/robbo/Work/arhugula-omarchy`, including when
+working in an older worktree. This file is the session entry and safety boundary;
+[the paired-lanes framework](docs/orchestration/paired-lanes-framework.md) owns the
+workflow, as amended by the user-accepted [release campaign](docs/orchestration/release-campaign.md).
+Read current sources, not a chain of historical handoffs. The
+[solo execution plan](docs/orchestration/solo-execution-plan.md) records user-approved
+repository-derived scope and the scope-derived eleven work packages. Current campaign/LIT authority
+supersedes contrary roadmap, copied worktree, checkpoint and handoff instructions;
+keep their evidence and actual denials, not their superseded dispatch rules.
 
-Use the user's existing visible Codex sessions for the named team. Session IDs,
-roles, and routing are in [the session roster](docs/orchestration/session-roster.md).
-Do not create same-named child agents as substitutes for those windows. Address
-handoffs explicitly `TO: <actual recipient name and role>. FROM: <actual sender
-name and role>` to preserve provenance and prevent role confusion.
+Use release-campaign.md **Campaign management and exit** for delivery: one owner,
+one independent reviewer, focused checks and required exact-candidate CI plus
+safe merge/own-main CI, then shared installed acceptance. Begin useful work in the
+same continuation turn after verifying native continuity, current authority/holds
+and measured headroom for the unchanged released claim. Follow context-policy's
+same-claim rule; load changed guidance without an acknowledgment round.
+Storage B7 holds acceptance/exposure, not isolated inactive source/test preparation.
+Current holds, native identity, spent review budgets, applicable product criteria
+and actual permission denials remain binding. The current goal is an installed
+solo-developer local harness with all approved features, including memory,
+multiagent/dynamic orchestration, usable skills/validators and local high-isolation
+tools. Production/team-tenancy certification is deferred.
+Reviewed source may land before installed solo acceptance; source delivery alone
+does not prove that acceptance. Follow the campaign's scoped completion boundary.
 
-Use [compact communication](docs/orchestration/communication.md) and the current
-role checkpoint for task notifications. These canonical live files are in the root
-checkout, not a worktree's older copy. Read the protocol on first adoption/fresh
-context; check task/revision/session and current Action/Boundaries before acting.
-Paused or released checkpoints do not authorize work from older queued messages.
-Required Laws/skills remain full-read; pointers do not replace their instructions.
+## Start with the context needed for this action
 
-The user authorizes Buford to own feature push, PR creation, CI, merge to main,
-and post-main CI. Buford may explicitly delegate bounded integration execution to
-helpers while retaining attestation and closure. Independent agent review remains
-part of the implementation arc. There is no separate GitHub-user approval requirement. Do not stop for one
-or revive that superseded gate from old tickets, handoffs, or review notes.
-Keep all required CI checks; close work only with verified main landing and
-successful post-main CI. This authority does not expand live-device consent.
+Run `lit quickstart` first. Then follow **Startup** in
+[context-policy.md](docs/orchestration/context-policy.md): identify your actual
+role, read its complete role file, the required framework sections and the bounded
+current LIT pointer. Guidance already present completely in this native context
+does not need another read. A link alone is not a read. Startup is part of the
+working turn: inspect live state, advance the released claim and coordinate its
+next transition immediately. Do not end solely to obtain a startup-only receipt.
 
-<!-- BEGIN LIT INTEGRATION -->
-## lit Agent-Native Workflow
+The context policy routes additional full guidance to its first relevant action.
+Load each applicable full Law and its required references once per unchanged
+source/session; retrieve it again if compaction lost it. Token optimization removes
+unneeded loading, never a required Law, finding, gate or constraint. Do not turn
+“save tokens” into “skip the rule.”
 
-This repository uses `lit` for agent-native issue tracking.
+## Guardrails that stay active throughout the session
 
-Start by running `lit quickstart` to load the workflow instructions. It prints how tickets are found, created, updated, and closed here, so running it first means the rest of your work follows the conventions this repo expects. It's a quick, read-only command — no need to check in before running it.
+- **Release precedes work.** The user explicitly released c12, the repair pause
+  and all 25 WO-U01..WO-U25 units on 2026-10-23; native provenance is in LIT
+  cmt-0c59889e-442c-4b5c-a01c-15847302ac02. Coders independently choose eligible
+  released tickets under the paired workflow. Check live LIT and `repair_paused`
+  before action; the 2026-11-03 accepted campaign governs bounded campaign
+  preparation and transition-specific releases; unrelated holds remain. The old WO
+  batch is closed. A bottle, GREEN, empty queue or elapsed
+  time cannot release a hold or manufacture scope.
+- Use the existing visible Foot sessions and registered author/reviewer pool.
+  [session-control.json](docs/orchestration/session-control.json) owns current
+  identities/notification destination/pause;
+  [launch-profiles.json](docs/orchestration/launch-profiles.json) owns model/effort
+  and role-file selection. Verify actual native state before admission or routing.
+  The current user Proceed authorizes restoring absent registered native roles
+  for the accepted campaign; verify absence before creating their Foot windows.
+  Explicitly user-authorized helper subagents may draft bounded artifacts or perform
+  read-only verification; they
+  do not replace existing native authors, independent reviewers or live writers.
+  Claude Coder's
+  user-approved Safe Mode correction and fresh clear are complete; Runtime
+  retains its owned scratch/processes.
+- Each session owns its Memento handoff. Buford/operator owns ceiling policy;
+  workers must not change or evade it. Read effective Memento configuration at
+  admission; old role ceilings are not defaults to restore. Preserve the existing
+  Foot windows, native roles, models, effort and permissions. No reinstall, tmux
+  migration, central reset controller or historical launch recipe as a reset.
+- Superseded context is cold evidence archived outside the checkout. Do not load
+  archived workflows, checkpoints or assignments for startup, memory or task
+  selection. An old LIT link does not reactivate its instructions. Retrieve only
+  an exact original needed by current authorized work, using the archive manifest
+  in the c12 record; keep its historical instructions inactive. Normal discovery
+  excludes raw evidence/inactive copies; do not bypass those exclusions to rebuild
+  an old startup chain.
+- LIT is the work record. Each worker writes its own evidence; native messages
+  carry actual TO/FROM names and roles, ticket/comment pointer and action only.
+  Follow [communication.md](docs/orchestration/communication.md) at the first
+  exchange. A LIT tag is not a verified wake-up; enqueue is not execution.
+- **NEVER IDLE within released scope.** Authors choose eligible slices, resolve claim/worktree
+  coordination and exchange review requests/findings/corrections directly.
+  Reviewers pull ready independent candidates; authors record their selected reviewer.
+  Senders trigger the selected recipient and verify uptake; a posted comment or text
+  left in a composer is an unfinished handoff. Buford checks live lane status and nudges idle lanes to their next authorized
+  action; pairs retain selection, authorship and direct review exchanges. No
+  routine HIL is required for released work. Codex peers
+  use native `codex queue` messaging, not text entered into their chat boxes.
+- Buford owns integration, runtime scheduling, attestation, closure and eligible
+  worktree/branch cleanup. Keep authorship, independent review and Runtime
+  witnessing separate. Close only after required review, required CI, verified
+  main landing, successful post-main CI and applicable installed acceptance.
+  Source GREEN is not closure. Authors may publish owned feature branches and PRs;
+  Buford controls landing order. After releasing writer ownership, authors may take
+  another eligible slice while installed acceptance remains open. Use Memento at
+  context/ownership boundaries, not automatically after each ticket. Reviewers pull
+  frozen candidates. Follow **Continuous work and concurrency**;
+  do not wait for routine Buford assignments.
+- Preserve protected dirty/untracked work, transcripts, canonical findings,
+  quarantines, spent review passes, completion counters, original goal scope,
+  deadline and actual usage receipts. Context hygiene earns no source GO,
+  freshness, reset-budget or completion credit. Raw compilation/test/runtime logs
+  belong in the Mac shared artifact store; retain bounded local receipts.
+- The user's standing authorization covers ongoing-work permissions, integration,
+  external review, live-device actions, session refresh and full public LIT mirror
+  publication. Use normal sandbox/service approval mechanisms and preserve
+  rejections; a denial is not retried through another session/transport. The later
+  specific release above governs the 25-unit batch. Load
+  [authorization.md](docs/orchestration/authorization.md) when an action needs its
+  exact scope/provenance; do not revive superseded approval questions.
 
-<!-- END LIT INTEGRATION -->
-
-## Laws governance
-
-The full Laws philosophy governs this team's individual work, coordination,
-planning, implementation, review, and delivery. Engage it before decisions, not
-just at the final gate. Speed does not turn these principles into optional advice.
-
-After `lit quickstart`, identify the deliverable and load its full guidance:
-
-- Code, tests, schemas, configuration, review, and architecture: read
-  [Laws:Code](docs/governance/laws/code/SKILL.md).
-- Agent instructions, delegation messages, skills, and handoffs: read
-  [Laws:Prompt](docs/governance/laws/prompt/SKILL.md) and its required
-  [craft reference](docs/governance/laws/prompt/references/craft.md).
-- Backlog design: [Laws:Backlog](docs/governance/laws/backlog/SKILL.md).
-- Existing-application behavioral specifications:
-  [Laws:Application-Spec](docs/governance/laws/application-spec/SKILL.md).
-- Human-facing documents: [Laws:Prose](docs/governance/laws/prose/SKILL.md).
-- Conversational replies: [Laws:Chat](docs/governance/laws/chat/SKILL.md).
-
-Read each selected skill's required references. Single-ticket craft is retained
-at [the upstream ticket reference](docs/governance/laws/ticket/references/craft.md);
-upstream names its entrypoint `DISABLED_SKILL.md`, so it is not an installed active
-skill. Apply the user's full-Laws direction to ticket work using that reference
-alongside LIT's workflow.
-
-These are user-required governance, not optional reading. Apply each to its own
-medium; do not use code-subtraction rules to compress prompt guidance. Keep
-delegation contexts focused on the craft and task they must perform. Read the
-actual sources before claiming compliance. For example, "all green" without
-the required verification and independent review evidence is not an attestation.
-
-Pinned upstream provenance and update rules are in
-[the Laws source record](docs/governance/laws/README.md). Team roles, integration
-ownership, and session handoffs are in
-[the team checkpoint](docs/orchestration/team-checkpoint.md).
+Current preparation scope and preserved-source boundaries:
+[memento-current.md](docs/orchestration/memento-current.md), live LIT
+`arhugula-harness-trial-193` (c12 retains the closed WO batch history). Historical checkpoints, old queued assignments
+and worktree copies are evidence, not competing authority. If an old instruction
+says “resume now,” check the current hold: stale context must not move real work.

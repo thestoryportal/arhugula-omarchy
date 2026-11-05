@@ -1,108 +1,235 @@
-# Compact team communication protocol
+# LIT-centered team communication
 
-Approved by the user on 2026-09-20. This changes message transport and retrieval,
-not Laws, permissions, review gates, or the fresh-session workflow.
+User-directed replacement, 2026-09-20. Supersedes the compact-response forms and
+checkpoint-based task conversations. Old protocol commits, probes and handoffs
+are historical evidence, not active dispatch instructions.
 
-## Current state, not repeated history
+## One work record
 
-Buford owns one current checkpoint per named agent in this directory's
-`checkpoints/` folder. Paths are rooted in the main checkout
-`/home/robbo/Work/arhugula-omarchy`, even when a worker is in a worktree.
-Only Buford edits these checkpoints. Workers retain evidence in their owned
-artifacts and report a pointer; they do not race to update Root's state.
+LIT tickets and their comments hold assignments, grounding, review requests,
+findings, decisions, verification pointers and writer release. Keep detailed
+design/test artifacts in their existing owned files; link them from the ticket
+instead of pasting them into every message. Do not mirror the conversation into
+role checkpoints and terminal messages.
 
-Each checkpoint has YAML frontmatter: schema, agent, session, task, revision,
-state, writer, and head. Revision increases for every change to that agent's
-checkpoint, including a new task or session. A checkpoint is routing state, not
-an independent grant of authority. It cannot override the user or repository Laws.
-`paused` means no work; `writer: released` means no edits. Missing or conflicting
-identity, scope or revision means stop and report once, not guess.
+Keep routine comments short: the result or blocker, exact revision/evidence
+pointer and next action. Link detailed review findings and raw test logs from
+their retained artifact; do not repeat them in every correction/status comment.
+For example, report "correction frozen at SHA; findings F1/F2 addressed; receipts
+at PATH; paired reviewer please verify" rather than replaying the assignment,
+governance and test transcript. Preserve substantive findings and attribution in
+the linked review record. Native notifications carry only the ticket/comment
+pointer and requested action; there is no parallel chat or acknowledgment loop.
 
-The short body separates Action, Boundaries, Evidence and Grounding. Active scope,
-stop conditions and permissions belong in Action/Boundaries, not behind an optional
-history link. Evidence points to immutable full Git SHAs and specific verification
-artifacts; reported evidence stays distinguishable from independently verified facts.
-Past receipts belong in LIT, Git, or the history log, not the current action.
+Workers write their own grounding, progress, findings, evidence and release
+comments directly to LIT. Buford does not transcribe routine worker reports.
+Within user-released campaign scope, authors select eligible bounded slices,
+coordinate claims/worktrees and reserve available independent reviewers. They
+exchange review requests, clarifications, corrections and evidence directly. Buford nudges idle lanes; GREEN-cycle delivery
+starts its integration attestation and closure responsibilities. No routine Buford
+assignment, permission or relay is required. A peer request cannot assign a new unit,
+expand owned paths, waive a gate or release a pause. An author asking their reserved independent
+reviewer to inspect a frozen correction is within scope; a reviewer claiming the
+next blocked implementation ticket is not.
 
-## Notifications and stale messages
+Every coordination comment identifies actual sender name/role, intended recipient
+name/role, task and session UUID. Git author identity alone does not identify the sending agent. Include the
+exact head and evidence pointer when relevant; clearly distinguish implementer,
+reviewer and CI evidence. Use concise prose, not a mandatory custom response form.
 
-Send one short notification after updating and reading back the checkpoint:
-
-```text
-TO: <actual recipient>. FROM: <actual sender>.
-TASK: <id>; REV: <checkpoint revision>.
-ACTION: <one requested transition>.
-CHECKPOINT: <absolute path>#<section>
-```
-
-Aim for 60-120 words, not a hard truncation rule. Include a full immutable head
-when assigning review/integration; obtain it from Git, never reconstruct it.
-Do not paste the checkpoint, test logs, full receipt and historical conversation
-into the notification. A pointer saves nothing if the next step dumps every file.
-
-On receipt, compare task/revision/session against the current checkpoint and your
-last accepted revision. An older notification is historical: do not execute or
-acknowledge it. An identical accepted revision is a duplicate. If the file is newer
-than the notification, do not execute either action blindly: read its current
-Action/Boundaries; obey a pause immediately, otherwise report the mismatch once
-and await a matching notification. A new file alone does not start a task.
-
-Before writes or publication, recheck the current revision and writer authority.
-"The old message says fix it" is not authority after writer release. Stop rather
-than adding another corrective commit to a head already under review.
-
-## Read only what the decision needs
-
-First adoption/fresh context: read this protocol, the current checkpoint fully,
-and every required AGENTS/Laws/skill instruction and required reference fully.
-This protocol does not summarize or replace any mandatory guidance. Then retrieve
-the assigned design, code, or evidence needed to perform the task correctly.
-
-Mid-session: read checkpoint metadata, Action and Boundaries; load Evidence or
-Grounding when the changed task requires it. Do not repeat already read, unchanged
-material merely to acknowledge a status update. Actual code reviewers still inspect
-the exact code/tests; a hash identifies evidence but is not evidence of correctness.
-
-For targeted reads without extra dependencies:
+Run `lit quickstart`; use installed command help. Native operations include:
 
 ```bash
-# Frontmatter, excluding opening delimiter; no whole-document dump.
-sed -n '2,/^---$/p' /absolute/checkpoint.md
-# One named section, stopping before the next section.
-awk '/^## Action$/{p=1;next} /^## /&&p{exit} p' /absolute/checkpoint.md
+lit comment add <ticket-id> --body "<coordination comment>"
+lit show <ticket-id>
+lit show <ticket-id> --field description
+lit ls --status open --columns id,type,parent,assignee,title
+lit ls --status in_progress --columns id,type,parent,assignee,title
 ```
 
-Use the same selection for Boundaries/Evidence/Grounding. If a task needs a full
-file, read it fully. Do not hide tool output and claim the model learned it; only
-text actually returned enters its context. This is retrieval discipline, not lossy
-compression or a reason to omit instructions that matter late in an arc.
+`lit show` renders comment bodies without their own IDs. For an exact cited comment,
+capture `lit export` JSON inside a local command, select by both `comment.id` and
+`issue_id`, and print only bounded verification output:
 
-## Reports and receipts
+```sh
+python3 - arhugula-orchestration-7ji cmt-f1919c37-1689-4bde-9b2a-6bc119f33476 <<'PY'
+import json
+import subprocess
+import sys
 
-Respond for assignment acceptance, a blocker requiring action, material findings,
-writer release, or completion. Acknowledgment-of-acknowledgment and unchanged
-status echoes need no reply. Keep routine status in the artifact; send a delta
-when scope/head changes or Buford must decide. Urgent findings include enough
-reproduction information to act safely, regardless of the suggested word target.
+issue_id, comment_id = sys.argv[1:3]
+result = subprocess.run(["lit", "export"], check=True, capture_output=True, text=True)
+comments = json.loads(result.stdout)["comments"]
+matches = [comment for comment in comments
+           if comment.get("id") == comment_id and comment.get("issue_id") == issue_id]
+if len(matches) != 1:
+    raise SystemExit(f"expected one matching comment, found {len(matches)}")
+comment = matches[0]
+if len(sys.argv) == 4:
+    from pathlib import Path
+    Path(sys.argv[3]).write_text(
+        f"LIT comment snapshot: {issue_id} {comment_id}\n\n{comment['body']}\n")
+print(json.dumps({"id": comment["id"], "issue_id": comment["issue_id"],
+                  "body_prefix": comment["body"][:500], "body_chars": len(comment["body"])}))
+PY
+```
 
-Reports cite task/revision, exact head, artifact path, changed scope, result and
-next required action. Keep implementer, reviewer and CI evidence separate. Record
-full commands/results once in an owned verification artifact or LIT comment, not
-in every queue receipt. Never edit released review artifacts to add status; use
-a new report or explicitly authorized documentation delta.
+Replace the two arguments for another comment. Pass an absolute workspace path as
+a third argument to save the selected full body for a Read-only reviewer. `lit
+export` writes to stdout; a positional filename does not redirect it. Do not paste
+the full export into model context. The labeled **LIT comment snapshot** is
+agent-authored ticket context, not independent proof of human consent. Verify a
+claimed human instruction against the actual user turn through an authorized read,
+or hold for direct human resolution. Read enough newer ticket context to detect
+supersession.
 
-## Transitions, monitoring and rollback
+## Delivery is separate from the record
 
-Buford attests completion/grounding, preserves memory, prepares the next checkpoint,
-then controls the same-window clear/model/effort/handoff sequence. A fresh session
-reports its actual UUID once; Buford updates roster/checkpoint before new dispatch.
-Old session/task notifications cannot reactivate work after that transition.
+Installed LIT 0.14.0 exposes comments and workflow events. The observed project
+`comment_added` dry-run fires zero definitions. Automatic tagged-comment delivery
+to Codex sessions is NOT verified or configured. A tag is not a delivery receipt.
 
-Watchers only alert Buford. A deliberate pause is not a reason to assign work;
-do not arm or resume alerting while the user has paused the team. Alerts do not
-constitute task authorization. Integration remains Buford-owned, with explicitly
-delegated helper execution and all required review/PR/main CI gates intact.
+After a successful comment write, capture its actual ID and send one short native
+pointer to the roster-verified recipient. Use `codex queue` for Codex; use the
+verified existing Foot window for Claude as described below:
 
-During rollout the team stays paused until Buford sends a matching resume notice.
-Rollback is an explicit protocol update and revised checkpoints, never deletion
-of evidence or silent resurrection of old queued assignments.
+```text
+TO <name, role> | FROM <name, role> | <ticket> | <comment-id> | <requested action>
+```
+
+No duplicated comment body, logs or history. A failed comment write sends no action
+notification; report the failure. If queue delivery fails after the comment lands,
+retain that comment ID and retry delivery, not the comment write. A successful
+enqueue is not proof of execution. The paired actors verify delivery/work directly.
+No routine acknowledgment loop; blockers and completion go into the ticket.
+
+Send Buford completion pointers to the verified `notification_thread` in current
+`session-control.json`. A delivery target alone does not establish native freshness or work admission. Preserve the actual queue receipt or delivery failure with the result
+pointer before release. A terminal-only completion is not a delivered handoff.
+Buford checks current native/LIT status and nudges idle lanes under the standing
+never-idle direction; pairs retain direct review exchanges. GREEN-cycle results
+go to Buford for integration. A verified Buford continuation updates its notification destination with its
+actual native routing; no external-supervisor receipt is required for the
+user-directed Memento continuation.
+
+An author may send the recorded review pointer directly to the reserved Codex
+reviewer with `codex queue --thread <verified-uuid> --message <pointer>`. Use the
+installed command help and retain the actual delivery result. The recipient must
+match the current reserved review role and admitted native session. A queued message is
+not a new assignment or evidence that the reviewer has started. Codex-to-Codex
+communication uses native `codex queue`; do not type prompts into Codex chat boxes.
+If a fresh thread has no persisted rollout, retain that native delivery error in
+LIT and resolve it within the pair rather than repeating failed queues or UI input.
+
+**NEVER IDLE: the sender owns the handoff through verified recipient uptake.** A
+finding posted after the author stopped waiting must trigger that author. A frozen
+candidate must trigger its reviewer. Before ending the sending turn, deliver the
+pointer and check for the recipient's native user/queue-consumption event followed
+by activity on that task. Preserve the receipt with the comment ID. A comment,
+typed composer text or successful enqueue alone does not complete this obligation.
+If uptake is delayed, retain the pointer and report the exact delivery boundary
+once in the ticket; Buford can nudge the idle lane without rewriting the finding.
+Do not spend a review pass or reset a session merely to check delivery.
+
+Native `codex queue` defers delivery while the recipient's turn is active. Keep
+coordination turns bounded: after dispatch and verified uptake, end the turn when
+the next action belongs to a peer. Do not keep a turn open with repeated sleep or
+status checks while notifications accumulate. Ending a waiting turn does not
+finish the work unit and does not call for Memento. A queued notification starts
+the next turn; process its exact comment once and continue the authorized work.
+If a comment was already handled through LIT, acknowledge its native uptake without
+repeating the task or its historical status.
+
+Before Memento, check the existing native queue for the current thread and let
+pending notifications arrive through bounded turns first. Do not use a reset to
+drain a backlog. Do not delete pending items, replay already consumed pointers or
+send a second copy to manufacture uptake. An active-turn queue is not a real-time
+steering channel; report that boundary honestly rather than promising immediate
+delivery. Immediate human stop/cancel still takes precedence over queued work.
+
+For a Claude recipient, verify its current roster session/transcript and existing
+Foot client (`arhugula-claude-coder`, `arhugula-profile-coder` or
+`arhugula-facade-coder`), including live address, stable ID, terminal/process
+ownership and input availability. Deliver only the short pointer into that window
+using the existing Hyprland native input, then submit it with Return. Target the
+verified window explicitly; preserve focus and other composers. Recheck the bound
+client before submission. The tested manual route uses
+`hyprctl eval` with `hl.dispatch(hl.dsp.send_shortcut({mods=...,key=...,
+window="address:..."}))` for literal keys and then Return, with verified English
+(US) keyboard and caps lock off. Retain type and submit results separately, then
+verify the exact pointer in that session's transcript and subsequent task activity.
+The first verified author wake-up is U01 cmt-0f32f6aa-c199-4c7f-a824-41fddbafdf1c;
+bounded evidence is
+`.local/opus-preparation-20261022/coordination/buford-continuation-20261023-224925/u01-native-nudge.json`.
+
+Claude authors also read their ticket at review boundaries; this supplements native
+delivery. No automatic tagged-LIT wake-up or monitoring service is established.
+Do not resume another CLI against an active transcript or type into a Codex
+composer. If submission or uptake is uncertain, inspect the exact existing pointer
+and native receipt before another attempt; never resend the whole work record or
+blindly press Return. An actual denial remains binding. Pair actors deliver their
+own handoffs directly; routine Buford relay and acknowledgment loops are unnecessary.
+
+For same-claim continuations, use context-policy's verified-continuation rule and
+begin useful work immediately after actual native/authority/headroom checks.
+Record inspection and any actual admission result honestly with the next
+substantive task result. An active-turn-only `session-not-complete` is not ALLOW
+and does not demand a startup-only end. Deliver to independently verified current
+native peers; routine central acknowledgment is not a release gate. Buford
+reconciles metadata without blocking unchanged authorized work merely for an old
+UUID. Missing native proof/metrics, inadequate headroom and actual holds still
+block the affected action; fresh/changed substantial assignments retain admission. Report progress through landings,
+accepted assertions and the next owned blocker under release-campaign.md; a startup
+or delivery acknowledgment is not an acceptance result.
+
+Direct LIT access permits append-only comments and each worker's existing assigned
+claim/progress operations. It does not grant deletion or rewriting of another
+agent's record, forced claim takeover, HIL release, review-budget edits, routing
+changes or unverified ticket closure. Keep normal tool/sandbox approval controls.
+Native LIT serialization remains the store's responsibility; report a failed write
+and retry that write after verifying its result rather than launching concurrent
+mutations or inventing a private replacement backlog.
+
+Immediate user pause/cancel goes directly to sessions; it does not wait for LIT.
+The roster and small role-checkpoint metadata retain ONLY session routing and
+pause/writer safety state. They are not a second task/evidence conversation.
+A pause defeats older ticket comments and queued messages. A paused scope needs
+a matching release by its controlling authority; after release, routine pair
+exchanges within that scope do not require a fresh Buford assignment. Stale
+session IDs do not regain authority.
+
+## Workflow transitions
+
+The canonical paired-lanes-framework.md owns pair delivery, integration, closure,
+cleanup and session continuity. Load its applicable complete section before that
+transition. context-policy.md owns startup, changed-guidance adoption and measured
+admission. This communication reference owns record/delivery mechanics only; a
+native pointer does not waive any workflow gate or release a pause.
+
+## User summaries
+
+Report one concise result: what landed or was observed, exact evidence and next
+owned action or blocker. Use existing Trial193 package/claim records; a routine
+update does not require a full backlog/count/status inventory. Give counts only
+when requested or useful, distinguishing parent/leaf records and source versus
+installed completion. Interrupt otherwise only for a decision requiring the user.
+
+## Transition state
+
+The current release campaign and solo-execution-plan.md govern scope,
+reviewer pooling, feature publishing, phase milestones and context-boundary
+handoffs. Historical roadmap/checkpoint text does not override the current scope-derived queue. Disk edits alone do not prove native adoption. Previously, the user
+released the now-closed 25-unit batch and repair pause at c12
+cmt-0c59889e-442c-4b5c-a01c-15847302ac02; unrelated paused scopes remain held. Unmerged custom-form
+amendments are abandoned, preserved as history and must not be published. Existing
+checkpoint task bodies and old queued assignments are superseded by this protocol;
+retain their evidence rather than deleting unrelated work. No automatic LIT
+notification service or measured billed-token reduction is claimed.
+
+## Operational events
+
+The persistent session-context watch service and metadata notifications remain
+disabled under context-policy.md. Do not start or re-enable a monitor/service for
+continuation or delivery. Existing event-file pointers are evidence, not assignments,
+release/admission receipts or a reason to poll; use bounded live checks at real
+work transitions and preserve repair_paused.

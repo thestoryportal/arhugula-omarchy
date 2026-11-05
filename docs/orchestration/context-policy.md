@@ -1,161 +1,205 @@
-# Context and session policy
+# Context loading and admission
 
-User-authorized September 22, 2026. This replaces the fixed 50%/65% refresh policy,
-the unknown-capacity 100k fallback, and repeated startup ceremonies for this team.
-The full Laws sources remain unchanged. For the `arhugula-trial` loop, use the
-verified role bootstrap and one-shot context checks. Continuous monitoring and
-notifications are deferred; they are not a condition for resuming trial work.
-The recorded user pause still governs repair dispatch until lifted.
+This file owns loading and measurement mechanics. The paired-lanes framework owns
+workflow rules, including the accepted [release campaign](release-campaign.md).
+Later direct user instructions govern; preserved numerical defaults
+in old roles/bottles are not settings. No automatic monitor or repeated startup
+ceremony is required. Startup loads and verifies authority inside a useful working
+turn; it is not a separate deliverable or a reason to wait for another user prompt.
 
-## Load for the current job
+## Startup
 
-For a native Buford clear, initialization must consume at most 15% of the actual
-reported context window before the first workflow admission. Use the sealed
-prompt's `ops.orchestration.startup packet` once: it runs LIT quickstart, verifies
-the external bootstrap and supplies the full current role, this policy and
-Laws:Chat. Root AGENTS is already supplied by the native CLI. Then use
-`startup finish` and the first `Loop.begin`; both check native request input plus
-response output against the reported window. Unknown metrics or excess context
-hold work. A larger configured ceiling does not change this percentage.
-Read the bounded current work pointer and applicable full medium guidance after
-that admission, before doing that medium. Do not initialize by recursively listing
-directories, replaying handoff chains, or reading Code/Prompt guidance for work that
-has not begun. Full applicable Laws are retained; their loading boundary is the
-actual work, not a speculative startup audit.
+1. Reuse `lit quickstart` guidance loaded at entry; run it only if not yet loaded
+   in this native context. Use canonical root AGENTS already injected in full, or read
+   `/home/robbo/Work/arhugula-omarchy/AGENTS.md` if absent/stale. Do not print it
+   again merely to show it was read.
+2. Resolve your actual role and selected profile from the canonical roster/control
+   and launch profiles. Read your complete assigned role file once. Wrapper roles
+   load the one complete role they point to; do not read other roles.
+3. Read **Shared guardrails** in `paired-lanes-framework.md`, plus the sections
+   named by your role. Buford reads the full framework once at fresh adoption;
+   workers load remaining sections at their listed action. Read Laws:Chat before
+   conversational replies. Other Laws load by medium below.
+4. Read the supplied current LIT ticket/comment and enough newer comments to detect
+   supersession. Current scope/queue is solo-execution-plan.md and Trial193; a
+   roadmap or checkpoint next-action field is advisory and cannot restore old gates.
+   For c12, include **Current boundary** in `memento-current.md`.
+   Bind actual native identity/context, role/model/effort/permissions and measured
+   headroom. Preserve a null goal as null. No task is released by startup. Continue
+   the same released claim immediately under the continuation rule below; a fresh
+   or changed substantial assignment still requires its admission gate.
 
-At startup read root AGENTS, your role file in `roles/`, and this policy. Read the
-current routing record only if you route messages. Do not load historical rosters,
-team checkpoints, previous handoffs, completed logs or other roles by default.
-The assignment gives a ticket/comment and exact artifact pointers.
+A section means its complete body, through the next equal/higher heading; a grep
+snippet or truncated output is not the section. A pointer is not a required read.
+If output truncates, fetch the missing range, not the whole batch again. Stop
+loading references here until the next real action requires another section.
+Begin that authorized action in this turn; do not turn this loading boundary into
+a startup-only stop. Do not preload every reference.
 
-Read each applicable full Law and its required reference once, when you first
-perform that medium in the session. Keep a short list of paths/revisions already
-read; unchanged guidance is not reread on each assignment. A source change requires
-reading the changed guidance before relying on it. A compacted session that lost
-an applicable source must retrieve it before claiming compliance, then remeasure.
-A pointer or summary is not a substitute for a required full read.
+## Load at the first relevant medium or action
 
-| Role / activity | First relevant task loads |
+Read each applicable full Law and its required references once per unchanged
+source/session. Keep a small in-context set of loaded paths/revisions. If compaction
+lost a required source, retrieve it before relying on it and remeasure. Full Laws
+are unchanged; savings come from timing and avoiding duplicate reads, not abridging
+rules. A hash identifies a source; it does not prove you read it.
+
+| First action | Required context |
 | --- | --- |
-| Buford routing, status, fixed assignment templates | Laws:Chat; current ticket and authority |
-| Buford authors a new instruction or changes role policy | Laws:Prompt plus craft |
-| Implementer or independent source reviewer | Laws:Code |
-| Runtime tester executes an existing approved command | Exact scenario, provenance, Laws:Chat |
-| Runtime tester authors a diagnostic/configuration or analyzes code | Laws:Code |
-| Human documentation author | Laws:Prose plus craft |
-| Ticket creation or substantive redesign | Ticket craft; Laws:Backlog only for backlog design |
-| Specification author | Laws:Application-Spec plus craft |
+| Reply or fixed-template coordination/status | docs/governance/laws/chat/SKILL.md and current task authority |
+| Author instructions, role policy, skills or handoff | docs/governance/laws/prompt/SKILL.md and references/craft.md |
+| Write/review code, tests, schemas, config, architecture or diagnostics | docs/governance/laws/code/SKILL.md and any required references |
+| Human-facing document | docs/governance/laws/prose/SKILL.md and its craft reference |
+| Create/substantively redesign a ticket | docs/governance/laws/ticket/references/craft.md plus LIT workflow |
+| Design backlog | docs/governance/laws/backlog/SKILL.md and required references |
+| Author existing-application behavioral specification | docs/governance/laws/application-spec/SKILL.md and required references |
+| First pair or queue exchange | communication.md: One work record; Delivery is separate from the record |
+| Start/continue implementation or independent review | Framework: Pair delivery; relevant exact candidate/task artifacts |
+| Runtime or integration | Framework: Runtime and integration; exact admitted scenario/candidate |
+| Close ticket or remove worktree/branch | Framework: Verified closeout; actual main/CI/acceptance/ownership evidence |
+| Handoff / fresh continuation | Framework: Session continuity; actual current LIT/bottle and native evidence |
+| Assign/admit substantial work | Measured admission below; current guidance adoption and live release |
+| Permission-sensitive step | authorization.md and actual normal sandbox/service mechanism |
 
-Short coordination comments use an approved template and evidence pointers; they
-do not automatically constitute new backlog design or instruction authoring.
-Buford loads Laws:Code when actually making a code/architecture decision, not merely
-because a worker is coding. Mandatory system/developer skills still apply.
+Routine comments using an existing template do not trigger a new Prompt/Backlog
+read. Source analysis triggers Code even if the actor is Runtime; running an exact
+already-approved command alone does not. Skill requirements still apply to their
+actual task; stale plans cannot introduce a new ceremony or release a hold.
+Laws provenance/update rules remain in docs/governance/laws/README.md. The ticket
+craft reference is required for ticket work despite its upstream entrypoint being
+named DISABLED_SKILL.md; it is not an installed active skill.
 
-## Admit work by measured headroom
+## Changed guidance and live-session adoption
 
-Use `python -m ops.orchestration.session_context inspect` and `admit` before each
-substantial assignment. A session must be idle/released, identity-matched and have
-known current usage. For Claude, admission requires the latest completed request's
-input plus its response output, then the task budget and report/cleanup reserve, to
-fit within the configured operational ceiling. Codex admission uses its latest
-request input plus task budget and reserve. An applicable pause still holds admission.
-The ceiling is an operator margin, not a model capacity or a quality guarantee.
-The two verified 1M Claude lanes use an initial 800000 ceiling and 50000 reserve;
-tune these values from completed assignments rather than treating them as limits.
+At a consequential transition, check current release, ownership and applicable
+holds in LIT. Load changed required guidance before the affected action; use an
+announced change, source revision change or lost context as the trigger to reload.
+Remove routine per-transition hash comparisons and separate adoption receipts.
+Record the adopted revision with the next substantive task result; neither a
+central acknowledgment nor a standalone startup/status comment gates the action.
+A file edit, queued pointer or hash alone does not prove reading. Keep active
+writers protected and adopt at their next safe boundary. Native continuity and
+measured headroom remain required at actual session changes;
+apply the distinct unchanged-continuation and new-assignment rules below.
 
-Codex input_tokens already includes cached input. Claude request input adds input,
-cache-read and cache-creation once. Add only that response's `output_tokens`; it
-already includes generated thinking. The emitted `measurement_basis` and
-`estimated_consumed_context_tokens` show which sample admission used. This is a
-sampled estimate at the last completed request, not a forecast: new prompt and tool
-input plus future thinking/output belong in the task budget and reserve. Missing or
-invalid Claude output holds admission, including after compaction until a fresh
-request is measured. Neither cumulative usage nor subscription allowance is current
-context. A compaction preTokens value is an observation, never a capacity. Its
-postTokens value is not the next request size.
-Never translate a UI percentage without knowing its denominator and whether it is
-used context or headroom until automatic compaction.
+A fresh session reads current root authority, not historical transcripts. Native
+model/effort/permissions and bottle receipt must match actual evidence; Claude
+clear may retain UUID. Preserve questioned authority and denials. At most one
+corrective relaunch is allowed when actual launch evidence proves missing native
+role context, after preservation/release; otherwise keep the specific authority
+question held for its controlling user. Do not replay denied or uncertain effects.
 
-When an assignment cannot fit: finish or preserve owned work, record release and
-process handles in its ticket, and start a new session in the same visible window.
-Use a pointer to the existing ticket; do not recreate its history. Ordinary idle
-sessions may serve multiple related assignments while admission passes. Buford's
-visible lane additionally uses the [durable loop boundaries](loop-operations.md):
-native LIT reads at every actionable iteration, a hard fresh-context boundary after
-five verified closed leaf tickets, stable ticket/unit review budgets capped at five
-completed canonical passes, and private Mac-backed raw logs with bounded receipts.
-The external autonomous reset supervisor performs native clear and full prompt
-submission in that same idle Buford window; no manual clear or prompt append is
-required. Record current released-process and actual native-goal receipts before
-finishing the boundary turn, then verify its fresh native receipt. The supervisor
-owns the one mechanical bootstrap and updates only Buford routing; lifetime goal
-accounting derives retained per-thread receipts without claiming imported counters.
-Measured headroom may require an earlier boundary. Do not use remembered ticket
-status or rename a unit to evade either counter. Active
-writers are not cleared. Buford checks again at completion and uses read-only inspect
-at meaningful long-task progress points without interrupting an active writer. At a
-safe boundary, preserve and release work before a native clear in the same visible
-window; retain the role and user-selected model. Native compaction is a fallback:
-remeasure afterward. It is not an automatic rerun or a claim of freshness. Quality
-drift or lost authority also holds admission regardless of available tokens.
+## Measured admission
 
-## Keep coordination inexpensive
+Before a fresh or changed substantial assignment use existing
+`python -m ops.orchestration.session_context inspect` and `admit` with the actual
+native transcript, current task budget/reserve and effective Memento ceiling.
+Read current release, ownership, pause and native identity. Admission requires a
+released/idle eligible session and known metrics; a textual role table is not a
+receipt. Keep `repair_paused` holds except for the exact currently authorized
+scope. No unrelated repair/live dispatch while paused. The closed 25-unit WO batch
+is not an active queue; accepted campaign preparation and transition-specific
+releases follow release-campaign.md and current LIT. Reviewers are reserved per
+candidate, not tied to historical pairs.
 
-For this trial, inspect transcript metadata and run `admit` at assignment boundaries;
-record assignments and results in LIT. The persistent `session_context watch` path
-and its user service remain disabled: response-ID-cap failures can stop all watched
-sessions, and older over-cap state cannot migrate. Do not enable that path or
-notifications as part of the trial. No repair dispatch while `repair_paused` is true.
+For a continuation of the same released claim/reservation, verify the actual
+same-Foot bottle/first input, native identity/model/effort/permissions, current
+release/ownership/holds, loaded guidance, effective ceiling and retained
+budget/reserve. Use existing `session_context inspect` on the actual latest native
+request and its emitted measurement basis to verify known headroom, including
+necessary guidance/tool growth within the retained budget/reserve. Use actual
+completed usage where required by that client's measurement basis; never invent
+usage for an unfinished response. Continue useful authorized work immediately in
+this turn when continuity, release and headroom are established.
 
-Models and effort come from the current routing record and launch profiles, including
-explicit user selections for Buford and the reviewer. Routine coding and runtime
-follow their profiles. Escalate an explicitly bounded difficult review through a
-named senior profile; return after its task boundary only for a temporary escalation.
-A user-selected model/effort persists across assignments and fresh sessions until
-the user changes it. Never silently change an active writer's model. No paid API fallback.
+An active turn alone does not revoke an unchanged released claim. The existing
+`admit` command may report `session-not-complete` during that turn: preserve the
+actual result and known inspection/headroom, without describing it as ALLOW,
+editing task-complete state or ending solely to manufacture a startup receipt.
+That status alone creates no new admission gate for this verified same-claim
+continuation. Missing/invalid metrics, insufficient headroom, identity conflicts,
+changed scope/selection and actual holds still block the affected substantial
+action; continue independently authorized bounded read-only grounding where
+available. Fresh/changed substantial assignments retain the real `admit` gate.
+Record measurement/adopted revision with the next substantive LIT result, not a
+standalone startup/adoption acknowledgment. Preserve every product-contract,
+independent-review and live-effect gate. A null goal remains null.
 
-Prefer one bounded command with a retained log over many conversational polls.
-Read exact files/symbols and focused output. Keep full logs on disk; return exit,
-counts, concrete failures and pointers. Do not dump entire tickets, transcripts,
-repositories or /tmp. Batch independent reads but size output to avoid truncation
-and rereading. Evidence verification remains required; it does not require every
-worker to repeat every other worker's tests.
+Buford owns canonical routing reconciliation, but a stale predecessor UUID alone
+does not hold that verified continuation. Before direct delivery, verify the peer's
+actual current native identity and continuity evidence; a peer's textual report
+alone is insufficient. Hold identity conflicts, missing actual continuity/adoption
+evidence, failed measurement/headroom, changed selection/scope and explicit holds
+for their controlling owner.
+Do not grant new permissions, alter budgets/ceilings, overwrite peer routing or
+replay an uncertain handoff to make admission pass. This rule supersedes routine
+"finish Startup, then wait for completed-turn ALLOW" and "wait for Buford ALLOW"
+wording in older Startup comments for unchanged claims. "Startup complete; I will
+start on your next prompt" is an unfinished continuation when useful released
+work remains. No fresh permission, review pass, budget or hold release is implied.
 
-## Preserve quality and authority
+Use native `skills/ceiling/bin/ceiling show` from the installed Memento plugin to
+read effective settings; read the affected session layer when admitting another
+lane. Session overrides, project `.promptctl/memento.conf` and user settings are
+resolved by Memento's reader. Buford/operator owns policy changes; workers do not
+edit limits. Verify the actual native launch cwd and settings layers: reading a
+canonical project limit does not establish that limit as the native effective
+setting. Record a native/project/control mismatch honestly, without changing
+settings or routing to a looser layer. For an unchanged released claim, retain
+the stricter applicable existing cap and budget/reserve for measured headroom;
+this does not authorize a new substantial assignment. A mismatch holds fresh or
+changed admission for its controlling owner. Preserve existing per-role budgets/
+reserves. Native GRACE belongs to the installed plugin; do not alter source to
+change a limit.
 
-Implementer, independent reviewer and runtime witness remain separate attributions.
-A source/test GO is not installed-runtime acceptance. Pin revisions, artifact hashes,
-installation origins, config and actual results. User pause overrides queued tasks.
-A fresh Buford needs one verified identity update and explicit transfer from its
-predecessor; worker refresh needs one verified identity update and assignment pointer.
-The first post-clear message must also identify the user's root `AGENTS.md`
-authority, the worker's role and the active pause so the new session can verify
-provenance before accepting the pointer. A message typed by Buford into another
-agent window does not itself authenticate Buford to that agent. Verify root
-governance, the current assignment and recorded actual launch configuration. Hold
-a questioned task. Buford may make at most one corrective relaunch in the same visible
-lane only when that evidence proves native `--append-system-prompt` role context was
-missing; preserve work and release the session first. If a correctly configured
-worker still questions authority, keep it held and ask the user to resolve that
-specific blocker. Routine role confirmation needs no repeated human introduction.
-A classifier denial is a separate permission boundary: hold and record it; never
-change flags, grant blanket trust or start a new session to retry the denied action.
-Ask the user when necessary permission remains unresolved through its normal path.
-Do not substitute Buford for the independent reviewer or runtime tester. No
-repeated startup acknowledgment loop after identity is established.
-Preserve transcripts and worktrees; no automatic deletions, process kills or main
-merges.
+Codex admission uses latest request input plus task budget and reserve. Input
+already includes cached tokens. Claude uses latest completed request input plus
+that response's output, then budget and reserve: input adds input/cache-read/
+cache-creation once; output already includes generated thinking. Missing/invalid
+Claude output holds admission, including after compaction until a fresh request.
+Use emitted measurement_basis and estimated_consumed_context_tokens. Latest-request
+usage is an observation, not a forecast; future tool/prompt input and thinking
+belong in budget/reserve. Cumulative usage, subscription allowance, UI percentages
+and compaction pre/post sizes are not interchangeable with current context.
 
-Launch profiles remove unrelated app/plugin discovery only for these invocations.
-They preserve subscription authentication and approval boundaries. Claude uses
---safe-mode, restricted role tools and --autocompact auto; never --bare (which skips
-OAuth) or a permission bypass. Codex disables apps/plugins for the invocation while
-retaining sandbox and approval review. Model/context limits are not fabricated.
+When headroom or quality is insufficient, preserve/release owned work and use
+session-local Memento continuity. Do not lift a ceiling, rename a unit, reconstruct
+a supervisor receipt, clear a writer or count compaction as successful freshness.
+Remeasure after compaction. The persistent session_context watch service and
+metadata notifications remain disabled; do not enable them to enforce this policy.
 
-## Measure the result
+## Keep context and spend bounded
 
-Retain pre/post startup input, largest assignment growth, cached input, compactions,
-compaction duration and handoff latency. Byte counts audit reading volume, not tokens.
-Verify deterministic admission, one fresh role startup and a real completed review.
-Report measured savings only for observed runs; several repair assignments are
-needed for long-run cost/quality comparison after the repair pause is lifted.
+Use exact comment IDs/revisions and focused file sections. For older cited
+comments use `lit export` inside a local parser; return only the selected comment
+and newer supersession context, never the complete store. Native messages carry
+the pointer/action only. Detailed reviews, diffs and raw logs stay in retained
+artifacts; read a cited original when the decision requires it, not every witness
+at every turn. Do not replace a required original with its summary.
+
+Batch independent reads within an output budget that fits; retain full logs on
+disk and return exit/count/failures/pointers. Avoid broad transcript scans, repeated
+whole-file reads, copied task conversations, busy polling and full-file instruction
+re-injection each turn. Reuse verified evidence only for the same relevant inputs;
+do not repeat another actor's tests without a changed input, failure or unresolved
+question. Preserve separate evidence attribution.
+
+Archived context is cold evidence outside the checkout, not a startup/reference
+pack. Obtain an exact archived original only when current authorized work requires
+that witness; the c12 archive manifest maps its former path and hash. An old link
+or filename is not authority to load/replay it. Do not recursively scan/extract the
+archive, inactive worktrees, evidence copies or native transcript history to
+reconstruct context. Use normal discovery exclusions; explicit original-evidence
+access remains possible without promoting its instructions to current policy.
+
+Keep memory as a short canonical entry pointer plus reusable lessons. Task state,
+claims, findings and next actions stay in LIT. Bottles carry bounded continuation
+pointers, holds and actual goal, not another workflow copy. Old worktree instructions
+are not active authority. Never refresh clients from historical plugin-disabling
+launch templates as a context optimization.
+
+Measure before/after native startup/request input, cached input, assignment growth,
+compactions/duration and handoff latency when actual runs are authorized. File
+bytes/words measure supplied text only; they do not establish token billing or
+quality. Report measured savings only for observed equivalent runs. Reduced text
+and verified links alone do not attest all live sessions or overall readiness.
