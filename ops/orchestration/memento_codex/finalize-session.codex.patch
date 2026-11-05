@@ -1,0 +1,61 @@
+Codex same-Foot transport, applied after finalize-session.foot.patch.
+Codex lanes never reach a Claude transport.
+
+--- a/skills/message-in-a-bottle/bin/finalize-session
++++ b/skills/message-in-a-bottle/bin/finalize-session
+@@ -756,7 +756,9 @@
+     # went missing" failure discovery exists for, so it must not be able to lose
+     # the handoff on discovery's behalf. [FRAMING:representation]
+     TARGET=""
+-    if [[ -z "$HOSTED" ]]; then
++    # A Codex lane never resolves a pane: the tmux worker drives a Claude composer, and Codex
++    # resets only through the same-Foot branch below. [LAW:single-enforcer]
++    if [[ -z "$HOSTED" && -z "${CODEX_THREAD_ID:-}" ]]; then
+       TARGET=$(_pane_target "${TMUX_PANE:-}") \
+         || TARGET=$(_pane_target "$(_discover_tmux_pane || true)") \
+         || TARGET=""
+@@ -773,6 +775,44 @@
+       trap - EXIT
+       echo "handoff scheduled → tmux $TARGET in ${HANDOFF_DELAY_SECONDS}s (log: $LOGFILE)"
+ 
++    elif [[ -n "${CODEX_THREAD_ID:-}" ]]; then
++      # Codex names its thread in every command it runs, and only the same-Foot transport below
++      # resets a Codex lane; each Claude transport after this would bind a claude that is not here.
++      [[ -z "$HOSTED" && -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] \
++        || _refuse "codex transport: only an existing Foot window under Hyprland can be reset"
++      # [LAW:no-silent-failure] Codex has no verified /goal to re-issue, so a goal is refused here
++      # rather than silently dropped across the reset.
++      [[ -z "$GOAL" ]] || _refuse "codex transport: no verified Codex /goal carries --goal"
++      # The owner is the nearest codex ancestor of this command, sitting directly under Foot.
++      CODEX_PID=$PPID
++      for _ in 1 2 3 4 5 6 7 8; do
++        [[ "$(ps -o comm= -p "$CODEX_PID")" != codex ]] && CODEX_PID=$(ps -o ppid= -p "$CODEX_PID" | tr -d ' ')
++      done
++      [[ "$(ps -o comm= -p "$CODEX_PID")" == codex ]] \
++        || _refuse "codex transport: cannot bind the owning codex process"
++      # Foot runs codex directly, or through the one login shell it started for it.
++      TERM_PID=$(ps -o ppid= -p "$CODEX_PID" | tr -d ' ')
++      [[ "$(ps -o comm= -p "$TERM_PID")" != bash ]] || TERM_PID=$(ps -o ppid= -p "$TERM_PID" | tr -d ' ')
++      [[ "$(ps -o comm= -p "$TERM_PID")" == foot ]] \
++        || _refuse "codex transport: owning codex is not under Foot"
++      if [[ -n "${FINALIZE_DRY_RUN:-}" ]]; then
++        echo "[dry-run] transport=foot-codex codex_pid=$CODEX_PID thread=$CODEX_THREAD_ID msgfile=$MSGFILE"
++        exit 0
++      fi
++      _mktemp_or_exit LOGFILE log
++      # Codex's command runner kills the command's process group when it returns, so the helper gets
++      # its own OS session; Popen returns only after that child has exec'd, leaving no launch race.
++      python3 - "$SELFDIR/codex-foot-helper" "$CODEX_PID" "$MSGFILE" "$GOALFILE" \
++        "$HANDOFF_DELAY_SECONDS" "$LOGFILE" <<'PYDETACH'
++import subprocess
++import sys
++
++with open(sys.argv[-1], "ab") as log:
++    subprocess.Popen([sys.executable, *sys.argv[1:-1]], stdin=subprocess.DEVNULL,
++                     stdout=log, stderr=log, start_new_session=True)
++PYDETACH
++      trap - EXIT
++      echo "handoff scheduled → foot codex pid $CODEX_PID in ${HANDOFF_DELAY_SECONDS}s (log: $LOGFILE)"
+     elif [[ -z "$HOSTED" && -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+       # Foreground Hyprland lanes here use Foot. Failed ownership never falls through.
+       FOUND=$(_find_claude_session) \

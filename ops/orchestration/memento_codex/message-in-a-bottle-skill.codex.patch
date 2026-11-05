@@ -1,0 +1,16 @@
+Codex invocation guidance for the pinned message-in-a-bottle skill, upstream Memento pin 4f95f159.
+Additive only: every upstream line, including all Claude guidance, is kept in place.
+
+--- a/skills/message-in-a-bottle/SKILL.md
++++ b/skills/message-in-a-bottle/SKILL.md
+@@ -58,2 +58,10 @@
+
++### Running it from Codex
++
++Codex runs each command inside its workspace sandbox, and this close-out reaches past that sandbox twice: the launcher writes the handoff under `~/.claude/memento/handoffs`, outside the workspace, and its helper drives this same Foot window through the host process table and Hyprland. Under the default sandbox it stops before recording anything — `Read-only file system` … `cannot write the handoff`, exit 2. So run the launcher through `exec_command` with `sandbox_permissions: "require_escalated"` and a one-sentence `justification` naming the durable handoff and the same-window reset. That asks the normal approval review; it grants nothing by itself. Change nothing else to get past it — no approval mode, permission rule, ceiling, other session or other transport.
++
++Report the full result: the command's output and its exit status. Exit 0 with `handoff scheduled → foot codex pid …` is the close-out, and *Turn-ending discipline* applies; anything else is not a close-out, so say so plainly.
++
++Run it once. After a failure or a denial the thought to catch is *"I'll check it is safe and try again"* — that is Codex's default after a rejection, and here it is wrong, because the failures are not alike. A denial, or an exit 2 that says the handoff was never written, failed before any effect: stop, report the exact result and wait for direction. A timeout, an interrupted command or a result with no exit status may already have scheduled the helper that clears this window, and a second run could reset it twice: report the uncertain result and stop.
++
+ ## Examples

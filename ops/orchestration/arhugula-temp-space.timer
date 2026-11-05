@@ -1,0 +1,11 @@
+[Unit]
+Description=Automatically maintain workflow temporary space
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=arhugula-temp-space.service
+
+[Install]
+WantedBy=timers.target

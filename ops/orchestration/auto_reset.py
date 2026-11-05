@@ -1,0 +1,1450 @@
+"""Autonomous same-window native reset; never replay an uncertain input effect."""
+
+import argparse
+import ast
+import ctypes
+from dataclasses import dataclass
+import hashlib
+import importlib.util
+import json
+import os
+import re
+from pathlib import Path
+import select
+import socket
+import sqlite3
+import sys
+import time
+import uuid
+from datetime import datetime
+
+from .artifacts import DEFAULT_ROOT, file_binding
+from .ceiling import Authority, CeilingHold, Measurement, decide
+from .continuation import Lease
+from .goal_lineage import GoalLineage, goal_observation
+from .loop import Bottle, CapabilityHold, Loop, NativeLit, RecoveryTransfer, identity
+from .native_window import (
+    NativeWindow,
+    QueueRefused,
+    WindowCapability,
+    predecessor_absent,
+    seal_predecessor,
+)
+from .native_goal import read_goal
+from .records import atomic_json, private_directory
+from .session_context import inspect_transcript
+
+HERE = Path(__file__).resolve().parent
+# Non-module bytes the reset executes under; attested with the modules themselves.
+CLOSURE_FILES = (
+    HERE / "vendor" / "memento" / "LICENSE",
+    HERE / "vendor" / "memento" / "PIN.json",
+    HERE / "units" / "buford-memento-reset.service",
+)
+# The supervisor runs auto_reset; the fresh context runs startup before any workflow.
+ENTRY_POINTS = ("auto_reset", "startup")
+
+
+def source_closure():
+    """Every package module the reset executes, from the entry points' import graph.
+
+    Read from source, lazy in-function imports included, so the set is the same however
+    far execution has got and whichever module happened to load first.
+    """
+    package = __name__.rpartition(".")[0]
+    modules, pending = set(), [f"{package}.{name}" for name in ENTRY_POINTS]
+    while pending:
+        spec = importlib.util.find_spec(pending.pop())
+        origin = Path(spec.origin)
+        if origin in modules:
+            continue
+        modules.add(origin)
+        for node in ast.walk(ast.parse(origin.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ImportFrom) and node.level:
+                anchor = spec.parent.rsplit(".", node.level - 1)[0]
+                target = ".".join(filter(None, (anchor, node.module)))
+                # A name imported from a namespace package is a submodule; from a
+                # module it is an attribute, and the module itself is the source.
+                if importlib.util.find_spec(target).origin is None:
+                    pending.extend(f"{target}.{alias.name}" for alias in node.names)
+                else:
+                    pending.append(target)
+    return sorted(modules)
+
+
+class CompositorAbsent(OSError):
+    """The compositor event socket is gone; the supervisor waits read-only."""
+
+
+def user_frontier(actual):
+    return {"count": actual["user_count"], "hash": actual["last_user_hash"]}
+
+
+# Step failures the supervisor reports as a durable hold instead of exiting.
+HOLDS = (OSError, ValueError, KeyError, sqlite3.Error)
+
+
+def live(probe, *args):
+    """Run one live native probe; its failure is a capability hold."""
+    try:
+        return probe(*args)
+    except HOLDS as error:
+        raise CapabilityHold(probe.__name__, error) from error
+
+
+class LiveWindow:
+    """The native window seam, whose every probe is a live fact the condition cannot see.
+
+    Native inputs pass through unchanged: their durable intent phase already refuses a
+    replay, and their refusals keep their own types.
+    """
+
+    INPUTS = ("clear", "queue", "instruct")
+
+    def __init__(self, window):
+        self.native = window
+
+    def __getattr__(self, name):
+        value = getattr(self.native, name)
+        if name in self.INPUTS or not callable(value):
+            return value
+        return lambda *args: live(value, *args)
+
+
+@dataclass(frozen=True)
+class Held:
+    """A recorded hold; `new` marks only the first report of its unchanged condition."""
+
+    event: dict
+    new: bool
+
+
+def bound_json(binding):
+    if file_binding(binding["path"]) != binding:
+        raise ValueError("bound recovery artifact changed")
+    return json.loads(Path(binding["path"]).read_text())
+
+
+@dataclass(frozen=True)
+class ImplementerRefresh:
+    """A proven sequence changes only the implementer UUID/transcript."""
+
+    routing: dict
+
+    @classmethod
+    def parse(cls, binding, original, routing, routing_binding):
+        try:
+            return cls._parse(binding, original, routing, routing_binding)
+        except (KeyError, TypeError, AttributeError, StopIteration) as error:
+            raise ValueError("malformed implementer refresh chain") from error
+
+    @classmethod
+    def _parse(cls, binding, original, routing, routing_binding):
+        refresh = bound_json(binding)
+        expected = json.loads(json.dumps(original))
+        first = next(s for s in expected["sessions"] if s["role"] == "implementer")
+        current = next(s for s in routing["sessions"] if s["role"] == "implementer")
+        if (
+            refresh["kind"] != "authorized-idle-implementer-native-refresh"
+            or refresh["production_paused"] is not True
+            or refresh["previous_session"] != first["session_id"]
+            or refresh["session_id"] != current["session_id"]
+            or any(
+                refresh["control_after"][k] != routing_binding[k]
+                for k in ("sha256", "bytes")
+            )
+        ):
+            raise ValueError("implementer routing refresh evidence mismatch")
+        chain = refresh.get("refresh_chain")
+        if (
+            chain is None
+            and refresh.get("immediate_previous_session", refresh["previous_session"])
+            != refresh["previous_session"]
+        ):
+            raise ValueError("bound implementer refresh chain required")
+        if chain is not None:
+            if not isinstance(chain, list) or not chain:
+                raise ValueError("nonempty bound implementer refresh chain required")
+            steps = [bound_json(step) for step in chain]
+            # [LAW:parse-dont-validate] Resolve historical mutable-path bindings
+            # through immutable snapshots, never by trusting an aggregate endpoint.
+            snapshots = [refresh["control_before"], routing_binding]
+            snapshots.extend(s["control_before"] for s in steps[1:])
+            snapshots.extend(s["control_after"] for s in steps[1:])
+            documents = {}
+            for snapshot in snapshots:
+                documents[(snapshot["bytes"], snapshot["sha256"])] = bound_json(
+                    snapshot
+                )
+            before = original
+            previous = first["session_id"]
+            native_process = None
+            for step in steps:
+                left = documents.get(
+                    (step["control_before"]["bytes"], step["control_before"]["sha256"])
+                )
+                right = documents.get(
+                    (step["control_after"]["bytes"], step["control_after"]["sha256"])
+                )
+                if (
+                    left != before
+                    or right is None
+                    or step["previous_session"] != previous
+                    or step["session_id"] == previous
+                    or step["kind"] != refresh["kind"]
+                    or step["production_paused"] is not True
+                    or step["native_acceptance"] is not False
+                ):
+                    raise ValueError("implementer refresh chain adjacency mismatch")
+                next_row = next(
+                    s for s in right["sessions"] if s["role"] == "implementer"
+                )
+                permitted = json.loads(json.dumps(before))
+                row = next(
+                    s for s in permitted["sessions"] if s["role"] == "implementer"
+                )
+                row.update(
+                    session_id=step["session_id"], transcript=next_row["transcript"]
+                )
+                if right != permitted:
+                    raise ValueError(
+                        "protected routing changed inside implementer refresh chain"
+                    )
+                delivered = bound_json(step["delivery"])
+                cls.require_identity(delivered, step["session_id"])
+                if "native_creation_witness" in step:
+                    creation = cls.witness(step["native_creation_witness"])[
+                        "fresh_context"
+                    ]
+                    observation = cls.witness(step["actual_identity_witness"])
+                    cls.require_identity(observation["identity"], step["session_id"])
+                    proof = observation["proof"]
+                else:
+                    creation = bound_json(step["native_creation"])
+                    proof = bound_json(step["current_native_proof"])
+                if (
+                    creation["session_id"] != step["session_id"]
+                    or creation["user_input"] is not False
+                    or proof["user_input"] is not True
+                    or native_process not in (None, proof["process_uuid"])
+                    or any(
+                        creation[k] != proof[k]
+                        for k in (
+                            "session_id",
+                            "created_at",
+                            "creation_log_id",
+                            "process_uuid",
+                        )
+                    )
+                    or proof["transcript"] != next_row["transcript"]
+                ):
+                    raise ValueError(
+                        "implementer refresh native creation binding mismatch"
+                    )
+                native_process = proof["process_uuid"]
+                before, previous = right, step["session_id"]
+            if (
+                before != routing
+                or refresh["immediate_previous_session"]
+                != steps[-1]["previous_session"]
+                or refresh["delivery"] != steps[-1]["delivery"]
+                or bound_json(refresh["control_before"]) != original
+            ):
+                raise ValueError("implementer refresh chain endpoint mismatch")
+        delivered = bound_json(refresh["delivery"])
+        cls.require_identity(delivered, current["session_id"])
+        first.update(session_id=current["session_id"], transcript=current["transcript"])
+        if expected != routing:
+            raise ValueError("protected routing changed outside implementer refresh")
+        return cls(expected)
+
+    @staticmethod
+    def require_identity(delivered, session):
+        if (delivered["session_id"], delivered["model"], delivered["effort"]) != (
+            session,
+            "gpt-6.1-sol",
+            "high",
+        ):
+            raise ValueError("actual refreshed implementer identity mismatch")
+
+    @staticmethod
+    def witness(binding):
+        receipt = bound_json(binding)
+        if receipt["exit"] != 0 or receipt["terminal"] != "exited":
+            raise ValueError("successful native refresh witness required")
+        if file_binding(receipt["stderr"]["path"]) != receipt["stderr"]:
+            raise ValueError("native refresh witness stderr changed")
+        return bound_json(receipt["stdout"])
+
+
+@dataclass(frozen=True)
+class ExpiredTitleRecovery:
+    """The original waiting-title case requires its actual human first user."""
+
+    @classmethod
+    def parse(cls, transfer, failed, config):
+        if failed["phase"] != "waiting_title":
+            raise ValueError("expired waiting_title recovery authority required")
+        return cls()
+
+    def bind_user(self, transfer, failed, actual, proof):
+        grant = transfer.grant
+        human = json.loads(Path(grant["human_authority"]["path"]).read_text())
+        if (
+            human["session_id"] != actual["session_id"]
+            or human["user_frontier"] != grant["user_frontier"]
+            or human["actual_user_message"] != actual["first_user"]
+        ):
+            raise ValueError(
+                "actual same-window human frontier recovery evidence required"
+            )
+
+    def bind_parent(self, transfer, failed):
+        if user_frontier(identity(failed['old_transcript'])) != failed['old_user_frontier']:
+            raise ValueError('old user input changed before maintenance recovery')
+
+    def retain_current(self, controller, transfer, actual):
+        return controller.retain_goal(transfer.grant['current_goal']['path'], actual['session_id'])
+
+
+@dataclass(frozen=True)
+class CurrentAuthorityRecovery(ExpiredTitleRecovery):
+    """A new evidenced human frontier repairs an expired clear without replay."""
+
+    def bind_parent(self, transfer, failed):
+        grant = transfer.grant
+        frozen = grant['parent_transcript']
+        current = file_binding(failed['old_transcript'])
+        # [LAW:parse-dont-validate] Parse a new capability; never alter the failed frontier.
+        if (file_binding(frozen['path']) != frozen
+                or any(current[k] != frozen[k] for k in ('bytes', 'sha256'))
+                or user_frontier(identity(frozen['path'])) != grant['parent_frontier']):
+            raise ValueError('current parent transcript/frontier evidence changed')
+
+    def bind_user(self, transfer, failed, actual, proof):
+        human = bound_json(transfer.grant['human_authority'])
+        if (human['session_id'] != actual['session_id']
+                or human['user_frontier'] != user_frontier(actual)
+                or human['actual_user_message'] != actual['last_user']):
+            raise ValueError('actual current human recovery authority changed')
+
+    def retain_current(self, controller, transfer, actual):
+        path = transfer.grant['current_goal']['path']
+        session, observation = goal_observation(json.loads(Path(path).read_text()))
+        ledger = GoalLineage(controller.config['goal_ledger'])
+        if observation['goal'] is not None and observation['goal']['objective'] != json.loads(ledger.path.read_text())['objective']:
+            return ledger.record_recovery(path, controller.config['deadline'])
+        return controller.retain_goal(path, actual['session_id'])
+
+
+@dataclass(frozen=True)
+class ExpiredPromptRecovery(ExpiredTitleRecovery):
+    """An expired delivered prompt transfers maintenance identity, never freshness."""
+
+    prompt: dict
+
+    @classmethod
+    def parse(cls, transfer, failed, config):
+        grant = transfer.grant
+        if failed["phase"] != "waiting_fresh":
+            raise ValueError("expired waiting_fresh sealed-prompt recovery required")
+        frozen = json.loads(Path(grant["config"]["path"]).read_text())
+        # [LAW:one-source-of-truth] Historical evidence stays frozen; the grant
+        # separately attests the reviewed execution config and installed blobs.
+        excluded = {"config_path", "source_acceptance"}
+        effective = {k: v for k, v in config.items() if k not in excluded}
+        if {k: v for k, v in frozen.items() if k not in excluded} != effective:
+            raise ValueError("failed recovery config changed")
+        execution = grant["execution_config"]
+        if file_binding(config["config_path"]) != execution or {
+            k: v
+            for k, v in json.loads(Path(execution["path"]).read_text()).items()
+            if k != "config_path"
+        } != {k: v for k, v in config.items() if k != "config_path"}:
+            raise ValueError("actual execution config/source attestation changed")
+        package = Path(failed["reset"]["directory"])
+        attempt = {
+            "manifest": failed["reset"]["manifest"],
+            "frontier": file_binding(package / "frontier.json"),
+            "nonce": failed["nonce"],
+            "started": failed["started"],
+            "fresh_context": failed["fresh_context"],
+        }
+        if grant["attempt"] != attempt or failed["fresh_context"]["user_input"]:
+            raise ValueError("failed prompt attempt/creation binding mismatch")
+        frontier = json.loads((package / "frontier.json").read_text())
+        if (
+            frontier["nonce"] != failed["nonce"]
+            or failed["title"] != "Buford-auto-" + frontier["nonce"]
+            or failed["routing"] != frontier["routing"]
+        ):
+            raise ValueError("failed prompt nonce/title/frontier mismatch")
+        text = (package / "resume-prompt.txt").read_text()
+        # [LAW:one-source-of-truth] historical keyboard attempts removed
+        # the file's final newline; their sealed failed supervisor carries no queue intent.
+        if "queue_ack" not in failed:
+            text = text.removesuffix("\n")
+        elif (
+            failed["prompt"] != file_binding(package / "resume-prompt.txt")
+            or failed["queue_ack"]["session_id"]
+            != failed["fresh_context"]["session_id"]
+        ):
+            raise ValueError("failed queued prompt/target intent mismatch")
+        expected = {
+            "file": file_binding(package / "resume-prompt.txt"),
+            "bytes": len(text.encode()),
+            "sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "count": 1,
+        }
+        if grant["prompt"] != expected:
+            raise ValueError("sealed prompt bytes/hash/count mismatch")
+        frozen_goal = json.loads(Path(grant["goal_ledger"]["path"]).read_text())
+        current_goal = json.loads(Path(config["goal_ledger"]).read_text())
+        # [LAW:one-source-of-truth] Recovery may append its two actual observations;
+        # it cannot rewrite the inherited objective, deadline, counters or history.
+        keys = set(frozen_goal) | set(current_goal)
+        if any(
+            frozen_goal.get(k) != current_goal.get(k)
+            for k in keys - {"receipts", "absent_goals"}
+        ):
+            raise ValueError("protected goal contract/accounting changed")
+        allowed = [grant["terminal_goal"], grant["current_goal"]]
+        if any(
+            r not in current_goal["receipts"] for r in frozen_goal["receipts"]
+        ) or any(
+            r not in frozen_goal["receipts"] + allowed for r in current_goal["receipts"]
+        ):
+            raise ValueError("protected goal receipt history changed")
+        allowed_absent = [
+            {"session_id": session, "receipt": grant[key]}
+            for session, key in (
+                (failed["reset"]["previous_session"], "terminal_goal"),
+                (grant["session_id"], "current_goal"),
+            )
+        ]
+        before_absent = frozen_goal.get("absent_goals", [])
+        after_absent = current_goal.get("absent_goals", [])
+        if any(r not in after_absent for r in before_absent) or any(
+            r not in before_absent + allowed_absent for r in after_absent
+        ):
+            raise ValueError("protected goal absence history changed")
+        return cls(expected)
+
+    def bind_user(self, transfer, failed, actual, proof):
+        initial = failed["fresh_context"]
+        if (
+            any(
+                proof[k] != initial[k]
+                for k in ("session_id", "created_at", "creation_log_id", "process_uuid")
+            )
+            or proof["user_input"] is not True
+            or datetime.fromisoformat(actual["created_at"].replace("Z", "+00:00"))
+            < datetime.fromisoformat(initial["created_at"].replace("Z", "+00:00"))
+            or actual["user_count"] != 1
+            or len(actual["first_user"].encode()) != self.prompt["bytes"]
+            or hashlib.sha256(actual["first_user"].encode()).hexdigest()
+            != self.prompt["sha256"]
+        ):
+            raise ValueError("actual sole sealed prompt/native creation mismatch")
+
+
+def recovery_case(transfer, failed, config):
+    # [LAW:parse-dont-validate] Two distinct failed-attempt capabilities own their
+    # different evidence contracts; common publication consumes the proven case.
+    cases = {
+        "expired-waiting-title-human-frontier": ExpiredTitleRecovery,
+        "expired-waiting-fresh-sealed-prompt": ExpiredPromptRecovery,
+        "expired-waiting-title-current-authority": CurrentAuthorityRecovery,
+    }
+    kind = transfer.grant.get("kind", "expired-waiting-title-human-frontier")
+    if kind not in cases:
+        raise ValueError("unknown maintenance recovery capability")
+    try:
+        return cases[kind].parse(transfer, failed, config)
+    except (KeyError, TypeError, AttributeError) as error:
+        raise ValueError("malformed failed-attempt recovery evidence") from error
+
+
+class AutoReset:
+    def __init__(self, loop, path, config, window, clock=time.monotonic):
+        self.loop = loop
+        self.path = Path(path)
+        self.config = config
+        self.window = LiveWindow(window)
+        self.clock = clock
+
+    def status(self):
+        return (
+            json.loads(self.path.read_text())
+            if self.path.exists()
+            else {"phase": "monitoring"}
+        )
+
+    def save(self, state):
+        atomic_json(self.path, state)
+
+    @property
+    def hold_path(self):
+        return self.path.with_suffix(".hold.json")
+
+    def held(self):
+        if not self.hold_path.exists():
+            return None
+        # A hold recorded before probe identity keeps its condition gate.
+        return {"probe": None, **json.loads(self.hold_path.read_text())}
+
+    def condition(self):
+        """Digest of every durable input a step consults, plus the lanes' user frontier.
+
+        Model turns that add no user input leave it unchanged, so they cannot turn
+        one hold into another rediscovery; a step reports any unreadable input itself.
+        """
+        state = self.status()
+        # [LAW:one-source-of-truth] The files bindings() checks, so repairing one
+        # changes the condition and the next attempt re-evaluates it.
+        files = (
+            self.path,
+            self.loop.path,
+            self.loop.control,
+            self.config["release"],
+            *self.executed(),
+            *(bound["path"] for bound in self.bound()),
+        )
+        try:
+            control = json.loads(self.loop.control.read_text())
+            lanes = [s["transcript"] for s in control["sessions"] if s["role"] == "buford"]
+            lanes += [state["old_transcript"]] if "old_transcript" in state else []
+            frontiers = [user_frontier(identity(path)) for path in lanes]
+        except HOLDS as error:
+            frontiers = [{"unreadable": str(error)}]
+        value = {
+            "config": self.config,
+            "files": [file_binding(p) if Path(p).exists() else str(p) for p in files],
+            "user_frontiers": frontiers,
+        }
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True, default=str).encode()
+        ).hexdigest()
+
+    def attempt(self):
+        """Step once per changed condition; an unchanged hold is never rediscovered.
+
+        A capability hold steps again each pass, because only a fresh live probe can
+        see the window or a process recover, but is reported once while unchanged.
+        """
+        recorded = self.held()
+        if (
+            recorded is not None
+            and recorded["probe"] is None
+            and recorded["condition"] == self.condition()
+        ):
+            return Held(recorded, new=False)
+        try:
+            state = self.step()
+        except HOLDS as error:
+            # [LAW:no-silent-failure] The hold is durable and reported once; the
+            # condition is taken after the failure so its own effects are included.
+            event = {
+                "held": str(error),
+                "supervisor": str(self.path),
+                "probe": error.probe if isinstance(error, CapabilityHold) else None,
+                "condition": self.condition(),
+            }
+            # Probe messages carry per-run receipt paths, so identity excludes "held".
+            if recorded is not None and all(
+                recorded[k] == event[k] for k in ("probe", "condition")
+            ):
+                return Held(recorded, new=False)
+            atomic_json(self.hold_path, event)
+            return Held(event, new=True)
+        self.hold_path.unlink(missing_ok=True)
+        return state
+
+    def bound(self):
+        """The accepted authority, continuation and source bindings."""
+        return [
+            self.config["authority"],
+            self.config["continuation"],
+            *self.config["source_acceptance"],
+        ]
+
+    def executed(self):
+        """Every blob this controller or the fresh context's startup executes."""
+        return (
+            *source_closure(),
+            *CLOSURE_FILES,
+            *self.config.get("memento", {}).get("ceiling_layers", ()),
+        )
+
+    def bindings(self):
+        for bound in self.bound():
+            if file_binding(bound["path"]) != bound:
+                raise ValueError("autoreset authority/source binding changed")
+        # [LAW:one-source-of-truth] Installed files are not proof of the code executing
+        # this controller or the fresh context's startup. Match every executed blob.
+        for path in self.executed():
+            actual = file_binding(path)
+            accepted = [
+                b
+                for b in self.config["source_acceptance"]
+                if Path(b["path"]).parts[-2:] == Path(path).parts[-2:]
+            ]
+            if len(accepted) != 1 or any(
+                actual[k] != accepted[0][k] for k in ("bytes", "sha256")
+            ):
+                raise ValueError("executing autoreset candidate source is not attested")
+
+    def retain_goal(self, receipt, session):
+        actual, observation = goal_observation(json.loads(Path(receipt).read_text()))
+        if actual != session:
+            raise ValueError("actual current goal observation required")
+        ledger = GoalLineage(self.config["goal_ledger"])
+        recovery = self.loop.status().get('maintenance_recovery')
+        if recovery is not None:
+            grant = bound_json(recovery['authority'])
+            if (grant.get('kind') == 'expired-waiting-title-current-authority'
+                    and grant['session_id'] == session and observation['goal'] is not None
+                    and observation['goal']['objective'] != json.loads(ledger.path.read_text())['objective']):
+                return ledger.record_recovery(receipt, self.config['deadline'])
+        if observation["goal"] is None:
+            if read_goal(self.config["goal_database"], session)["goal"] is not None:
+                raise ValueError("native goal appeared after absence observation")
+            return ledger.record_absence(receipt, self.config["deadline"])
+        return ledger.record(receipt, self.config["deadline"])
+
+    def release(self, ownership, goal_receipt, bottle=None):
+        """Record the released boundary for the lane that actually ran the goal."""
+        journal = self.loop.status()
+        owned = json.loads(Path(ownership).read_text())["owned_processes"]
+        if any(Path(f"/proc/{int(h['pid'])}").exists() for h in owned):
+            raise ValueError("owned writer still active")
+        transcript = next(
+            s["transcript"] for s in self.loop._control()["sessions"] if s["role"] == "buford"
+        )
+        outgoing, memento = journal["session_id"], {}
+        if self.config.get("memento"):
+            if bottle is None:
+                raise ValueError("Memento release requires the sealed --bottle")
+            lane = self.window.outgoing({"native_lane": self.native_lane()})
+            transcript, outgoing = lane["rollout"], lane["thread"]
+            # [LAW:one-source-of-truth] The proven live lane owns the goal; a differing
+            # routed journal UUID is recorded only as its inherited predecessor.
+            memento = dict(
+                outgoing=outgoing,
+                bottle=Bottle.parse(Path(bottle).absolute()).binding,
+                **({"inherited_session": journal["session_id"]} if outgoing != journal["session_id"] else {}),
+            )
+        self.retain_goal(goal_receipt, outgoing)
+        result = dict(
+            session_id=journal["session_id"],
+            epoch=journal["epoch"],
+            completed=sorted(journal["completed"]),
+            owned_processes=owned,
+            goal_receipt=str(Path(goal_receipt).absolute()),
+            user_frontier=user_frontier(identity(transcript)),
+            **memento,
+        )
+        atomic_json(self.config["release"], result)
+        if self.status()["phase"] == "maintenance_recovered":
+            self.save({"phase": "monitoring", "recovery_authority": self.status()["recovery_authority"]})
+        return result
+
+    def prepare(self):
+        state = self.loop.status()
+        routing = next(
+            s for s in self.loop._control()["sessions"] if s["role"] == "buford"
+        )
+        release = json.loads(Path(self.config["release"]).read_text())
+        if (release["session_id"], release["epoch"]) != (
+            state["session_id"],
+            state["epoch"],
+        ) or release.get("completed") != sorted(state["completed"]):
+            decided = self.status().get("ceiling_decisions")
+            waiting = {"phase": "waiting_release", **({"ceiling_decisions": decided} if decided else {})}
+            self.save(waiting)
+            return waiting
+        # [LAW:no-mode-explosion] A config without "memento" is the frozen pre-Memento
+        # contract, kept only so its regression suite still runs; Buford deletes it at
+        # the verified Memento cutover. No other variant is admitted.
+        memento = self.config.get("memento")
+        lane = self.window.outgoing({"native_lane": self.native_lane()}) if memento else None
+        if memento and lane["thread"] != release.get("outgoing"):
+            raise ValueError("outgoing lane changed since release")
+        old = lane["rollout"] if memento else routing["transcript"]
+        actual = identity(old)
+        if release["user_frontier"] != user_frontier(actual):
+            raise ValueError("user input changed since release")
+        # The goal belongs to the lane that actually ran it; the journal UUID is inherited.
+        self.retain_goal(release["goal_receipt"], lane["thread"] if memento else state["session_id"])
+        directory = Path(self.config["packages"]) / str(uuid.uuid4())
+        automatic = {
+            "config": self.config.get("config_path", "fixture-config.json"),
+            "continuation": self.config["continuation"]["path"],
+            "goal_receipt": release["goal_receipt"],
+            "goal_ledger": self.config["goal_ledger"],
+            "deadline": self.config["deadline"],
+            "workflow_unit": self.config.get('workflow_unit'),
+        }
+        if memento:
+            # Sealed before any effect: the clear and queue only ever act on these facts.
+            automatic["memento"] = dict(
+                outgoing=lane,
+                predecessor=None
+                if lane["thread"] == state["session_id"]
+                else live(seal_predecessor, state["session_id"], routing["transcript"], self.window.home),
+                log_mark=self.window.log_mark(),
+                bottle=Bottle(release["bottle"]).sealed(),
+                ceiling=Authority.seal(memento).record,
+            )
+        reset = self.loop.prepare_clear(
+            directory, release["owned_processes"], automatic=automatic
+        )
+        frontier = json.loads((directory / "frontier.json").read_text())
+        prepared = {
+            "phase": "waiting_idle",
+            "old_transcript": old,
+            "old_user_frontier": release["user_frontier"],
+            "routing": file_binding(self.loop.control),
+            "control_snapshot": self.loop._control(),
+            "reset": reset,
+            "nonce": frontier["nonce"],
+            "title": "Buford-auto-" + frontier["nonce"],
+            "started": None,
+            "goal_receipt": file_binding(release["goal_receipt"]),
+        }
+        self.save(prepared)
+        return prepared
+
+    def unchanged_parent(self, state, recovery_transcript=None):
+        if file_binding(self.loop.control) != state["routing"]:
+            journal = self.loop.status()
+            pending = journal.get("pending_bootstrap")
+            publication = journal.get("last_bootstrap", {})
+            if (
+                pending is None
+                and journal.get("awaiting_native_receipt") is False
+                and publication.get("manifest") == state["reset"]["manifest"]
+                and recovery_transcript is not None
+                and publication.get("transcript")
+                == str(Path(recovery_transcript).absolute())
+            ):
+                pending = journal["session_id"]
+            expected = json.loads(json.dumps(state["control_snapshot"]))
+            buford = next(s for s in expected["sessions"] if s["role"] == "buford")
+            if (
+                recovery_transcript is None
+                or pending != identity(recovery_transcript)["session_id"]
+            ):
+                raise ValueError("routing/pause changed after preparation")
+            previous = buford["session_id"]
+            buford.update(
+                session_id=pending, transcript=str(Path(recovery_transcript).absolute())
+            )
+            if expected.get("notification_thread") == previous:
+                expected["notification_thread"] = pending
+            if self.loop._control() != expected:
+                raise ValueError("routing/pause changed outside pending bootstrap")
+        actual = identity(state["old_transcript"])
+        if user_frontier(actual) != state["old_user_frontier"]:
+            raise ValueError("user input changed after preparation")
+        return actual
+
+    def cleared(self, state):
+        frontier = json.loads(
+            (Path(state["reset"]["directory"]) / "frontier.json").read_text()
+        )
+        matching = []
+        # The actual native client owns these rollouts; filename day is irrelevant.
+        for path in self.window.transcripts():
+            candidate = identity(path)
+            if (
+                candidate["session_id"] != state["reset"]["previous_session"]
+                and candidate["created_at"]
+                and datetime.fromisoformat(
+                    candidate["created_at"].replace("Z", "+00:00")
+                )
+                >= datetime.fromisoformat(frontier["prepared_at"])
+                and {k: candidate[k] for k in ("cwd", "source", "originator")}
+                == frontier["native_lane"]
+            ):
+                matching.append(path)
+        if len(matching) > 1:
+            raise ValueError("ambiguous fresh native CLI context")
+        return matching[0] if matching else None
+
+    def fresh(self, state):
+        path = self.cleared(state)
+        if path is not None and identity(path)["model"] is not None:
+            return path
+        return None
+
+    def delivered_context(self, state):
+        # [LAW:single-enforcer] Bootstrap and publication share the same
+        # pending/contradictory/ready delivery boundary, independent of TurnInput.
+        frontier = self.loop.clear_package(state["reset"])
+        current = self.window.delivered_context(
+            frontier, state["reset"]["previous_session"], state["fresh_context"]
+        )
+        path = current["transcript"]
+        if path is None:
+            return None
+        actual = identity(path)
+        if actual["session_id"] not in (None, current["session_id"]):
+            raise ValueError("fresh native rollout identity changed after delivery")
+        if actual["user_count"] == 0:
+            return None
+        expected = (Path(state["reset"]["directory"]) / "resume-prompt.txt").read_text()
+        if actual["user_count"] != 1 or actual["first_user"] != expected:
+            raise ValueError("fresh sole user prompt changed after delivery")
+        return current if actual["model"] is not None else None
+
+    def publish(self, state, result):
+        proof = result["last_bootstrap"]
+        if (
+            proof.get("manifest") != state["reset"]["manifest"]
+            or proof.get("nonce") != state["nonce"]
+        ):
+            raise ValueError("bootstrap receipt does not bind this native reset")
+        self.unchanged_parent(state, recovery_transcript=proof["transcript"])
+        accepted = result.get("native_receipt")
+        if accepted is not None:
+            # [LAW:one-source-of-truth] A supervisor crash cannot grant another
+            # epoch or revoke the already durable in-deadline journal decision.
+            if (
+                file_binding(accepted["path"]) != accepted
+                or json.loads(Path(accepted["path"]).read_text())["bootstrap"] != proof
+                or result["native_acceptance"]["accepted_at"] > state["started"] + 120
+                or result.get("awaiting_native_receipt") is not False
+            ):
+                raise ValueError("durable native acceptance changed")
+            state.update(phase="verified", receipt=accepted)
+            self.save(state)
+            return state
+        elapsed = self.clock() - state["started"]
+        if elapsed > 120:
+            raise ValueError("native reset deadline exceeded")
+        self.require_nonce_title(state)
+        current = self.delivered_context(state)
+        if current is None:
+            return state
+        if current["transcript"] != proof["transcript"]:
+            raise ValueError("native context changed before receipt publication")
+        old = identity(state["old_transcript"])
+        # [LAW:no-ambient-temporal-coupling] A continued outgoing turn must finish
+        # before final accounting; the original reset deadline still bounds the wait.
+        if old["status"] == "active":
+            return state
+        if (
+            old["status"] != "complete"
+            or user_frontier(old) != state["old_user_frontier"]
+        ):
+            raise ValueError(
+                "terminal outgoing goal accounting requires the unchanged completed turn"
+            )
+        terminal = read_goal(
+            self.config["goal_database"], state["reset"]["previous_session"]
+        )
+        # [LAW:no-ambient-temporal-coupling] An idle turn is not goal release;
+        # only a non-active native goal can make its usage terminal.
+        if terminal["goal"] is not None and terminal["goal"]["status"] == "active":
+            return state
+        if terminal["goal"] is not None and terminal["goal"]["status"] not in {
+            "paused", "blocked", "complete", "usageLimited", "budgetLimited"
+        }:
+            raise ValueError("unknown outgoing native goal status")
+        directory = private_directory(self.config["receipt_directory"])
+        digest = hashlib.sha256(
+            json.dumps(terminal, sort_keys=True).encode()
+        ).hexdigest()
+        terminal_path = directory / (
+            state["nonce"] + ".terminal-goal." + digest + ".json"
+        )
+        if not terminal_path.exists():
+            atomic_json(terminal_path, terminal)
+        self.retain_goal(terminal_path, state["reset"]["previous_session"])
+        snapshot = directory / (state["nonce"] + ".goal-ledger.json")
+        if not snapshot.exists():
+            atomic_json(
+                snapshot, json.loads(Path(self.config["goal_ledger"]).read_text())
+            )
+        elapsed = self.clock() - state["started"]
+        if elapsed > 120:
+            raise ValueError(
+                "native reset deadline exceeded before receipt publication"
+            )
+        receipt = {
+            "version": 1,
+            # [LAW:one-source-of-truth] This durable candidate is never acceptance
+            # evidence alone; only the journal's acknowledgement grants credit.
+            "verified": False,
+            "status": "provisional",
+            "manifest": state["reset"]["manifest"],
+            "nonce": state["nonce"],
+            "previous_session": proof["previous_session"],
+            "session_id": result["pending_bootstrap"],
+            "epoch": result["epoch"] + 1,
+            "transcript": proof["transcript"],
+            "seconds": round(elapsed, 3),
+            "goal_receipt": state["goal_receipt"],
+            "terminal_goal_receipt": file_binding(terminal_path),
+            "goal_ledger": file_binding(snapshot),
+            "bootstrap": proof,
+            "transport": "verified-window-native-clear-and-exact-thread-queue",
+            "queue_ack": state["queue_ack"],
+            "prompt": state["prompt"],
+            "native_context": current,
+        }
+        path = directory / (state["nonce"] + ".json")
+        if path.exists():
+            previous = json.loads(path.read_text())
+            if any(previous[k] != receipt[k] for k in receipt if k != "seconds"):
+                raise ValueError("existing native receipt differs; do not overwrite")
+        else:
+            atomic_json(path, receipt)
+        self.loop.acknowledge_native_reset(
+            path, deadline=state["started"] + 120, clock=self.clock
+        )
+        state.update(phase="verified", receipt=file_binding(path))
+        self.save(state)
+        return state
+
+    def step(self, fresh_transcript=None):
+        self.bindings()
+        state = self.status()
+        journal = self.loop.status()
+        phase = state["phase"]
+        if phase == "maintenance_recovered":
+            raise ValueError(
+                "maintenance recovery only; release a later genuine native reset"
+            )
+        if phase in ("monitoring", "verified", "waiting_release"):
+            if self.config.get("memento"):
+                state = self.fold(state)
+                journal = self.loop.status()
+            if (
+                journal["epoch_completed"] < 5
+                and journal["reset"] is None
+                and not journal.get("reset_requested")
+            ):
+                return state
+            return self.prepare()
+        if phase in ("clear_intent", "prompt_intent"):
+            raise ValueError(
+                "uncertain native input effect; inspect actual title/transcript before recovery"
+            )
+        if (
+            phase == "waiting_fresh"
+            and journal.get("native_receipt") is not None
+            and journal.get("last_bootstrap", {}).get("manifest")
+            == state["reset"]["manifest"]
+        ):
+            return self.publish(state, journal)
+        if state["started"] is not None and self.clock() - state["started"] > 120:
+            raise ValueError("native reset deadline exceeded; production remains held")
+        if phase == "waiting_idle":
+            actual = self.unchanged_parent(state)
+            if actual["status"] != "complete":
+                return state
+            self.loop.ready_clear(state["old_transcript"])
+            frontier = self.loop.clear_package(state["reset"])
+            if frontier.get("outgoing") is not None:
+                # Recomputed immediately before the durable intent; any change holds.
+                if self.window.outgoing({"native_lane": frontier["native_lane"]}) != frontier["outgoing"]:
+                    raise ValueError("outgoing lane changed before clear")
+                if frontier["predecessor"] is not None:
+                    live(predecessor_absent, frontier["predecessor"], self.window.home)
+            self.window.check()
+            state.update(phase="clear_intent", started=self.clock())
+            self.save(state)
+            # [LAW:effects-at-boundaries] Durable intent precedes every native input.
+            self.window.clear(state["title"])
+            state["phase"] = "waiting_title"
+            self.save(state)
+            return state
+        if phase in ("waiting_title", "prompt_refused"):
+            self.unchanged_parent(state)
+            if not self.title_matches(state, self.window.title()):
+                return state
+            frontier = self.loop.clear_package(state["reset"])
+            proof = self.window.context(frontier, state["reset"]["previous_session"])
+            if proof is None:
+                return state
+            if phase == "prompt_refused" and any(
+                proof[k] != state["fresh_context"][k]
+                for k in ("session_id", "created_at", "creation_log_id", "process_uuid")
+            ):
+                raise ValueError("refused queue context changed; cannot retarget")
+            path = proof["transcript"]
+            actual = identity(path) if path is not None else None
+            if (
+                proof["user_input"]
+                or actual is not None
+                and (actual["user_count"] or actual["status"] == "active")
+            ):
+                raise ValueError("fresh user input before generated prompt delivery")
+            # [LAW:no-ambient-temporal-coupling] Clear consumed the old idle
+            # capability; prompt delivery belongs to the proven empty new context.
+            text = (Path(state["reset"]["directory"]) / "resume-prompt.txt").read_text()
+            if self.clock() - state["started"] > 120:
+                raise ValueError("native reset deadline exceeded before queue effect")
+            state.update(
+                fresh_context=proof,
+                phase="prompt_intent",
+                prompt=file_binding(
+                    Path(state["reset"]["directory"]) / "resume-prompt.txt"
+                ),
+            )
+            self.save(state)
+            try:
+                state["queue_ack"] = self.window.queue(
+                    proof, frontier, state["reset"]["previous_session"], text
+                )
+            except QueueRefused as error:
+                state["phase"] = "prompt_refused"
+                state.setdefault("queue_refusals", []).append(
+                    {
+                        "effect": "not_dispatched",
+                        "reason": str(error),
+                        "context": proof,
+                        "prompt": state["prompt"],
+                    }
+                )
+                self.save(state)
+                raise
+            state["phase"] = "waiting_fresh"
+            self.save(state)
+            return state
+        if phase == "waiting_fresh":
+            if (
+                journal.get("last_bootstrap", {}).get("manifest")
+                == state["reset"]["manifest"]
+            ):
+                return self.publish(state, journal)
+            path = fresh_transcript or self.fresh(state)
+            self.unchanged_parent(state, recovery_transcript=path)
+            self.require_nonce_title(state)
+            current = self.delivered_context(state)
+            if current is None:
+                return state
+            path = path or current["transcript"]
+            if (
+                current["transcript"] != str(Path(path).absolute())
+                or identity(path)["session_id"] != current["session_id"]
+            ):
+                raise ValueError("fresh native context changed after prompt delivery")
+            result = self.loop.bootstrap(
+                path, deadline=state["started"] + 120, clock=self.clock
+            )
+            return self.publish(state, result)
+        raise ValueError("unknown autoreset phase")
+
+    def native_lane(self):
+        return {"cwd": str(self.config["cwd"]), "source": "cli", "originator": "codex-tui"}
+
+    def fold(self, state):
+        """One ceiling decision and at most one instruction per completed turn."""
+        lane = self.window.outgoing({"native_lane": self.native_lane()})
+        measurement = Measurement.parse(inspect_transcript("codex", lane["rollout"]))
+        if measurement.status != "complete":
+            # Codex has no Stop hook: a lane is measured only at its turn end.
+            return state
+        row = next(s for s in self.loop._control()["sessions"] if s["role"] == "buford")
+        authority = Authority.seal(self.config["memento"])
+        # [LAW:single-enforcer] Once a reset package sealed the authority that workflow
+        # admission reads, a config that would decide differently is refused, not used.
+        sealed = self.loop.status().get("ceiling")
+        if sealed is not None and sealed != authority.record:
+            raise CeilingHold("config ceiling differs from the sealed ceiling authority")
+        bound = authority.bound(row, measurement)
+        decision = decide(measurement, bound, row["task_budget"])
+        key = "{}:{}".format(*decision.turn)
+        decisions = state.setdefault("ceiling_decisions", {})
+        if key in decisions:
+            if decisions[key]["phase"] == "instruction_intent":
+                raise ValueError(
+                    "uncertain ceiling instruction effect; inspect the lane before recovery"
+                )
+            return state
+        record = {
+            "band": decision.band,
+            "admit": decision.admit,
+            "reasons": list(decision.reasons),
+            "usage": measurement.usage,
+            "bound": {
+                k: getattr(bound, k) for k in ("ceiling", "reserve", "close", "soft", "grace")
+            },
+            "phase": "decided" if decision.instruction is None else "instruction_intent",
+        }
+        decisions[key] = record
+        # [LAW:effects-at-boundaries] Durable intent precedes the queue effect; a crash
+        # leaves an intent that is inspected, never replayed.
+        self.save(state)
+        if decision.instruction is not None:
+            try:
+                record["ack"] = self.window.instruct(
+                    {"native_lane": self.native_lane()}, lane["thread"], decision.instruction
+                )
+                record["phase"] = "instructed"
+            except QueueRefused as error:
+                record.update(phase="refused", refusal=str(error))
+            self.save(state)
+        if decision.band == "close":
+            self.loop.request_reset({"turn": key, "band": "close", "usage": measurement.usage})
+        return state
+
+    def title_matches(self, state, title):
+        return title in (
+            state["title"],
+            state["title"] + " | " + Path(self.config.get("cwd", ".")).name,
+        )
+
+    def require_nonce_title(self, state):
+        # [LAW:single-enforcer] Activity decoration is recognized only after
+        # delivery/recovery. The waiting-title empty-context gate stays literal.
+        title = re.sub(r"^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓] ", "", self.window.title())
+        if not self.title_matches(state, title):
+            raise ValueError("same-window recovery nonce title mismatch")
+
+    def recover_maintenance(self, authority):
+        self.bindings()
+        transfer = RecoveryTransfer.parse(authority)
+        bound, grant = transfer.binding, transfer.grant
+        state = self.status()
+        failed = json.loads(Path(grant["supervisor"]["path"]).read_text())
+        applied = state.get("phase") == "maintenance_recovered"
+        if applied:
+            if state["recovery_authority"] != bound:
+                raise ValueError("maintenance recovery authority changed")
+            original = {
+                k: v
+                for k, v in state.items()
+                if k
+                not in (
+                    "recovery_authority",
+                    "recovery_context",
+                    "automatic_acceptance",
+                )
+            }
+            original["phase"] = failed["phase"]
+            if original != failed:
+                raise ValueError("recovered supervisor changed")
+        elif state != failed:
+            raise ValueError("failed supervisor changed before recovery")
+        case = recovery_case(transfer, failed, self.config)
+        if (
+            failed["started"] is None
+            or self.clock() - failed["started"] <= 120
+            or grant["window"] != self.config["window"]
+            or grant["deadline"] != self.config["deadline"]
+            or grant["maintenance_only"] is not True
+            or (not self.loop._control()["repair_paused"]
+                and not isinstance(case, CurrentAuthorityRecovery))
+        ):
+            raise ValueError(
+                "expired same-window maintenance recovery authority required"
+            )
+        frontier = self.loop.clear_package(failed["reset"])
+        failed_journal = json.loads(Path(grant["journal"]["path"]).read_text())
+        if failed_journal["reset"] != failed["reset"]:
+            raise ValueError("failed reset/journal mismatch")
+        routing = json.loads(Path(grant["routing"]["path"]).read_text())
+        original = json.loads(json.dumps(failed["control_snapshot"]))
+        expected = json.loads(json.dumps(original))
+        # [LAW:single-enforcer] Recovery requires a frozen maintenance hold;
+        # protected session identities still match the pre-failure routing.
+        expected["repair_paused"] = True
+        if isinstance(case, CurrentAuthorityRecovery):
+            expected['repair_paused'] = routing['repair_paused']
+        # A failed provisional bootstrap may already have moved Buford routing.
+        # Its unchanged original journal still owns all counters and reset evidence.
+        pending = failed_journal.get("pending_bootstrap")
+        if pending is not None:
+            if pending != grant["session_id"]:
+                raise ValueError("pending bootstrap recovery identity changed")
+            buford = next(s for s in expected["sessions"] if s["role"] == "buford")
+            previous = buford["session_id"]
+            buford.update(session_id=pending, transcript=grant["transcript"])
+            if expected.get("notification_thread") == previous:
+                expected["notification_thread"] = pending
+        protected = json.loads(json.dumps(routing))
+        protected["repair_paused"] = original["repair_paused"]
+        if pending is not None:
+            row = next(s for s in protected["sessions"] if s["role"] == "buford")
+            old = next(s for s in original["sessions"] if s["role"] == "buford")
+            if row not in (
+                old,
+                next(s for s in expected["sessions"] if s["role"] == "buford"),
+            ):
+                raise ValueError("provisional Buford routing changed")
+            row.update(old)
+            if protected.get("notification_thread") == pending:
+                protected["notification_thread"] = previous
+        if protected != original:
+            refresh = grant.get("implementer_refresh")
+            if refresh is None:
+                raise ValueError("bound implementer-only routing refresh required")
+            ImplementerRefresh.parse(refresh, original, protected, grant["routing"])
+        elif routing != expected and routing != original:
+            raise ValueError("protected routing changed before maintenance recovery")
+        case.bind_parent(transfer, failed)
+        journal = self.loop.status()
+        proof = journal.get("maintenance_recovery")
+        transferred = proof is not None and proof["authority"] == bound
+        if not transferred:
+            self.loop.ready_clear(failed["old_transcript"])
+        self.require_nonce_title(failed)
+        proof = self.window.recovery_context(
+            frontier, failed["reset"]["previous_session"], grant.get("retained_context")
+        )
+        actual = identity(grant["transcript"])
+        if (
+            proof is None
+            or proof["session_id"] != grant["session_id"]
+            or actual["session_id"] != proof["session_id"]
+            or proof["transcript"] != str(Path(grant["transcript"]).absolute())
+            or actual["user_count"] < 1
+            or user_frontier(actual) != grant["user_frontier"]
+            or (actual["model"], actual["effort"]) != ("gpt-6.1-sol", "high")
+            or {k: actual[k] for k in ("cwd", "source", "originator")}
+            != frontier["native_lane"]
+            or not actual["created_at"]
+            or datetime.fromisoformat(actual["created_at"].replace("Z", "+00:00"))
+            < datetime.fromisoformat(frontier["prepared_at"])
+        ):
+            raise ValueError(
+                "actual same-window human frontier recovery evidence required"
+            )
+        case.bind_user(transfer, failed, actual, proof)
+        for key, session in (
+            ("terminal_goal", failed["reset"]["previous_session"]),
+            ("current_goal", actual["session_id"]),
+        ):
+            observed_session, observed = goal_observation(
+                json.loads(Path(grant[key]["path"]).read_text())
+            )
+            if (
+                observed_session != session
+                or observed["goal"]
+                != read_goal(self.config["goal_database"], session)["goal"]
+            ):
+                raise ValueError("actual native recovery goal changed")
+        self.loop.recover_maintenance(transfer)
+        self.retain_goal(
+            grant["terminal_goal"]["path"], failed["reset"]["previous_session"]
+        )
+        case.retain_current(self, transfer, actual)
+        state.update(
+            phase="maintenance_recovered",
+            recovery_authority=bound,
+            recovery_context=proof,
+            automatic_acceptance=False,
+        )
+        self.save(state)
+        return state
+
+
+class Wakeups:
+    """Kernel filesystem and compositor events; no model polling turns."""
+
+    def __init__(self, paths):
+        library = ctypes.CDLL(None, use_errno=True)
+        self.fd = library.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+        if self.fd < 0:
+            raise OSError(ctypes.get_errno(), "inotify_init1")
+        self.socket = None
+        try:
+            for path in set(map(Path, paths)):
+                if path.exists():
+                    if (
+                        library.inotify_add_watch(
+                            self.fd, os.fsencode(path), 0x00000FFF
+                        )
+                        < 0
+                    ):
+                        raise OSError(ctypes.get_errno(), "inotify_add_watch")
+            self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                self.socket.connect(str(compositor_socket()))
+            except (FileNotFoundError, ConnectionRefusedError) as error:
+                raise CompositorAbsent("compositor event socket is absent") from error
+            self.socket.setblocking(False)
+        except BaseException:
+            self.close()
+            raise
+
+    def wait(self):
+        for handle in select.select([self.fd, self.socket], [], [], 5)[0]:
+            if handle == self.fd:
+                os.read(self.fd, 65536)
+            elif not self.socket.recv(65536):
+                raise CompositorAbsent("compositor event socket closed")
+
+    def close(self):
+        os.close(self.fd)
+        if self.socket:
+            self.socket.close()
+
+
+def compositor_socket():
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if not runtime or not signature:
+        raise CompositorAbsent("compositor instance is not in this environment")
+    return Path(runtime) / "hypr" / signature / ".socket2.sock"
+
+
+def compositor_wait(sleep=time.sleep):
+    """Wait read-only for the bound compositor instance to return.
+
+    No state write, native input or rebinding happens here; after it returns, every
+    effect path rechecks the sealed config, window and process facts and a changed
+    one holds. A new compositor instance never returns this socket, so it stays held.
+    """
+    while True:
+        try:
+            if compositor_socket().exists():
+                return
+        except CompositorAbsent:
+            pass
+        sleep(5)
+
+
+def configured(path):
+    config = json.loads(Path(path).read_text())
+    config["config_path"] = str(Path(path).absolute())
+    loop = Loop(
+        config["state"],
+        config["control"],
+        NativeLit(config["cwd"], config.get("artifact_root", DEFAULT_ROOT)),
+    )
+    window = NativeWindow(
+        WindowCapability(**config["window"]),
+        config["cwd"],
+        config.get("artifact_root", DEFAULT_ROOT),
+    )
+    return AutoReset(loop, config["supervisor"], config, window)
+
+
+def wait_bootstrap(controller, manifest):
+    bound = file_binding(manifest)
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        state = controller.status()
+        if (
+            state.get("reset", {}).get("manifest") == bound
+            and state["phase"] == "verified"
+        ):
+            if file_binding(state["receipt"]["path"]) != state["receipt"]:
+                raise ValueError("native receipt changed")
+            receipt = json.loads(Path(state["receipt"]["path"]).read_text())
+            actual = identity(receipt["transcript"])
+            journal = controller.loop.status()
+            if (
+                receipt["status"] != "provisional"
+                or receipt["verified"] is not False
+                or journal.get("native_receipt") != state["receipt"]
+                or journal.get("awaiting_native_receipt") is not False
+                or (actual["session_id"], actual["model"], actual["effort"])
+                != (receipt["session_id"], "gpt-6.1-sol", "high")
+                or journal["session_id"] != receipt["session_id"]
+            ):
+                raise ValueError("actual fresh native bootstrap mismatch")
+            return {
+                **receipt,
+                "verified": True,
+                "status": "accepted",
+                "acceptance": journal["native_acceptance"],
+            }
+        time.sleep(
+            0.1
+        )  # Mechanical receipt arrival only; never grants workflow authority.
+    raise ValueError("external native bootstrap receipt not published by deadline")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "command",
+        choices=["run", "status", "wait-bootstrap", "release", "recover-maintenance"],
+    )
+    parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--ownership", type=Path)
+    parser.add_argument("--goal-receipt", type=Path)
+    parser.add_argument("--recovery-authority", type=Path)
+    parser.add_argument("--bottle", type=Path)
+    args = parser.parse_args()
+    if args.command == "recover-maintenance" and args.recovery_authority is None:
+        parser.error("recover-maintenance requires --recovery-authority")
+    controller = configured(args.config)
+    try:
+        if args.command == "release":
+            result = controller.release(args.ownership, args.goal_receipt, args.bottle)
+        elif args.command == "status":
+            result = {**controller.status(), "hold": controller.held()}
+        elif args.command == "wait-bootstrap":
+            result = wait_bootstrap(controller, args.manifest)
+        elif args.command == "recover-maintenance":
+            with Lease(controller.path.with_suffix(".runtime.lock")):
+                result = controller.recover_maintenance(args.recovery_authority)
+        else:
+            with Lease(controller.path.with_suffix(".runtime.lock")):
+                while True:
+                    old = controller.status()
+                    result = controller.attempt()
+                    if isinstance(result, Held):
+                        if result.new:
+                            print(json.dumps(result.event), file=sys.stderr, flush=True)
+                    elif result != old:
+                        print(
+                            json.dumps(
+                                {
+                                    "phase": result["phase"],
+                                    "nonce": result.get("nonce"),
+                                    "receipt": result.get("receipt"),
+                                }
+                            ),
+                            flush=True,
+                        )
+                        continue
+                    routing = next(
+                        s
+                        for s in controller.loop._control()["sessions"]
+                        if s["role"] == "buford"
+                    )
+                    roots = Path(controller.config["sessions"])
+                    today = time.strftime("%Y/%m/%d", time.gmtime())
+                    try:
+                        wake = Wakeups(
+                            [
+                                controller.path.parent,
+                                controller.loop.path.parent,
+                                controller.loop.control,
+                                routing["transcript"],
+                                Path(routing["transcript"]).parent,
+                                roots / today,
+                                Path(controller.config["release"]).parent,
+                            ]
+                        )
+                        try:
+                            wake.wait()
+                        finally:
+                            wake.close()
+                    except CompositorAbsent as absent:
+                        # The 2026-10-08 stop: a closed socket is a wait, not an exit.
+                        print(json.dumps({"waiting": str(absent)}), flush=True)
+                        compositor_wait()
+            return 0
+        print(json.dumps(result))
+        return 0
+    except HOLDS as error:
+        print(
+            json.dumps({"held": str(error), "supervisor": str(controller.path)}),
+            file=sys.stderr,
+            flush=True,
+        )
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,33 @@
+Codex session variable for the upstream ceiling command, pin 4f95f159.
+
+--- a/skills/ceiling/bin/ceiling
++++ b/skills/ceiling/bin/ceiling
+@@ -38,7 +38,9 @@
+                             Written, anchored, ceiling_in, committed, folded, in_force,
+                             live_shared, project_file, session_directory, staging)
+ 
+-SESSION_VARIABLE = "CLAUDE_CODE_SESSION_ID"
++# Claude Code and Codex each name the running session in the environment of the commands it
++# runs, under their own spelling; the hook receives the same id as its payload session_id.
++SESSION_VARIABLES = ("CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID")
+ ANCHOR = anchored(os.getcwd())
+ # `set` is the one command that takes a value, third token of the line, and that value is the one
+ # token of this grammar that may begin with `-`.
+@@ -62,11 +64,12 @@
+     [LAW:parse-dont-validate] the crossing from an environment that might not name a session to a
+     directory that does. Every command below needs it, because every ceiling is some session's, so
+     the absence is refused once here rather than guarded at each path that gets built from it."""
+-    named = os.environ.get(SESSION_VARIABLE)
+-    if not named:
+-        sys.exit(f"ceiling: {SESSION_VARIABLE} is not set, so this command cannot tell whose "
+-                 f"ceiling to move. Run it from inside a Claude Code session.")
+-    return session_directory(named)
++    named = {os.environ[name] for name in SESSION_VARIABLES if os.environ.get(name)}
++    if len(named) != 1:
++        sys.exit(f"ceiling: {' and '.join(SESSION_VARIABLES)} name {len(named)} sessions, so this "
++                 f"command cannot tell whose ceiling to move. Run it from inside one Claude Code "
++                 f"or Codex session.")
++    return session_directory(named.pop())
+ 
+ 
+ def asked_of_git(anchor, question):

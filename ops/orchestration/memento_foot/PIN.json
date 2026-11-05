@@ -1,0 +1,35 @@
+{
+  "commit": "4f95f15954318b2bebe8996d52ec8191aba85c42",
+  "files": {
+    ".claude-plugin/plugin.json": "92df14788d8c1252904877dc491054e7bb145c1f8e060e29b77c4271328de81c",
+    "CHANGELOG.md": "ef6e05fb47d0d6698a5baa4ccefe7ef0fc7216bd66a7f26347c81e78f1ca53ac",
+    "hooks/hooks.json": "88199a3ba8220e219f276f366005c179bb56425e5b797256763cb889652edaf4",
+    "hooks/scripts/clear-session-ceiling.py": "25bfa7580aa403d70e8a30dd46ecfe50db383439f0ecdf3be2558f9ec86cf9c2",
+    "hooks/scripts/context-ceiling.py": "06bdd5cd2acbbf803012c6629cbb62838ed2951b42a8c6fe59ecfb6f870d1ce5",
+    "hooks/scripts/context-ceiling.test.py": "fbf51685c290c80d419f6a2ee092e5038ad985d931e9c4c6aa4901846a7a9524",
+    "lib/ceiling_config.py": "cdcc1d8fdc98424b2ca7bab0d2e628145c1eea462bcb110fd2237805dab7382c",
+    "lib/ceiling_log.py": "20d141a5875bbeb3d01f917393fa1641be8a00dcb350c91b285148c8d8347672",
+    "skills/address-pr-reviews/PROVIDER_CONTRACT.md": "766b1d75a8920d016f10a0946d463465aa578694ab7697c67c25d5590a10d770",
+    "skills/address-pr-reviews/SKILL.md": "65cdbcc5722f36575c7dd1b5d7c76c0be58357914d7a248d9f686d1ab3cda4e0",
+    "skills/address-pr-reviews/action_provider.py": "f32c5475536b06da0974c263a2e27268c918deca9b31131461939f5ae1580e18",
+    "skills/address-pr-reviews/action_provider.test.py": "a8a8bad6cec2e6047ce580752340cbfa959e33fc2fc0f6af9cea8c79e9f78d57",
+    "skills/address-pr-reviews/bin/review": "e3495252da5037d0c25d15f8d9279e14492751740824efd04ebc0b9b438c5b9d",
+    "skills/address-pr-reviews/github_threads.py": "03bbaf42b547b81148da909032ba6d26b185e4d3d31072920ed75202502d9096",
+    "skills/address-pr-reviews/github_threads.test.py": "1ca953473d306b959cdd6ad998539c4ee144193deddc3b15a39dfbdd604c607b",
+    "skills/address-pr-reviews/local_provider.py": "099124829ee52b5724da9429862161e7409e337efc65bb16391518a4646a1dd6",
+    "skills/address-pr-reviews/provider.json": "0bb3bd7607bd0fd436ae4445f6722ff56f99c19adc2a9bbc634939272fbf2d0d",
+    "skills/address-pr-reviews/provider_loader.py": "7e464ff845e2599d6d6d1b07870585ae926dc9ddd050e796c84212c0f9c759c1",
+    "skills/address-pr-reviews/review_cli.test.py": "8ce0e8a9b0618d9f3598201a8a5691b87fe4de13ef5842ba5c591c73a1b99e3f",
+    "skills/ceiling/SKILL.md": "cd2f02c4c6b3656e0c9eac96772190b23933ef6dee09f27316c6ed7d701dea27",
+    "skills/ceiling/bin/ceiling": "14b356ba98c8be467f59bfde8a90d72e42bccb5b0e2e822761e8747ff6464ab3",
+    "skills/ceiling/bin/ceiling.test.py": "3cb5cf3f34f58e1bbaabd5e793a890f5c0bcbce5e24dd932f8c15553ce275a07",
+    "skills/message-in-a-bottle/SKILL.md": "40a6904839a8d1c59f4bad9362c93a23bac69edc346e3ae6f6cf36181784d385",
+    "skills/message-in-a-bottle/bin/finalize-session.test.py": "cc947bc1894617ff9c0842a6ccd66c612e3afa99435959dfd8d1a1d9b1202729"
+  },
+  "plugin_root": "memento",
+  "replaced": {
+    "skills/message-in-a-bottle/bin/finalize-session": "5109ce7466e0d7b01674ce97759c1eae5daf72414263c3b66a68419ef63d3169"
+  },
+  "repo": "https://github.com/promptctl/memento",
+  "version": "0.10.0"
+}

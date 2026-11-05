@@ -1,0 +1,29 @@
+Additive Foot transport for upstream Memento pin 4f95f159.
+Only the transport branch changes; upstream CLI and bottle writer remain intact.
+
+--- a/skills/message-in-a-bottle/bin/finalize-session
++++ b/skills/message-in-a-bottle/bin/finalize-session
+@@ -774,4 +774,23 @@
+       echo "handoff scheduled → tmux $TARGET in ${HANDOFF_DELAY_SECONDS}s (log: $LOGFILE)"
+ 
++    elif [[ -z "$HOSTED" && -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
++      # Foreground Hyprland lanes here use Foot. Failed ownership never falls through.
++      FOUND=$(_find_claude_session) \
++        || _refuse "foot transport: cannot bind the owning Claude process"
++      # Foot: the claude process runs directly under its foot terminal; a delayed
++      # session-owned helper clears this same window and types the bottle pointer.
++      CLAUDE_PID=${FOUND%%$'\n'*}
++      ps -o comm= -p "$(ps -o ppid= -p "$CLAUDE_PID" | tr -d ' ')" | grep -qx foot \
++        || _refuse "foot transport: owning Claude is no longer under Foot"
++      if [[ -n "${FINALIZE_DRY_RUN:-}" ]]; then
++        echo "[dry-run] transport=foot claude_pid=$CLAUDE_PID msgfile=$MSGFILE"
++        echo "[dry-run] carried goal: ${GOAL:-(none)}"
++        exit 0
++      fi
++      _mktemp_or_exit LOGFILE log
++      nohup python3 "$SELFDIR/foot-helper" "$CLAUDE_PID" "$MSGFILE" "$GOALFILE" \
++        "$HANDOFF_DELAY_SECONDS" </dev/null >>"$LOGFILE" 2>&1 &
++      trap - EXIT
++      echo "handoff scheduled → foot claude pid $CLAUDE_PID in ${HANDOFF_DELAY_SECONDS}s (log: $LOGFILE)"
+     elif [[ -z "$HOSTED" && "${TERM_PROGRAM:-}" == "iTerm.app" && -n "${ITERM_SESSION_ID:-}" ]] \
+          && osascript -e 'tell application "iTerm2" to get version' >/dev/null 2>&1; then

@@ -1,0 +1,23 @@
+{
+  "repo": "https://github.com/promptctl/memento",
+  "commit": "4f95f15954318b2bebe8996d52ec8191aba85c42",
+  "version": "0.10.0",
+  "license": "MIT",
+  "files": {
+    "ceiling_config.py": {
+      "upstream_path": "lib/ceiling_config.py",
+      "sha256": "cdcc1d8fdc98424b2ca7bab0d2e628145c1eea462bcb110fd2237805dab7382c"
+    },
+    "LICENSE": {
+      "upstream_path": "LICENSE",
+      "git_blob": "c23e62e7fd49c518095c1d9457126c7700902e7c",
+      "sha256": "cc64070ac473e41ac43064086a05ff108d22d94329ffa7432a15ee601890e9a8"
+    }
+  },
+  "imported_names": [
+    "ceiling_in",
+    "folded",
+    "GRACE"
+  ],
+  "rule": "byte-identical vendor copy; never edited; re-pin by replacing all three files together"
+}

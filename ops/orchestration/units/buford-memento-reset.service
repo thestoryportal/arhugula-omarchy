@@ -1,0 +1,20 @@
+# Memento same-window Buford reset supervisor (design-v4 supervisor_service).
+# Installed as ~/.config/systemd/user/buford-memento-reset.service only after review,
+# root adoption and Buford's attested execution config. Its bytes are attested in the
+# supervisor source closure, so an edited unit refuses to run the reset.
+# Not PartOf=graphical-session.target and not a transient systemd-run unit: a closed
+# compositor socket is a read-only wait inside the process, and a crash restarts it.
+[Unit]
+Description=Memento same-window Buford reset supervisor
+After=default.target
+
+[Service]
+Type=exec
+WorkingDirectory=/home/robbo/Work/arhugula-omarchy
+Environment=PYTHONPATH=/home/robbo/Work/arhugula-omarchy
+ExecStart=/home/robbo/Work/arhugula-omarchy/.local/opus-preparation-20261022/memento-root-runtime-20261023/venv/bin/python -m ops.orchestration.auto_reset run --config /home/robbo/Work/arhugula-omarchy/.local/buford-loop/memento-reset-config.json
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

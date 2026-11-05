@@ -7,6 +7,28 @@ from runtime.voice.session import BusyError, FaultedError, SessionOwner, StaleOw
 
 
 class OwnerTests(unittest.TestCase):
+    def test_conversation_contends_with_all_participating_modes(self):
+        for first in ('command', 'dictation', 'conversation'):
+            for second in ('command', 'dictation', 'conversation'):
+                with self.subTest(first=first, second=second):
+                    owner = SessionOwner()
+                    lease = owner.begin(first)
+                    with self.assertRaises(BusyError):
+                        owner.begin(second)
+                    owner.release(lease, cleaned=True)
+                    successor = owner.begin(second)
+                    owner.cancel(generation=lease)
+                    self.assertTrue(owner.accepts(successor))
+
+    def test_conversation_cleanup_fault_blocks_every_participating_mode(self):
+        owner = SessionOwner()
+        lease = owner.begin('conversation')
+        owner.cancel(generation=lease)
+        owner.release(lease, cleaned=False)
+        for mode in ('command', 'dictation', 'conversation'):
+            with self.assertRaises(FaultedError):
+                owner.begin(mode)
+
     def test_scoped_cancel_never_invalidates_a_successor_owner(self):
         owner = SessionOwner()
         old = owner.begin('command')

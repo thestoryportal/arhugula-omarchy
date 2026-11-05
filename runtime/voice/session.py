@@ -36,7 +36,7 @@ class SessionOwner:
         return self._session_id
 
     def begin(self, mode: str) -> int:
-        if type(mode) is not str or mode not in {"command", "dictation"}:
+        if type(mode) is not str or mode not in {"command", "dictation", "conversation"}:
             raise ValueError("invalid session mode")
         with self._lock:
             if self._state == "faulted":
