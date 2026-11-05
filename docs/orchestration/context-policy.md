@@ -4,7 +4,8 @@ This file owns loading and measurement mechanics. The paired-lanes framework own
 workflow rules, including the accepted [release campaign](release-campaign.md).
 Later direct user instructions govern; preserved numerical defaults
 in old roles/bottles are not settings. No automatic monitor or repeated startup
-ceremony is required.
+ceremony is required. Startup loads and verifies authority inside a useful working
+turn; it is not a separate deliverable or a reason to wait for another user prompt.
 
 ## Startup
 
@@ -20,14 +21,20 @@ ceremony is required.
    workers load remaining sections at their listed action. Read Laws:Chat before
    conversational replies. Other Laws load by medium below.
 4. Read the supplied current LIT ticket/comment and enough newer comments to detect
-   supersession. For c12, include **Current boundary** in `memento-current.md`.
+   supersession. Current scope/queue is solo-execution-plan.md and Trial193; a
+   roadmap or checkpoint next-action field is advisory and cannot restore old gates.
+   For c12, include **Current boundary** in `memento-current.md`.
    Bind actual native identity/context, role/model/effort/permissions and measured
-   headroom. Preserve a null goal as null. No task is released by startup.
+   headroom. Preserve a null goal as null. No task is released by startup. Continue
+   the same released claim immediately under the continuation rule below; a fresh
+   or changed substantial assignment still requires its admission gate.
 
 A section means its complete body, through the next equal/higher heading; a grep
 snippet or truncated output is not the section. A pointer is not a required read.
-If output truncates, fetch the missing range, not the whole batch again. Stop here
-until a real action requires another section. Do not preload every reference.
+If output truncates, fetch the missing range, not the whole batch again. Stop
+loading references here until the next real action requires another section.
+Begin that authorized action in this turn; do not turn this loading boundary into
+a startup-only stop. Do not preload every reference.
 
 ## Load at the first relevant medium or action
 
@@ -64,20 +71,16 @@ named DISABLED_SKILL.md; it is not an installed active skill.
 
 ## Changed guidance and live-session adoption
 
-Before a consequential transition—assignment, candidate freeze/review, runtime,
-integration, closure or handoff—check current LIT authority and whether the loaded
-instruction sources changed. Compare current source hashes to the revision bound
-by the active instruction-adoption receipt. Re-read only changed required sources
-and any changed dependency they identify, then record adoption once in the existing
-LIT task with native session ID and revision/evidence pointer. Unchanged guidance
-already fully in context does not need rereading or another acknowledgment.
-
-Editing a file does not rewrite an existing system prompt or context. Until actual
-adoption is verified, that lane is not ready for new work. A queued pointer or a
-hash match alone proves neither reading nor adoption. Do not clear an active
-writer to obtain a receipt; keep its ownership protected and
-adopt at its next authorized safe boundary. No new work until this gate is met.
-Record adoption in LIT, not a duplicate checkpoint conversation or new service.
+At a consequential transition, check current release, ownership and applicable
+holds in LIT. Load changed required guidance before the affected action; use an
+announced change, source revision change or lost context as the trigger to reload.
+Remove routine per-transition hash comparisons and separate adoption receipts.
+Record the adopted revision with the next substantive task result; neither a
+central acknowledgment nor a standalone startup/status comment gates the action.
+A file edit, queued pointer or hash alone does not prove reading. Keep active
+writers protected and adopt at their next safe boundary. Native continuity and
+measured headroom remain required at actual session changes;
+apply the distinct unchanged-continuation and new-assignment rules below.
 
 A fresh session reads current root authority, not historical transcripts. Native
 model/effort/permissions and bottle receipt must match actual evidence; Claude
@@ -88,7 +91,7 @@ question held for its controlling user. Do not replay denied or uncertain effect
 
 ## Measured admission
 
-Before a substantial assignment use existing
+Before a fresh or changed substantial assignment use existing
 `python -m ops.orchestration.session_context inspect` and `admit` with the actual
 native transcript, current task budget/reserve and effective Memento ceiling.
 Read current release, ownership, pause and native identity. Admission requires a
@@ -99,30 +102,55 @@ is not an active queue; accepted campaign preparation and transition-specific
 releases follow release-campaign.md and current LIT. Reviewers are reserved per
 candidate, not tied to historical pairs.
 
-For a continuation of the same released claim/reservation, the worker verifies its
-actual same-Foot bottle/first input, native identity/model/effort/permissions,
-current guidance adoption, effective ceiling and retained budget/reserve. After
-the Startup turn completes, run the existing admission command on the actual
-transcript and record its completed-turn ALLOW in LIT. This is the admission gate;
-a further routine Buford ALLOW is not required. Continue only unchanged authorized
-work, retaining all product-contract, independent-review and live-effect gates.
+For a continuation of the same released claim/reservation, verify the actual
+same-Foot bottle/first input, native identity/model/effort/permissions, current
+release/ownership/holds, loaded guidance, effective ceiling and retained
+budget/reserve. Use existing `session_context inspect` on the actual latest native
+request and its emitted measurement basis to verify known headroom, including
+necessary guidance/tool growth within the retained budget/reserve. Use actual
+completed usage where required by that client's measurement basis; never invent
+usage for an unfinished response. Continue useful authorized work immediately in
+this turn when continuity, release and headroom are established.
+
+An active turn alone does not revoke an unchanged released claim. The existing
+`admit` command may report `session-not-complete` during that turn: preserve the
+actual result and known inspection/headroom, without describing it as ALLOW,
+editing task-complete state or ending solely to manufacture a startup receipt.
+That status alone creates no new admission gate for this verified same-claim
+continuation. Missing/invalid metrics, insufficient headroom, identity conflicts,
+changed scope/selection and actual holds still block the affected substantial
+action; continue independently authorized bounded read-only grounding where
+available. Fresh/changed substantial assignments retain the real `admit` gate.
+Record measurement/adopted revision with the next substantive LIT result, not a
+standalone startup/adoption acknowledgment. Preserve every product-contract,
+independent-review and live-effect gate. A null goal remains null.
 
 Buford owns canonical routing reconciliation, but a stale predecessor UUID alone
-does not hold that admitted continuation. Before direct delivery, verify the peer's
+does not hold that verified continuation. Before direct delivery, verify the peer's
 actual current native identity and continuity evidence; a peer's textual report
-alone is insufficient. Hold identity conflicts, missing receipt/adoption, failed
-measurement, changed selection/scope and explicit holds for their controlling owner.
+alone is insufficient. Hold identity conflicts, missing actual continuity/adoption
+evidence, failed measurement/headroom, changed selection/scope and explicit holds
+for their controlling owner.
 Do not grant new permissions, alter budgets/ceilings, overwrite peer routing or
 replay an uncertain handoff to make admission pass. This rule supersedes routine
-"wait for Buford ALLOW" wording in older Startup comments for unchanged claims.
+"finish Startup, then wait for completed-turn ALLOW" and "wait for Buford ALLOW"
+wording in older Startup comments for unchanged claims. "Startup complete; I will
+start on your next prompt" is an unfinished continuation when useful released
+work remains. No fresh permission, review pass, budget or hold release is implied.
 
 Use native `skills/ceiling/bin/ceiling show` from the installed Memento plugin to
 read effective settings; read the affected session layer when admitting another
 lane. Session overrides, project `.promptctl/memento.conf` and user settings are
 resolved by Memento's reader. Buford/operator owns policy changes; workers do not
-edit limits. Align control-file admission ceilings to effective Memento settings;
-a mismatch holds admission. Preserve existing per-role budgets/reserves. Native
-GRACE belongs to the installed plugin; do not alter source to change a limit.
+edit limits. Verify the actual native launch cwd and settings layers: reading a
+canonical project limit does not establish that limit as the native effective
+setting. Record a native/project/control mismatch honestly, without changing
+settings or routing to a looser layer. For an unchanged released claim, retain
+the stricter applicable existing cap and budget/reserve for measured headroom;
+this does not authorize a new substantial assignment. A mismatch holds fresh or
+changed admission for its controlling owner. Preserve existing per-role budgets/
+reserves. Native GRACE belongs to the installed plugin; do not alter source to
+change a limit.
 
 Codex admission uses latest request input plus task budget and reserve. Input
 already includes cached tokens. Claude uses latest completed request input plus

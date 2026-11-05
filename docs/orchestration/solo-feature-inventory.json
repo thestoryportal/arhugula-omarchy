@@ -1,0 +1,985 @@
+{
+  "schema_version": 1,
+  "kind": "Historical source observations and proposed witnesses; not installed acceptance",
+  "source_repository": "https://github.com/thestoryportal/arhugula-harness.git",
+  "source_binding": {
+    "merged_revision": "81fbed7cbd6e8e2925c9303ff6b32f75d1280264",
+    "inspected_revision": "c53bf794a117bd2f59e765573abc6adee9ac324f",
+    "tree": "87fdda33c8e7973fd75e1a5fd192baa4f1f0fe41",
+    "binding_provenance": "Existing retained inventory records exact tree match; this reconciliation does not independently recertify source or installed behavior."
+  },
+  "scope": "User-approved solo-local features; one human may run multiple agents. Overlapping observation groups are not task counts, signoff gates or a completion denominator.",
+  "record_owner": "Current claims, findings, implementation changes and acceptance results stay in live Trial193 and existing child/memory records. Revalidate current source before implementation.",
+  "deferred": [
+    "production six-category certification",
+    "multiuser/team-tenancy certification",
+    "exhaustive production load/soak qualification"
+  ],
+  "preserved_boundaries": [
+    "Actual denials; no retry through helpers, transports or permission changes",
+    "B7 storage binding before implementation acceptance/resume exposure",
+    "One independent reviewer and original findings/spent passes",
+    "Required exact-candidate CI, safe merge door and own-main CI",
+    "Protected unrelated work and actual native identity/claims/budgets",
+    "Null goal remains null"
+  ],
+  "fragment_provenance": [
+    {
+      "filename": "solo-features-core.json",
+      "sha256": "c032b99786969c919d0ac446bc962ea1b6c1db3381a220e758f5a5e763ede444",
+      "groups": 15
+    },
+    {
+      "filename": "solo-features-memory.json",
+      "sha256": "482f30475e5c468e683cc1287270050d69b42adb0577240f6947ea52368378e0",
+      "groups": 10
+    },
+    {
+      "filename": "solo-features-local-stack.json",
+      "sha256": "cf47967d38a0b57cd9fbbc69cea1cbf329cc122d44ce349036ffb838be32d610",
+      "groups": 12
+    }
+  ],
+  "groups": [
+    {
+      "area": "core",
+      "id": "core.configuration",
+      "name": "Solo persona, configuration and workflow authoring",
+      "source_paths": [
+        "harness-core/src/harness_core/persona_tier.py",
+        "harness-runtime/src/harness_runtime/types.py",
+        "harness-runtime/src/harness_runtime/config_source.py",
+        "harness-runtime/src/harness_runtime/lifecycle/workflow_manifest_loader.py",
+        "harness-cp/src/harness_cp/workflow_manifest_entry.py",
+        "harness-runtime/tests/test_workflow_manifest_loader.py"
+      ],
+      "baseline_status": "implemented_source_not_installed_verified",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required."
+      ],
+      "features": [
+        "Solo persona is runtime default; four workload classes; TOML/YAML versioned manifests; typed/unknown-field validation; environment/file/CLI configuration precedence; path bindings; workflow/default and per-step configuration; explicit optional-feature switches."
+      ],
+      "proposed_checks": [
+        "Load one valid solo manifest and configuration, demonstrate one override, and refuse one malformed manifest without dispatch."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "core",
+      "id": "core.execution",
+      "name": "Public CLI, MCP and Python execution ingress",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/cli/app.py",
+        "harness-runtime/src/harness_runtime/api.py",
+        "harness-runtime/src/harness_runtime/__init__.py",
+        "harness-runtime/src/harness_runtime/lifecycle/mcp_server.py",
+        "harness-runtime/tests/test_cli_one_shot.py",
+        "harness-runtime/tests/test_cli_daemon.py"
+      ],
+      "baseline_status": "implemented_source_with_surface_limits",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required."
+      ],
+      "features": [
+        "CLI run with provider/model/config/output options; one-shot bootstrap-execute-shutdown; daemon client over Unix socket; MCP run_workflow by registry key or manifest path; Python run; text/JSON results and typed exit statuses."
+      ],
+      "proposed_checks": [
+        "Run a simple manifest through one-shot and daemon/MCP ingress and compare identity/status/JSON output."
+      ],
+      "limitations": [
+        "Only run_workflow is registered as a public workflow MCP tool in this source; separate operator HTTP interface is outside selected local scope."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.lifecycle",
+      "name": "Local process/session lifecycle and administration",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/cli/app.py",
+        "harness-runtime/src/harness_runtime/drain.py",
+        "harness-runtime/src/harness_runtime/shutdown.py",
+        "harness-runtime/src/harness_runtime/admin/shutdown_cli.py",
+        "harness-runtime/src/harness_runtime/bootstrap/__init__.py",
+        "harness-runtime/tests/test_cli_daemon.py"
+      ],
+      "baseline_status": "implemented_source_not_installed_verified",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required."
+      ],
+      "features": [
+        "Persistent daemon socket/pidfile; bootstrap rollback; signal-driven drain; reject new work after drain; bounded shutdown and observability flush; per-process Python run concurrency guard; daemon request contexts."
+      ],
+      "proposed_checks": [
+        "Start daemon, run work, invoke shutdown or SIGINT, and observe drain status and owned socket/process cleanup."
+      ],
+      "limitations": [
+        "Daemon/session ownership is implemented; arbitrary interactive terminal attachment or frontend turn hooks are not established by this inventory."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.topologies",
+      "name": "Six solo-usable multi-agent workflow patterns",
+      "source_paths": [
+        "harness-cp/src/harness_cp/topology_pattern.py",
+        "harness-cp/src/harness_cp/workflow_driver.py",
+        "examples/README.md",
+        "examples/ollama-orchestrator-workers.toml",
+        "examples/ollama-hierarchical-delegation.toml",
+        "harness-runtime/tests/test_omarchy_offline_examples.py"
+      ],
+      "baseline_status": "implemented_source_live_examples_not_verified",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required."
+      ],
+      "features": [
+        "Single-threaded-linear; parallelization; orchestrator-workers; decentralized-handoff; hierarchical-delegation; evaluator-optimizer; workload/topology admissibility; branch-index ordered aggregation; cascade pause/proceed/cancel; evaluator structured verdict and iteration cap."
+      ],
+      "proposed_checks": [
+        "Execute the six shipped local topology examples and inspect branch/evaluator outcomes, including an iteration-cap result that is completed but not accepted."
+      ],
+      "limitations": [
+        "Orchestrator workers are declared steps[1:]; orchestrator output does not dynamically choose or reach workers. YAML topology fixtures are not runnable workflows. Source/tests exist; no live example result is claimed."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.delegation",
+      "name": "Nested agents, briefs, roles and bounded concurrency",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/sub_agent_dispatch.py",
+        "harness-runtime/src/harness_runtime/lifecycle/sub_agent_dispatch_executor.py",
+        "harness-runtime/src/harness_runtime/lifecycle/child_workflow_runner.py",
+        "harness-runtime/src/harness_runtime/lifecycle/handoff.py",
+        "harness-cp/src/harness_cp/workflow_driver.py",
+        "harness-cp/cp_tests/test_workflow_driver_hierarchical_delegation.py"
+      ],
+      "baseline_status": "implemented_source_not_installed_verified",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required."
+      ],
+      "features": [
+        "Child workflow manifests/steps; canonical brief and summary hash; parent/child causality; inherited gate/placement constraints; role-specific model binding; recursive hierarchy; three-child hierarchical width cap; configurable sub-agent worker capacity; child failure/pause/refusal propagation."
+      ],
+      "proposed_checks": [
+        "Run a root-middle-leaf workflow and observe canonical brief, distinct child identities, inherited constraints and returned/refused outcomes; refuse excess width."
+      ],
+      "limitations": [
+        "Managed-agents is a separate implemented step kind for vendor-managed sessions, excluded by the selected local/subscription profile rather than by solo persona."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.dataflow",
+      "name": "Inter-step context and post-join synthesis",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/inter_step_output_channel.py",
+        "harness-runtime/src/harness_runtime/lifecycle/post_join_synthesis_dispatch.py",
+        "harness-runtime/src/harness_runtime/lifecycle/llm_dispatch.py",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_5_loop_init.py",
+        "harness-runtime/tests/test_inter_step_output_channel.py",
+        "harness-runtime/tests/test_omarchy_offline_examples.py"
+      ],
+      "baseline_status": "implemented_source_with_scope_limits",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Inter-step context is opt-in; synthesis is a declared terminal step."
+      ],
+      "features": [
+        "Linear/handoff prior-output delivery; evaluator draft/feedback delivery; per-run context isolation; effect-free post-join LLM synthesis over ordered worker outputs; deterministic fold without synthesis."
+      ],
+      "proposed_checks": [
+        "Use identifiable upstream content to demonstrate downstream input and ordered synthesis; reject a synthesis tool binding."
+      ],
+      "limitations": [
+        "Do not infer orchestrator-output-driven worker generation or orchestrator-to-worker context from synthesis support."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.results",
+      "name": "Structured results, output replay and inspection",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/api.py",
+        "harness-cp/src/harness_cp/workflow_driver_types.py",
+        "harness-runtime/src/harness_runtime/lifecycle/engine_output_store.py",
+        "harness-runtime/src/harness_runtime/lifecycle/protected_result_store.py",
+        "harness-runtime/src/harness_runtime/admin/inspect.py",
+        "harness-runtime/tests/test_engine_output_store.py"
+      ],
+      "baseline_status": "implemented_source_not_installed_verified",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Output replay and protected-result options require their configured inputs."
+      ],
+      "features": [
+        "Completed/failed/drained/partial/paused outcomes; terminal state and typed failure; pause reference; audit head and trace IDs; provider/model, dispatch-kind and provider-discriminator cost rollups; per-run persisted engine outputs; replay and fanout recovery markers; read-only human/JSON ledger inspection; pause/protected-result inspection.",
+        "Inspector trace-browser TUI and holdout sample/review/scaffold commands; audit verification and sidecar-migration administration where their explicit inputs are supplied."
+      ],
+      "proposed_checks": [
+        "Inspect one successful and one refused/failed run, retrieve the actual output/reference, and verify replay preserves completed work rather than silently rerunning effects."
+      ],
+      "limitations": [
+        "Text CLI intentionally summarizes status/workflow/ledger rather than printing the model reply; inspect cost evidence without claiming subscription quota or savings.",
+        "Inspector collector-store span ingestion is separately deferred; trace browser availability does not prove automatic collector population."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.routing",
+      "name": "Model/engine routing and resilience controls",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/engine_selector.py",
+        "harness-runtime/src/harness_runtime/lifecycle/router_resolution.py",
+        "harness-runtime/src/harness_runtime/lifecycle/routing_manifest.py",
+        "harness-runtime/src/harness_runtime/lifecycle/llm_dispatch.py",
+        "harness-cp/src/harness_cp/per_step_override_evaluator.py",
+        "harness-cp/src/harness_cp/engine_class.py"
+      ],
+      "baseline_status": "implemented_source_provider_details_owned_elsewhere",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Enabled providers, routing activation and optional offline embedding must be configured."
+      ],
+      "features": [
+        "Workload/persona/deployment engine selection; five engine classes; layered routing; per-role/per-step provider/model/prompt binding; fallback chains; retry/backoff and circuit breakers; typed deadlines; post-effect no-retry fence; local/subscription routes."
+      ],
+      "proposed_checks": [
+        "Observe configured role/step routing and one typed unavailable-provider or deadline outcome, with no excluded fallback and no second dispatch after a tool effect."
+      ],
+      "limitations": [
+        "Detailed provider bindings, offline model assets and adapter security are assigned to the provider/deployment/security inventory. API and managed-provider source existence does not include those routes in the local release."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.prompts",
+      "name": "Versioned prompts, role selection and cache controls",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/types.py",
+        "harness-runtime/src/harness_runtime/lifecycle/prompt_selection.py",
+        "harness-runtime/src/harness_runtime/lifecycle/llm_dispatch.py",
+        "harness-cp/src/harness_cp/prompt_selection_manifest.py",
+        "harness-cp/src/harness_cp/concurrent_prompt_cache_warmup.py",
+        "harness-runtime/tests/test_prompt_selection.py"
+      ],
+      "baseline_status": "implemented_source_not_installed_verified",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Binding-tier prompt-approval gate is inert for solo; prompt/cache options are explicit."
+      ],
+      "features": [
+        "Inline and stored prompt versions; role/workload selection; per-step prompt override; reject unauthored hashes; provider cache directives, long-TTL workload controls, boot prewarm, daemon keepalive and concurrent cache cohorts."
+      ],
+      "proposed_checks": [
+        "Use two role/step prompts and observe the selected content/version; reject a nonexistent version; inspect configured cache request metadata without inferring savings."
+      ],
+      "limitations": [
+        "Provider-dependent cache behavior requires that provider; configuration does not establish a cache hit."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.skills",
+      "name": "Skill registry and activation hooks",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/skills.py",
+        "harness-runtime/src/harness_runtime/lifecycle/skill_activation.py",
+        "harness-runtime/src/harness_runtime/lifecycle/llm_dispatch.py",
+        "harness-runtime/src/harness_runtime/types.py",
+        "harness-runtime/tests/test_lifecycle_skill_activation.py"
+      ],
+      "baseline_status": "partial_source_registry_and_observability",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Automatic selection requires an operator-supplied SkillActivationHook."
+      ],
+      "features": [
+        "Load *.skill.json manifests; validate frontmatter; reject duplicate IDs; content version hash/body-token estimate; workflow-init and dispatch selection hooks; explicit activate_skill; activation spans."
+      ],
+      "proposed_checks": [
+        "Load one valid skill, reject a duplicate or invalid manifest, and observe the selected skill activation evidence."
+      ],
+      "limitations": [
+        "Current Skill stores manifest and source_path; body_tokens may use description as a proxy. Examined hook emits spans and does not deliver a skill body into prompts. Skill-declared tool registration is explicitly deferred; do not promise full SKILL.md discovery/content delivery."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.mcp-tools",
+      "name": "Tool contracts, MCP clients and deferred discovery",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/tool_registry.py",
+        "harness-runtime/src/harness_runtime/lifecycle/mcp_client_host.py",
+        "harness-runtime/src/harness_runtime/lifecycle/runtime_tool_dispatcher.py",
+        "harness-runtime/src/harness_runtime/lifecycle/frozen_tool_superset.py",
+        "harness-runtime/src/harness_runtime/lifecycle/tool_search.py",
+        "harness-runtime/tests/test_tool_search.py"
+      ],
+      "baseline_status": "implemented_source_not_installed_verified",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. MCP servers and allowed contracts require explicit configuration."
+      ],
+      "features": [
+        "Named ToolContract registration; duplicate/reserved-name rejection; MCP stdio/StreamableHTTP/SSE clients; tool discovery and calls; frozen schema superset; deferred search_tools; per-call trust and schema checks; idempotency, timeouts and result normalization."
+      ],
+      "proposed_checks": [
+        "Discover and call one configured local MCP tool, reject an unregistered/malformed call, and discover a deferred tool without changing the frozen schema."
+      ],
+      "limitations": [
+        "Detailed sandbox, secret and network enforcement is assigned to the security/deployment inventory."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.model-tool-loop",
+      "name": "Model-emitted tools and operator assessment",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/llm_dispatch.py",
+        "harness-runtime/src/harness_runtime/lifecycle/hitl_tool_loop.py",
+        "harness-runtime/src/harness_runtime/lifecycle/hitl_tool_response_audit.py",
+        "harness-runtime/tests/test_ollama_mcp_tool_loop.py",
+        "harness-runtime/tests/test_hitl_tool_loop_deny.py"
+      ],
+      "baseline_status": "implemented_source_docs_stale",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Tool-capable enabled provider and offered tools required."
+      ],
+      "features": [
+        "Offered-membership/schema validation; bounded model/tool iterations; tool rewrite/assessment before dispatch; DENY/HOLD/refusal; operator disposition auditing; post-effect terminal fence; tool result returned to inference."
+      ],
+      "proposed_checks": [
+        "Observe one real local model tool call and its result, then a denied/unoffered call with zero tool effect and an attributable outcome."
+      ],
+      "limitations": [
+        "examples/README.md says Ollama has no MCP tool loop, but llm_dispatch.py implements _dispatch_ollama_with_hitl_tool_loop; documentation is stale. Detailed memory-tool semantics belong to the memory inventory."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.hitl",
+      "name": "Solo approval, response palettes and notifications",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/hitl_gate_composer.py",
+        "harness-runtime/src/harness_runtime/lifecycle/hitl_auto_approve_policy.py",
+        "harness-runtime/src/harness_runtime/lifecycle/effective_palette.py",
+        "harness-runtime/src/harness_runtime/lifecycle/mcp_backed_ask_user_question_surface.py",
+        "harness-as/src/harness_as/operator_policy_override_scope.py",
+        "harness-runtime/tests/test_lifecycle_hitl_gate_composer.py"
+      ],
+      "baseline_status": "implemented_source_with_ingress_gaps",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Read-only persona floor auto defaults on; local-mutation auto requires opt-in; external effects retain ASK/DENY floors."
+      ],
+      "features": [
+        "AUTO/ASK/DENY composition; placement inheritance; response approve/edit/reject/respond/hold where permitted; cross-trust/validator palette narrowing; MCP elicitation; timeout fail-closed; operator-policy override with append-only evidence; optional webhook delivery."
+      ],
+      "proposed_checks": [
+        "Use an elicitation-capable client to answer one gate and observe permitted edit/approval or rejection, with inherited restrictions preserved."
+      ],
+      "limitations": [
+        "Python api.run explicitly declines elicitation; CLI daemon ClientSession does not bind an elicitation callback. Their existence is not a complete interactive answer surface."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.pause-resume",
+      "name": "Pause-state access, durable resume and recovery",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/api.py",
+        "harness-runtime/src/harness_runtime/lifecycle/root_resume_admission.py",
+        "harness-runtime/src/harness_runtime/lifecycle/journal_workflow_pause_store.py",
+        "harness-runtime/src/harness_runtime/lifecycle/engine_recovery_loop.py",
+        "harness-runtime/src/harness_runtime/cli/app.py",
+        "harness-runtime/src/harness_runtime/lifecycle/mcp_server.py",
+        "harness-runtime/tests/test_paused_workflow_state_accessor_b69.py",
+        "harness-runtime/tests/test_b104_pause_claim_recovery.py"
+      ],
+      "baseline_status": "partial_source_public_operator_recovery_missing",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Pause/resume requires opt-in; durable handles require durable storage; storage acceptance/exposure remains separately bound."
+      ],
+      "features": [
+        "Python read_paused_workflow_state and resume; durable pause handles and claim admission; run identity/context preservation; corruption/staleness/workflow/child-handle refusal; root/child authority; nested/fanout pause context; engine-specific recovery and effect-fence resolution; journal inspect/adopt/dispose administration."
+      ],
+      "proposed_checks": [
+        "Pause a workflow, inspect its actual durable state, resume via the owned handle and reject a second or stale resume without effects."
+      ],
+      "limitations": [
+        "At this HEAD no CLI pause/answer/resume commands and no MCP pause/answer/resume tools are registered. A public live-pause request operation is not exported; internal pause_requested_flag exists. Operator-surface work remains real missing implementation, not a completed feature."
+      ]
+    },
+    {
+      "area": "core",
+      "id": "core.validators",
+      "name": "Validation and escalation extension framework",
+      "source_paths": [
+        "harness-cp/src/harness_cp/validator_framework.py",
+        "harness-runtime/src/harness_runtime/bootstrap/factories/validator_framework_factory.py",
+        "harness-runtime/src/harness_runtime/lifecycle/validator_framework_types.py",
+        "harness-runtime/src/harness_runtime/lifecycle/validator_escalation_composer.py",
+        "harness-cp/cp_tests/test_workflow_driver_validator_hook.py",
+        "harness-runtime/tests/test_u_rt_84_validator_framework_factory.py"
+      ],
+      "baseline_status": "partial_source_empty_runtime_registry",
+      "tier_conditions": [
+        "Available to solo-developer; no team-binding or multi-tenant-compliance persona required. Validator framework is explicit opt-in; default disabled."
+      ],
+      "features": [
+        "CP validator registry/evaluate API; driver validation hooks; transient retry/escalation; narrowed HITL palette; cost/audit integration; optional webhook composer."
+      ],
+      "proposed_checks": [
+        "With an explicitly supplied validator, demonstrate accepted/rejected result or escalation; otherwise report the runtime empty registry truthfully."
+      ],
+      "limitations": [
+        "Runtime factory always builds validator_registry={}; RuntimeConfig marker carries no validators. End-user validator catalog/config/discovery is deferred; opt-in alone does not perform substantive validation."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M1",
+      "name": "Canonical local persistence, five-tier typed envelopes, derived index and operation ledger",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/automatic_memory.py:122",
+        "harness-is/src/harness_is/memory_store.py:202",
+        "harness-is/src/harness_is/memory_store.py:298",
+        "harness-is/src/harness_is/memory_record_envelope.py:35",
+        "harness-is/src/harness_is/memory_retrieval_index.py:250",
+        "harness-is/src/harness_is/memory_operation_ledger.py:52"
+      ],
+      "baseline_status": "implemented_source; installed_acceptance_unproven",
+      "tier_conditions": [
+        "runtime.memory.enabled; verified permitted state root; working tier is live context, not a claim that every tier is a persistent database"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Create permitted record, restart local runtime, read same ID/hash; rebuild missing/stale index without losing canonical records.",
+        "Concurrent bounded writers preserve guarded state and append-only ledger; restore smoke preserves record and ledger refs after B7 binding."
+      ],
+      "limitations": [
+        "Source contains store/ledger locking and rebuild machinery; no persistence/restore run performed here. B7 retained-storage acceptance/exposure is still held without actual binding."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M2",
+      "name": "Automatic episodic capture and explicit event capture",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/automatic_memory.py:97",
+        "harness-runtime/src/harness_runtime/automatic_memory.py:300",
+        "harness-runtime/src/harness_runtime/memory_capture.py:464",
+        "harness-runtime/src/harness_runtime/memory_capture.py:560",
+        "harness-runtime/src/harness_runtime/memory_capture.py:666",
+        "harness-runtime/src/harness_runtime/memory_capture.py:762"
+      ],
+      "baseline_status": "automatic_run_start_and_turn_capture_wired; broader_capture_APIs_present",
+      "tier_conditions": [
+        "capture_run_events/capture_turns and capture policy; scope/provenance derived from actual dispatch"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "One local workflow creates run/turn records plus CAPTURE rows with route/scope/source refs; resume does not rewrite old run-start scope.",
+        "Capture-disabled policy writes no new records; a torn run-start capture gets only its missing ledger row."
+      ],
+      "limitations": [
+        "Automatic turn capture explicitly supplies promotion_candidates=(); capture alone does not generate reviewed reusable knowledge. Broader run-close/tool/failure/compaction capture APIs are not all demonstrated as automatically invoked."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M3",
+      "name": "Policy-filtered query/retrieve/read, lexical ranking and bounded context packet",
+      "source_paths": [
+        "harness-is/src/harness_is/memory_retrieval.py:210",
+        "harness-is/src/harness_is/memory_retrieval.py:263",
+        "harness-is/src/harness_is/memory_retrieval.py:413",
+        "harness-is/src/harness_is/memory_retrieval.py:491",
+        "harness-runtime/src/harness_runtime/memory_context.py:179"
+      ],
+      "baseline_status": "implemented_source; per-record_prompt_injection_restriction_gap",
+      "tier_conditions": [
+        "active eligible record kind; requested scope and policy; token_budget; semantic/procedural data already admitted"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Query allowed fact/preference/decision/convention/failure-learning/research/procedural records; deterministic selected refs, exclusions, ranking trace and token-bounded packet.",
+        "Keep proposed/denied/expired/redacted/tombstoned/out-of-scope records out while preserving allowed positive control."
+      ],
+      "limitations": [
+        "Current ranking is lexical token overlap plus confidence/authority/pinning/scope weights, not embedding vector memory recall. A per-dispatch MemoryPacket is implemented; no separate public session_packet operation was found in bounded harness-*/src scan."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M4",
+      "name": "Prompt injection, native/provider access selection and subscription CLI delivery",
+      "source_paths": [
+        "harness-cp/src/harness_cp/memory_access_mode.py:126",
+        "harness-cp/src/harness_cp/memory_access_mode.py:158",
+        "harness-runtime/src/harness_runtime/automatic_memory.py:242",
+        "harness-runtime/src/harness_runtime/memory_context.py:420",
+        "harness-runtime/src/harness_runtime/memory_context.py:451"
+      ],
+      "baseline_status": "route_aware_CLI_packet_fix_present_in_current_source; selective_injection_gap_jpp",
+      "tier_conditions": [
+        "standard tools when supported/enabled, otherwise permitted prompt packet, then opt-in native provider, else no-access; subscription CLI has text transport"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Default-enabled memory delivers one allowed marker to both configured local Codex/Claude subscription workflow routes, with packet/ref/INJECT receipts.",
+        "NEVER and RETRIEVAL_ONLY semantic and procedural markers do not reach prompts; PROMPT_PACKET_ALLOWED does; malformed policy fails closed."
+      ],
+      "limitations": [
+        "Current MemoryRetriever does not inspect content.injection_policy at all, although promotion writes it: jpp is a present source gap. CLI capability fix is present; do not call 2rk source-unimplemented based on old ticket. Automatic ownership/capture of arbitrary interactive frontend turns is a separate unresolved oxw integration boundary, not proven by workflow subprocess dispatch."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M5",
+      "name": "Standard memory tools and optional native/backing stores",
+      "source_paths": [
+        "harness-as/src/harness_as/memory_tool_contracts.py:15",
+        "harness-runtime/src/harness_runtime/memory_tool_executor.py:394",
+        "harness-runtime/src/harness_runtime/lifecycle/native_memory_adapter.py:97",
+        "harness-runtime/src/harness_runtime/bootstrap/factories/memory_tool_registry_factory.py:1"
+      ],
+      "baseline_status": "five_standard_tools_implemented; route_and_policy_conditional",
+      "tier_conditions": [
+        "tool-capable SDK route and standard_tool_access; native provider disabled by default; configured backend capability/auth remains required"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Exercise memory.search/read/write_note/propose_promotion/request_redaction through usable tool route, preserving scope/policy refs and durable write-like operation refs.",
+        "For local selected filesystem/SQLite backend, write/read after restart; optional encrypted/S3/managed backend checks only if that backend is selected and admitted."
+      ],
+      "limitations": [
+        "Contracts expose five tools, not general memory import/export/approve CLI commands. Generic subscription CLI transport cannot call these tools; packet delivery is its supported current path. Tool promotion has the concrete M6 bugs. Remote provider/native memory is opt-in, not a prerequisite for local default."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M6",
+      "name": "Reviewed semantic/procedural promotion, preferences, edits, deny and supersession",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/memory_promotion.py:529",
+        "harness-runtime/src/harness_runtime/memory_promotion.py:549",
+        "harness-runtime/src/harness_runtime/memory_tool_executor.py:735",
+        "harness-runtime/src/harness_runtime/memory_tool_executor.py:1319",
+        "harness-runtime/src/harness_runtime/memory_tool_executor.py:1348",
+        "harness-runtime/src/harness_runtime/memory_promotion.py:1423"
+      ],
+      "baseline_status": "service_implemented; operational_lifecycle_gap_and_two_tool_bugs_oxw",
+      "tier_conditions": [
+        "retain actual review policy, source refs, target kind and explicit injection policy; proposed remains nonactive until permitted approval; do not impersonate human approver"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Capture prior work; propose semantic and procedural candidates; inspect source-linked PROPOSED state excluded from injection; apply actual approved decision, then later separate workflow reuses allowed knowledge.",
+        "Matrix PROMOTE_SEMANTIC/PROMOTE_PROCEDURAL against semantic/procedural targets: mismatches never autoactivate; forbidden/discard remain denied.",
+        "Procedural proposal/approval returns valid operation_ref matching its candidate/snapshot identity without post-write KeyError."
+      ],
+      "limitations": [
+        "Current tool helper permits either promote decision without inspecting target_kind; extractor helper is target-aware. Current operation_ref indexes record.content[candidate_id], while procedural content uses snapshot_id. These match old oxw diagnostics; no reproducer/tests were run now. Automatic capture has no candidate extraction/usable CLI review flow wired; this is an operational gap, not permission to remove deliberate review."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M7",
+      "name": "Scope, provenance, write/review policies and immutable audit identity",
+      "source_paths": [
+        "harness-is/src/harness_is/memory_policy.py:78",
+        "harness-is/src/harness_is/memory_scope_value_domain.py:139",
+        "harness-is/src/harness_is/memory_record_envelope.py:62",
+        "harness-runtime/src/harness_runtime/memory_scope_family.py:44",
+        "harness-runtime/src/harness_runtime/memory_promotion.py:736"
+      ],
+      "baseline_status": "implemented_policy_and_provenance_surfaces; injection_boundary_gap_is_separate",
+      "tier_conditions": [
+        "solo workspace/workflow/provider-family/profile boundaries still apply; multiagent sharing only when permitted; multiuser certification outside current finish line"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Wrong workspace/family/profile denied without losing explicitly allowed multiagent recall.",
+        "Review-required or cross-family/unknown-provenance candidates cannot autoactivate; explicit actual approval remains distinguishable and source-linked."
+      ],
+      "limitations": [
+        "Per-record injection restrictions are not enforced by current retrieval despite broad doc policy claims. Source refs may legally lack content_hash; traceability alone is not paraphrase accuracy proof. No actual-memory approval/export is authorized by this inventory."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M8",
+      "name": "Content redaction, tombstone and retention expiry",
+      "source_paths": [
+        "harness-is/src/harness_is/memory_redaction.py:64",
+        "harness-is/src/harness_is/memory_redaction.py:94",
+        "harness-is/src/harness_is/memory_redaction.py:119",
+        "harness-is/src/harness_is/memory_redaction.py:144",
+        "harness-runtime/src/harness_runtime/memory_tool_executor.py:812"
+      ],
+      "baseline_status": "explicit_services_implemented; automatic_retention_schedule_not_established",
+      "tier_conditions": [
+        "explicit redaction/retention operation; preserve ledger sidecars and exclusion from recall/tool reads"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Redact/tombstone/expire synthetic allowed record: durable transition precedes replacement/index exclusion, no former text in subsequent read or prompt; audit event remains.",
+        "Distinguish request_redaction tool receipt from actual applied redaction."
+      ],
+      "limitations": [
+        "Policy declares retain/expire/prune/tombstone but this read does not establish an automatic expiry/pruning daemon. Secret/unrelated-file protections remain solo acceptance requirements."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M9",
+      "name": "Migration, CLI source-import policy, compaction disposition and durability carriers",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/memory_migration.py:64",
+        "harness-runtime/src/harness_runtime/cli_profile_loading.py:119",
+        "harness-runtime/src/harness_runtime/memory_compaction_safety.py:123",
+        "harness-runtime/src/harness_runtime/memory_engine_durability.py:137"
+      ],
+      "baseline_status": "APIs_present; several_runtime_integration_and_general_import_export_gaps",
+      "tier_conditions": [
+        "explicit callback migration apply; CLI import policy; admitted compaction dispositions; selected engine durability evidence"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Callback migration dry-run reads without writes; explicit migrate writes canonical record and MIGRATE ledger event.",
+        "Before compaction, every candidate has reviewed/promoted/deferred/rejected disposition with durable COMPACTION_DECISION; restart preserves policy and refs.",
+        "If invoking profile import, deny-by-default external memory source policy is honored without mutating external source."
+      ],
+      "limitations": [
+        "Bounded production-source scan found resolve_cli_profile and validate_memory_durability definitions only, and no CompactionSafetyHook instantiation; automatic path uses DEFAULT_GENERIC_CLI_PROFILE. General operator memory import/export and separate session-packet commands were not established in runtime CLI. tools/memory_compact.py manages Claude MEMORY.md index bytes, not this harness substrate: excluded. Do not import separate Omarchy/archive promises."
+      ]
+    },
+    {
+      "area": "memory",
+      "id": "M10",
+      "name": "Local L2 embeddings and cross-axis procedural context composition",
+      "source_paths": [
+        "harness-cp/src/harness_cp/embedding_routing.py:89",
+        "harness-runtime/src/harness_runtime/lifecycle/embedding_resolution.py:145",
+        "harness-runtime/src/harness_runtime/lifecycle/embedding_resolution.py:67",
+        "harness-runtime/src/harness_runtime/lifecycle/llm_dispatch.py:5871",
+        "harness-runtime/src/harness_runtime/lifecycle/procedural_tier_snapshot.py:108",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_6_cxa_wiring.py:49"
+      ],
+      "baseline_status": "implemented_associated_routing_and_snapshot_capabilities; not_vector_memory_recall",
+      "tier_conditions": [
+        "routing activation configured with admitted corpus, optional embedding extra, pinned local model/cache; procedural resolver from actual prompt/skill/routing state"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Selected local L2 routing loads verified pinned model offline and resolves admitted provider:model or falls through according to routing contract.",
+        "Changing active prompt/skills/prompt-selection/routing state changes procedural snapshot hash consumed by cross-axis ledger producers."
+      ],
+      "limitations": [
+        "L2 embedding classifier chooses model route; MemoryRetriever uses lexical ranking. Do not advertise embedding-based memory semantic search without another implementation. Stage6 CxA wiring is an actual runtime composition owner; harness-cxa package itself mainly exposes audit conversion."
+      ]
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-01",
+      "name": "Local package/config/run/daemon/operator UX",
+      "source_paths": [
+        "harness-runtime/pyproject.toml",
+        "harness-runtime/src/harness_runtime/config_source.py",
+        "harness-runtime/src/harness_runtime/cli/app.py",
+        "harness-runtime/src/harness_runtime/admin/inspect.py",
+        "harness-runtime/src/harness_runtime/admin/shutdown_cli.py",
+        "deploy/images/harness-runtime.Dockerfile",
+        "deploy/self-hosted-local/README.md",
+        "harness-runtime/tests/test_cli_one_shot.py",
+        "harness-runtime/tests/test_cli_daemon_client.py",
+        "harness-runtime/tests/test_config_loader.py"
+      ],
+      "baseline_status": "Source entrypoints harness run/daemon/inspect/shutdown; YAML/TOML manifests, provider/model overrides, text/JSON results, UDS daemon-client and bounded drain/error outcomes implemented. Packaging/runtime origins need installation proof.",
+      "tier_conditions": [
+        "solo-developer with local-development or self-hosted-server; choose actual config surface separately"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Build locked wheels and verify installed entrypoint/import origins; run one local workflow both one-shot and through existing UDS daemon, inspect state, then graceful shutdown."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-02",
+      "name": "Local Ollama and configurable routing/reliability",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/providers.py",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_3a_cp_clients.py",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_3b_cp_routing.py",
+        "harness-runtime/src/harness_runtime/lifecycle/router_resolution.py",
+        "examples/omarchy.ollama.toml.example",
+        "examples/ollama-first.toml",
+        "harness-cp/src/harness_cp/provider_capabilities.py"
+      ],
+      "baseline_status": "Ollama host/ping, optional-provider degradation, provider capabilities, manifest role/workload bindings and fallback policy wired. Availability and model assets not proven by source.",
+      "tier_conditions": [
+        "No team-persona requirement; local Ollama models explicitly enabled; paid Anthropic/OpenAI SDK routes outside selected release profile"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "With hosted providers disabled, send a discriminating local prompt; verify chosen provider/model, unavailable-model failure/fallback and no paid API route."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-03",
+      "name": "Subscription CLI providers and instruction/memory profiles",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/external_cli_provider.py",
+        "harness-runtime/src/harness_runtime/cli_profile_loading.py",
+        "tools/external_cli_provider_config.py",
+        "harness-is/src/harness_is/cli_profile.py",
+        "harness-runtime/tests/test_external_cli_provider.py",
+        "harness-runtime/tests/test_external_cli_codex_isolation.py",
+        "harness-runtime/tests/test_external_cli_codex_login_status.py",
+        "harness-runtime/tests/test_cli_profile_loading.py",
+        "docs/how-to-deploy.md"
+      ],
+      "baseline_status": "Typed Claude/Codex/Antigravity/Gemini/generic subprocess adapters, auth handling, private cwd, environment controls, bounded process cleanup, output parsing and profile provenance implemented. Native CLI login/service success remains external.",
+      "tier_conditions": [
+        "Claude Code and Codex selected for first release. Antigravity/Gemini and generic-command adapters exist but are not implicit release additions; docs explicitly exclude Gemini/Antigravity overlays."
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Using existing subscription login, run one Claude and one Codex workflow; verify correct model/output, private-workspace isolation and auth refusal without credential/log leakage."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-04",
+      "name": "Offline embedding and workload classifier",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/embedding_resolution.py",
+        "harness-runtime/pyproject.toml",
+        "examples/omarchy.offline-embedding.toml.example",
+        "docs/operations/omarchy-offline-embedding.md",
+        "harness-runtime/tests/test_embedding_offline.py",
+        "harness-runtime/tests/integration/test_l2_embedding_live_e2e.py"
+      ],
+      "baseline_status": "Local hashes/layout/cache verifier and local_files_only FastEmbed binding exist. Guide explicitly says final ARM extra/model/no-network/live-discrimination proof unwitnessed; source example has two candidate labels while historical discrimination witness needs at least three.",
+      "tier_conditions": [
+        "Optional embedding extra, routing_activation=true, verified local BAAI/bge-small-en-v1.5 assets/cache; no cloud classifier required"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "On final ARM artifact with pre-staged exact wheels/model hashes and outbound network blocked, verify imports, deterministic classifications and at least three distinct intended picks; corrupt model must refuse before provider call."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-05",
+      "name": "One operator's agent teams and six workflow topologies",
+      "source_paths": [
+        "harness-cp/src/harness_cp/topology_pattern.py",
+        "harness-runtime/src/harness_runtime/lifecycle/topology_dispatcher.py",
+        "harness-runtime/src/harness_runtime/lifecycle/sub_agent_dispatch.py",
+        "harness-runtime/src/harness_runtime/lifecycle/inter_step_output_channel.py",
+        "examples/workflows/topology/single-threaded-linear.yaml",
+        "examples/workflows/topology/parallelization.yaml",
+        "examples/workflows/topology/orchestrator-workers.yaml",
+        "examples/workflows/topology/hierarchical-delegation.yaml",
+        "examples/workflows/topology/decentralized-handoff.yaml",
+        "examples/workflows/topology/evaluator-optimizer.yaml",
+        "harness-runtime/tests/test_lifecycle_topology_dispatcher.py",
+        "harness-runtime/tests/integration/test_topology_fixture_suite.py"
+      ],
+      "baseline_status": "Six-value topology enum, dispatcher, workload admission and subagent orchestration source present. Fixture/test presence is not installed six-topology evidence.",
+      "tier_conditions": [
+        "Included for SOLO; agent multiplicity does not imply TEAM_BINDING; workload/engine admissibility still applies"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Run six small local workflows under explicit solo config; check real child results, handoffs/iteration/parallel fan-in, inter-step outputs and bounded failure/cancel cleanup."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-06",
+      "name": "MCP server/client integrations and tool discovery",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/mcp_server.py",
+        "harness-runtime/src/harness_runtime/lifecycle/mcp_client_host.py",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_2_as.py",
+        "harness-runtime/src/harness_runtime/bootstrap/factories/mcp_client_host_factory.py",
+        "harness-runtime/src/harness_runtime/lifecycle/tool_registry.py",
+        "harness-runtime/src/harness_runtime/lifecycle/tool_search.py",
+        "scaffolding/mcp/server.py",
+        "harness-runtime/tests/test_lifecycle_mcp_server.py",
+        "harness-runtime/tests/test_lifecycle_mcp_client_host.py",
+        "harness-runtime/tests/integration/test_u_rt_86_mcp_client_external_server_e2e.py"
+      ],
+      "baseline_status": "Actual FastMCP server registers run_workflow; real MCPClientHost starts transports, lists/calls tools and owns cleanup. Legacy mcp_host.py started=False placeholder does not describe the full later binding. Integration availability conditional on configured server and tool contracts.",
+      "tier_conditions": [
+        "Solo can host run_workflow and consume configured external tools; stdio/streamable_http/SSE subject to trust/transport floors. HTTP MCP transport retained; separate HTTP operator recovery API excluded."
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Connect one admitted local MCP client to harness and invoke workflow; invoke one real external MCP tool, verify discovery/search, argument/result transit, trust refusal and shutdown cleanup."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-07",
+      "name": "Local process, Docker and gVisor sandbox enforcement",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/bootstrap/factories/runtime_tool_dispatcher_factory.py",
+        "harness-runtime/src/harness_runtime/lifecycle/docker_tool_execution_driver.py",
+        "harness-runtime/src/harness_runtime/config/sandbox_defaults.py",
+        "harness-as/src/harness_as/sandbox_tier_floor.py",
+        "deploy/self-hosted-local/harness.selfhosted.local.example.toml",
+        "harness-runtime/tests/test_sandbox_tier_driver_selection.py",
+        "harness-runtime/tests/test_lifecycle_docker_tool_execution_driver.py"
+      ],
+      "baseline_status": "Configured T2/T3 drivers and timeout/cancel cleanup implemented. STDIO MCP floors to T3 even if template requests T1; runsc registration and local image required. T4 requests must refuse rather than silently downgrade if excluded substrate unavailable. Computer-use and code-execution force T4 in sandbox_tier_floor; the current factory provides E2B only at T4, so local/no-paid support for those capabilities is a concrete unresolved carrier gap, not a feature to silently omit.",
+      "tier_conditions": [
+        "Solo still obeys delivered tier >= resolved floor. T1 host/T2 Docker/T3 runsc local; T4 current factory uses E2B managed full VM outside no-paid-local profile."
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Execute a harmless real tool in each selected T1/T2/T3 tier, inspect delivered runtime/network/image, trigger timeout/cancel and prove exact container/process cleanup; excluded T4 requirement returns typed refusal."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-08",
+      "name": "Solo HITL policy and real safety decisions",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/lifecycle/hitl_auto_approve_policy.py",
+        "harness-runtime/src/harness_runtime/lifecycle/hitl_gate_composer.py",
+        "harness-cp/src/harness_cp/persona_engine_hitl_matrix.py",
+        "harness-runtime/src/harness_runtime/lifecycle/mcp_backed_ask_user_question_surface.py",
+        "deploy/self-hosted-local/webhook-loopback.md",
+        "harness-runtime/tests/test_r_cl_p3_persona_tier_posture.py"
+      ],
+      "baseline_status": "Per-persona/engine synchrony, named solo overrides and MCP elicitation/webhook integration source present. Solo scope does not waive actual rejected effects or external mutation safety boundaries.",
+      "tier_conditions": [
+        "SOLO persona floor auto defaults true; local-mutation auto defaults false; other safety floors still compose. Per-step persona is a separate binding from deployment OD persona."
+      ],
+      "features": [],
+      "proposed_checks": [
+        "One read-only action proceeds, one local mutation requires its configured decision, and one external-effect refusal/timeout remains refused; check resulting audit and no replay."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-09",
+      "name": "Self-hosted telemetry, traces and cost visibility",
+      "source_paths": [
+        "deploy/self-hosted-local/compose.yaml",
+        "deploy/self-hosted-local/otel-collector.yaml",
+        "deploy/self-hosted-local/tempo.yaml",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_4_od.py",
+        "harness-runtime/src/harness_runtime/lifecycle/tracer_provider.py",
+        "harness-runtime/src/harness_runtime/lifecycle/span_processor.py",
+        "harness-runtime/src/harness_runtime/lifecycle/collector_daemon.py",
+        "harness-runtime/src/harness_runtime/config/otel_config.py",
+        "tests/test_persona_tier_plumbing.py",
+        "harness-runtime/tests/test_config_otel_config.py"
+      ],
+      "baseline_status": "OTLP gRPC pipeline plus Compose Collector/Tempo/Grafana, loopback port bindings, Grafana file-secret and anonymous-off configuration exist. Solo sampling base rate1.0 source tested. Config is not proof of collector reachability, trace retention or Grafana login.",
+      "tier_conditions": [
+        "SOLO local-development/self-hosted-server supported; team sampling/multi-tenant qualification deferred"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Emit one real local workflow with costs/tool events; retrieve its trace in local backend, verify redaction policy and missing-backend behavior; verify loopback exposure and authenticated Grafana access."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-10",
+      "name": "Secret handling, local audit signatures and protected results",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/config/provider_secrets.py",
+        "harness-runtime/src/harness_runtime/config_source.py",
+        "harness-runtime/src/harness_runtime/config/audit_signing.py",
+        "harness-runtime/src/harness_runtime/config/local_ed25519_signing_backend.py",
+        "harness-runtime/src/harness_runtime/lifecycle/audit_signing_fail_closed_validation.py",
+        "harness-runtime/src/harness_runtime/lifecycle/audit_writer.py",
+        "harness-runtime/src/harness_runtime/lifecycle/redaction_token_audit_map.py",
+        "harness-od/src/harness_od/redaction_gradient.py",
+        "harness-runtime/tests/test_config_provider_secrets.py",
+        "harness-runtime/tests/test_local_ed25519_signing_backend.py",
+        "harness-runtime/tests/test_u_rt_156_local_signer_persona.py",
+        "harness-runtime/tests/test_lifecycle_protected_result_store.py"
+      ],
+      "baseline_status": "Scoped allowlist secret resolution, plaintext-secret config rejection, local signature/key safety, audit verification and protected-result source exist. Solo redaction is operator-self-redact/toggleable, so content-capture safety needs explicit config. Local signer does not implement rotation by key period or defend against compromised OS user.",
+      "tier_conditions": [
+        "Self-hosted-keyring/local optional keyring-env fallback; solo can select local Ed25519 and fail-closed signing; MTC forbids local signer and requires stronger tenant/delegated controls. Cloud KMS/GCP Secret Manager outside local profile."
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Resolve a nonsecret sentinel through keyring, deny an unlisted request, verify no secret/content leak; sign/read/tamper one local audit row and check failure policy plus protected-result retention/recovery when enabled."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-11",
+      "name": "Local memory storage and persistence choices",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/types.py:2215",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_5_loop_init.py",
+        "harness-runtime/src/harness_runtime/bootstrap/factories/memory_tool_registry_factory.py",
+        "harness-runtime/src/harness_runtime/lifecycle/memory_tool_filesystem.py",
+        "harness-runtime/src/harness_runtime/lifecycle/memory_tool_encrypted.py",
+        "harness-runtime/src/harness_runtime/lifecycle/memory_tool_sqlite.py",
+        "harness-runtime/src/harness_runtime/automatic_memory.py",
+        "harness-runtime/src/harness_runtime/cli_profile_loading.py",
+        "harness-runtime/tests/test_lifecycle_memory_tool_filesystem.py",
+        "harness-runtime/tests/test_lifecycle_memory_tool_encrypted.py",
+        "harness-runtime/tests/test_lifecycle_memory_tool_sqlite.py",
+        "harness-runtime/tests/test_memory_tool_executor.py"
+      ],
+      "baseline_status": "Stage5 registry and local backends implemented, with /memories path discipline, authenticated encrypted content and SQLite concurrency. Legacy roots are checkout-local unless verified state placement selected; installed durable storage remains gated.",
+      "tier_conditions": [
+        "Automatic local memory default; filesystem/encrypted filesystem/operator-defined configurable, SQLite DATABASE for self-hosted-server; S3/managed DB/provider-native memory are explicit optional remote routes, not required local dependencies"
+      ],
+      "features": [],
+      "proposed_checks": [
+        "Create/read/change/retrieve one local memory through actual workflow, restart and retrieve again; verify traversal/tamper denial and correct instruction/profile provenance without accessing unrelated CLI memory."
+      ],
+      "limitations": []
+    },
+    {
+      "area": "local-stack",
+      "id": "SOLO-LOCAL-12",
+      "name": "Retained state, pause/resume/recovery and backup boundary",
+      "source_paths": [
+        "harness-runtime/src/harness_runtime/config/state_placement.py",
+        "harness-runtime/src/harness_runtime/bootstrap/stage_1_is.py",
+        "harness-runtime/src/harness_runtime/api.py",
+        "harness-runtime/src/harness_runtime/lifecycle/durable_pause_resume_protocol.py",
+        "harness-runtime/src/harness_runtime/lifecycle/engine_recovery_loop.py",
+        "harness-runtime/src/harness_runtime/lifecycle/root_resume_admission.py",
+        "harness-runtime/src/harness_runtime/admin/pause_claim_recovery.py",
+        "harness-runtime/src/harness_runtime/cli/app.py",
+        "docs/how-to-deploy.md",
+        "harness-runtime/tests/test_state_placement.py",
+        "harness-runtime/tests/test_state_placement_bootstrap.py",
+        "harness-runtime/tests/test_b104_root_resume_facade.py",
+        "harness-runtime/tests/test_b104_pause_claim_recovery.py"
+      ],
+      "baseline_status": "State-root verifier/stamp, durable journal and engine recovery, root claim/adopt/dispose primitives exist. Shipped profiles explicitly do not enable durable pause/resume; CLI/MCP operator exposure and actual recovery acceptance remain gated by B7/storage. No complete installed backup/reset/restore witness established; do not infer backup service from journal code.",
+      "tier_conditions": [
+        "Solo safety/recovery remains in scope; durable opt-ins and actual retained root required. No multiuser/production soak prerequisite added."
+      ],
+      "features": [],
+      "proposed_checks": [
+        "After actual root binding and released operator surface, perform a single end-to-end pause/process-death/restore/resume scenario; prove retained ledger/memory/claims, no duplicate external effect, refusal of stale/child/unauthorized resume, and bounded cleanup. Keep held until prerequisites accepted."
+      ],
+      "limitations": []
+    }
+  ]
+}

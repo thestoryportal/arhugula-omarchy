@@ -1,10 +1,10 @@
 # Release workflow — canonical operating rules
 
-Revision: release-campaign-20261104-v2. This is the single current workflow
+Revision: release-campaign-20261104-v3. This is the single current workflow
 contract, amended by [release-campaign.md](release-campaign.md) following the user's
-2026-11-03 acceptance of all six recommendation categories and contents. That
-amendment owns campaign scope, dependency changes, HTTP disposition and final
-qualification. AGENTS is its mandatory entry/safety boundary; role files add only role
+2026-11-03 acceptance and later direct solo-local scope/workflow approval. The
+campaign and [solo execution plan](solo-execution-plan.md) own current scope,
+dependency changes, HTTP disposition and installed solo qualification. AGENTS is its mandatory entry/safety boundary; role files add only role
 responsibilities. The context policy determines when each complete section enters
 context. Communication, authorization and measurement references own their specific
 mechanics; they do not create a second lifecycle.
@@ -21,9 +21,9 @@ A later direct user instruction or pause governs. An old bottle cannot outvote i
 
 Use the existing visible Foot team. Authors and an independent reviewer pool
 exchange their own LIT pointers directly; Buford is integration lead and Runtime
-is a separate witness. No
-substitute children, replacements of live writers or ordinary Buford-dispatched
-resets. Current Proceed permits restoring absent registered native roles under
+is a separate witness. Explicitly user-authorized helper subagents may draft or
+verify bounded artifacts read-only; they do not substitute for native authors,
+independent reviewers or live writers. No ordinary Buford-dispatched resets. Current Proceed permits restoring absent registered native roles under
 release-campaign.md.
 
 Work requires current release, ownership and measured admission. The user released
@@ -141,7 +141,7 @@ delivery. Finish existing correction cycles and ready harness landings ahead of
 unrelated preparation. A completed contract review identifies the next implementation
 owner and installed witness; ratification enables the eligible bounded implementation
 without another general proposal cycle. Keep every real prerequisite at its consuming
-transition and preserve the complete final qualification scope.
+transition and preserve the approved installed solo scope; production certification is deferred.
 
 ## Verified closeout
 
@@ -207,16 +207,26 @@ reconstruct old supervisor/startup/epoch machinery. Existing launch templates ar
 historical, not Memento activation recipes.
 
 For an unchanged released claim/reservation, follow context-policy's continuation
-rule: verified native continuity, current adoption and completed measured ALLOW
-permit the next authorized action without routine central acknowledgment. Buford's
-routing reconciliation remains necessary metadata work, not a second release gate.
+rule: verified native continuity, current authority/adoption and actual known
+headroom permit immediate useful work in the same turn. An active-turn-only
+`session-not-complete` result is preserved honestly; it is not ALLOW and does not
+require a startup-only end or a second user prompt. Fresh/changed substantial
+assignments keep their actual admission gate. Buford's routing reconciliation
+remains necessary metadata work, not a second release gate.
 Verify current native destinations before direct delivery. A failed handoff holds
 its own lane's uncertain effects; it does not pause independently admitted peers.
 
 ## Continuous work and concurrency
 
-**NEVER IDLE WORKFLOW:** coders select and immediately begin eligible released LIT
-work without routine Buford assignments; reviewers pull ready
+**NEVER IDLE WORKFLOW:** a governance-cleared same-claim Memento continuation
+starts useful work immediately after its native/authority/headroom checks;
+"Startup complete; waiting for another prompt" is not its next action. Buford
+inspects actual sessions/windows/context, live LIT claims and pending Git gates,
+then coordinates existing authors/reviewers while preparing the next eligible
+transition. Where user-authorized, delegate bounded read-only context/status,
+ticket/CI and merge-gate fact gathering to helper subagents; helpers do not replace
+native authors, independent reviewers or Runtime. Coders select and immediately
+begin eligible released LIT work without routine Buford assignments; reviewers pull ready
 independent candidates and act on reserved review requests. Authors act immediately on delivered
 findings; senders trigger the reserved recipient and verify uptake, including after
 the recipient's previous turn ended. "I posted the comment" is not a reason to
@@ -268,13 +278,13 @@ an unrelated hold.
 | Selected model, effort and role path | launch-profiles.json plus later direct user choice; verify native state |
 | Effective Memento ceiling | Native ceiling reader over session/project/user config; admission must agree |
 | Codex/Claude compaction settings | .codex/config.toml and .claude/settings.local.json; no policy-number copies |
-| Current preparation limits and preserved sources | memento-current.md and current c12 evidence |
+| Current scope/queue and preserved accounting | solo-execution-plan.md, current Trial193 LIT and memento-current.md; c12 is closed history |
 | Loading and native measurements | context-policy.md at the action it governs |
 | Queue/comment mechanics | communication.md before first exchange |
 | Standing permission provenance | authorization.md before the affected permission step |
 
 Keep changing task conversations out of roles and shared memory. Historical
 bottles, checkpoints, plans and copied worktree instructions retain evidence, not
-active assignments. If sources conflict, stop the affected action and reconcile
-against actual user authority/current LIT; do not silently select the convenient
-version.
+active assignments. Apply explicit supersession in current user/campaign authority;
+old roadmap/checkpoint gates do not require another approval conversation. Hold
+only an unresolved conflict at its affected action, preserving actual denials.

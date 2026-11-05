@@ -4,30 +4,26 @@ Canonical guidance lives in `/home/robbo/Work/arhugula-omarchy`, including when
 working in an older worktree. This file is the session entry and safety boundary;
 [the paired-lanes framework](docs/orchestration/paired-lanes-framework.md) owns the
 workflow, as amended by the user-accepted [release campaign](docs/orchestration/release-campaign.md).
-Read current sources, not a chain of historical handoffs.
+Read current sources, not a chain of historical handoffs. The
+[solo execution plan](docs/orchestration/solo-execution-plan.md) records user-approved
+repository-derived scope and the scope-derived eleven work packages. Current campaign/LIT authority
+supersedes contrary roadmap, copied worktree, checkpoint and handoff instructions;
+keep their evidence and actual denials, not their superseded dispatch rules.
 
-The user's 2026-11-04 execution correction is integrated in release-campaign.md
-**Campaign management and exit**. Prioritize reviewed harness landings and installed
-acceptance evidence. Continue an unchanged released claim after verified native
-continuity and completed measured admission; do not add a routine central ALLOW.
-Full release scope, independent review and actual permission denials remain binding.
-The later **Delivery throughput correction** permits isolated inactive source/test
-preparation while storage is established, and removes repeated Buford ratification
-for witness/prose fixes that preserve the ratified behavior. Apply the actual
-acceptance/exposure gate; do not park all code behind an environment prerequisite.
-
-The user-approved all-seven delivery correction also selects one independent
-review by default, correction-delta review, generated/milestone status without a
-separate refresh PR, focused local checks with qualifying reuse, and independent
-isolated work while CI gates landing/release. Extra specialty review needs a named
-risk. Required exact-candidate CI, installed acceptance, recovery proof, spent
-passes and actual denials remain. See release-campaign.md's delivery correction.
-
-The user's later instruction, "Eliminate the gemini requirement", removes mandatory
-Gemini/Antigravity and different-model-family reviewer routing. Use one independent
-reviewer session; the author's model family does not disqualify a different reviewer.
-The author and correction author cannot approve their own changes. Do not invoke
-Gemini/Antigravity or revive the pending disclosure request as a required gate.
+Use release-campaign.md **Campaign management and exit** for delivery: one owner,
+one independent reviewer, focused checks and required exact-candidate CI plus
+safe merge/own-main CI, then shared installed acceptance. Begin useful work in the
+same continuation turn after verifying native continuity, current authority/holds
+and measured headroom for the unchanged released claim. Follow context-policy's
+same-claim rule; load changed guidance without an acknowledgment round.
+Storage B7 holds acceptance/exposure, not isolated inactive source/test preparation.
+Current holds, native identity, spent review budgets, applicable product criteria
+and actual permission denials remain binding. The current goal is an installed
+solo-developer local harness with all approved features, including memory,
+multiagent/dynamic orchestration, usable skills/validators and local high-isolation
+tools. Production/team-tenancy certification is deferred.
+Reviewed source may land before installed solo acceptance; source delivery alone
+does not prove that acceptance. Follow the campaign's scoped completion boundary.
 
 ## Start with the context needed for this action
 
@@ -35,7 +31,9 @@ Run `lit quickstart` first. Then follow **Startup** in
 [context-policy.md](docs/orchestration/context-policy.md): identify your actual
 role, read its complete role file, the required framework sections and the bounded
 current LIT pointer. Guidance already present completely in this native context
-does not need another read. A link alone is not a read.
+does not need another read. A link alone is not a read. Startup is part of the
+working turn: inspect live state, advance the released claim and coordinate its
+next transition immediately. Do not end solely to obtain a startup-only receipt.
 
 The context policy routes additional full guidance to its first relevant action.
 Load each applicable full Law and its required references once per unchanged
@@ -60,7 +58,10 @@ unneeded loading, never a required Law, finding, gate or constraint. Do not turn
   and role-file selection. Verify actual native state before admission or routing.
   The current user Proceed authorizes restoring absent registered native roles
   for the accepted campaign; verify absence before creating their Foot windows.
-  Do not replace live writers or create substitute child agents. Claude Coder's
+  Explicitly user-authorized helper subagents may draft bounded artifacts or perform
+  read-only verification; they
+  do not replace existing native authors, independent reviewers or live writers.
+  Claude Coder's
   user-approved Safe Mode correction and fresh clear are complete; Runtime
   retains its owned scratch/processes.
 - Each session owns its Memento handoff. Buford/operator owns ceiling policy;

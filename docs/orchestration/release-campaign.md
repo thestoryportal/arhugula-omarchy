@@ -1,6 +1,6 @@
 # Trial 193 release campaign
 
-Revision: release-campaign-20261104-v4. Status: user-accepted operating amendment.
+Revision: release-campaign-20261104-v8. Status: user-accepted operating amendment.
 
 ## Authority and completion boundary
 
@@ -15,6 +15,9 @@ This amendment governs the campaign provisions in the paired-lanes framework,
 role files, context policy, communication and authorization references. It
 supersedes fixed pairing, sole feature publishing, resets per ticket, waiting for
 full ticket closure before taking further work, and cleanup on the delivery path.
+The [solo execution plan](solo-execution-plan.md) records user-approved feature
+scope and the scope-derived eleven-package queue; current LIT owns claims, evidence and releases.
+A stale roadmap/checkpoint/role copy cannot restore superseded gates or scope.
 The closed WO-U01..25 batch remains closed. Preserve all findings, spent review
 passes, protected work and original acceptance identities.
 
@@ -26,20 +29,31 @@ unadmitted live effects; this document is not a global pause toggle. The accepta
 does not grant production GO, accept behavior, retry denied actions, or select an
 unobserved storage location. Do not turn "workflow accepted" into "test passed."
 
-Completion means accepted evidence for the full supported scope across the 38
-original acceptance rows and an independent six-category release decision on one
-exact integrated candidate. Partial shipment does not close the full task.
+The user's latest scope is a solo-developer local deployment with all associated
+Arhugula solo-tier features available. Completion is one usable installed local
+candidate proving those features, including memory and multiagent/workflow
+topologies, and bounded functional/failure/restart/restore smoke. Multiple agents
+do not imply multiple users. Source review, required CI and actual B7 storage
+acceptance/exposure binding remain. Production six-category release certification,
+load/soak targets and multiuser/team-tenancy certification are deferred; preserve
+their audit findings and mark them deferred, never PASS or prerequisites for solo GO.
 
 ## 1. Three concurrent deliverable streams
 
-Keep the original 38 task identities and the audit's Q01..Q13 execution slices.
-They are acceptance rows and scheduling slices, not 38 serial implementation jobs
-or authority to create another ticket hierarchy.
+Keep original task/criterion identities as evidence references. Classify each as
+solo-applicable or explicitly deferred by this scope; preserve every solo feature.
+Derive the solo feature inventory from the repository's tier configuration,
+public entrypoints, implementations, examples and tests. Record implemented,
+configured and missing functionality distinctly; an old audit or a feature-group
+count does not define the inventory. Follow the scope-derived eleven packages in
+[solo-execution-plan.md](solo-execution-plan.md), recorded on existing Trial193
+`cmt-1af62682-3d73-49c1-a2e9-29390aa1ba29`; use existing records/claims, not a new
+hierarchy. The old audit slices below are references, not an exclusive feature list.
 
 | Stream | Deliverables | Audit slices | First bounded preparation |
 | --- | --- | --- | --- |
-| Product completion | Reconciled A5/A4/A7, refusal correction, approved CLI/MCP recovery | Q04..Q08 | Inspect retained units against the actual baseline; classify interface dependencies and prepare small independent changes |
-| Acceptance engineering | Scenarios, expected outcomes, evidence mapping, final matrix and verified runbooks | Q01, Q03, Q09, Q10, Q12, Q13 | Map existing criteria to scenario assertions; finish missing scenario contracts and W5 rate definition before execution |
+| Product completion | All approved solo features, including A5/A4/A7, memory, public recovery, dynamic orchestration, skills, validators and local T4 tools | Q04..Q08 | Inspect retained units against the actual baseline; classify interface dependencies and prepare small independent changes |
+| Acceptance engineering | Scenarios, expected outcomes, evidence mapping, final matrix and verified runbooks | Q01, Q03, Q09, Q10, Q12, Q13 | Map existing criteria to scenario assertions; settle each solo scenario before execution; retain W0..W5 production targets as deferred references |
 | Environment and recovery | Admitted venue, supervision, retained storage and real reset/restore proof | Q02, Q11; supports Q09/Q12 | Establish actual access and storage choices; prepare ownership/death/cleanup and restore witnesses without executing held probes |
 
 The audit is `.local/audits/trial-193-2026-11-03/report.md` and `tasks.json`.
@@ -115,8 +129,14 @@ does not retroactively establish an old kernel or resource allocation.
 - Preserve D1/D2/D3 denials and all actual tool/host approvals. No retry through
   another agent, transport, interpreter or permission flag.
 
-Supported solo/team scope, local/subscription routes and existing exclusions
-remain. Tenant isolation/redaction at supported bindings still require proof.
+The solo tier retains local/subscription routes and explicit current exclusions;
+old exclusions cannot silently remove an approved feature. Required local T4
+computer/code tooling needs a local carrier, not E2B dependence or a downgrade.
+Prove local workspace boundaries, unrelated-file protection and secret redaction;
+multiuser/team-tenancy certification is outside this completion boundary.
+Memory remains an explicit outcome in its existing jpp/2rk/oxw records: capture,
+reviewed promotion, permitted recall/injection, redaction and supported interactive
+integration must work, with persistence across supported local restart/restore.
 
 ## 5. One integrated candidate and shared acceptance evidence
 
@@ -125,8 +145,10 @@ remain. Tenant isolation/redaction at supported bindings still require proof.
 3. Record hashes, distribution/import origins, interpreter, OS/kernel/architecture,
    configuration, assets and immutable resource pins; install those exact artifacts
    in a clean acceptance environment.
-4. Run independently attributable scenario groups. Start with cheap deterministic
-   checks, then live functional/security, destructive recovery and operating tests.
+4. Run independently attributable solo scenario groups in one installed local
+   campaign, sharing setup and valid evidence: features, local protections and
+   bounded failure/restart/restore smoke. Production load/soak and the complete
+   W0..W5 battery are not solo gates; their deferred targets remain recorded.
 5. Bind each required assertion and observed result to every acceptance criterion
    it proves. One scenario can support many rows; one generic PASS cannot.
 
@@ -138,17 +160,24 @@ outcomes, resource owners and cleanup observations in each admitted scenario.
 A candidate change requires an evidence-impact disposition: retain unaffected
 proof only with an accepted bridge, rerun affected checks and all required CI.
 Do not reuse an old install as final proof of changed product behavior. The final
-matrix must account for every in-scope criterion, skip and unresolved finding.
+matrix must account for every solo-applicable criterion, skip and unresolved
+finding, and explicitly defer production/team-only criteria without a PASS claim.
+The 38 rows/122 criteria are cross-references, not separate approval queues; one
+shared run can prove A7's six topologies, other solo features and memory assertions.
 
 ## 6. Campaign management and exit
+
+The user's latest 2026-11-04 instruction selects all features of the solo-developer
+local tier. Its scope-derived eleven-package execution queue and user-approved
+feature scope live in solo-execution-plan.md and the existing Trial193 LIT task. Current claims and owners continue; this scope does
+not release denied effects, select storage or authorize new host provisioning.
 
 ### Execution correction accepted directly on 2026-11-04
 
 The user requires focused work that lands the final harness deliverable rapidly
-and effectively. This correction governs execution within the accepted campaign;
-the full 38-row/122-criterion scope and six-category release decision remain the
-finish line. A proposal, coordination turn or session refresh does not prove an
-acceptance criterion.
+and effectively. The current solo-local completion boundary above governs the
+finish line. Proposals, coordination and source GREEN do not establish installed
+feature availability; full production qualification is deferred separately.
 
 Work the critical path to an installed result. Finish existing frozen correction
 reviews, resolve the specific prerequisite they identify, implement the ratified
@@ -180,17 +209,28 @@ Do not reopen settled scope or repeat a qualifying gate solely because the actor
 context or proposal version changed. A real new defect remains a finding.
 
 **Keep verified continuations moving.** For the same released claim and retained
-review reservation, the successor's actual native continuity/Startup evidence and
-completed-turn measured ALLOW are sufficient to continue unchanged authorized work.
-Routine Buford acknowledgment and a second central ALLOW are not prerequisites.
-Follow context-policy's continuation rule; an identity conflict, missing proof,
-failed admission, changed scope or actual hold still blocks the affected action.
-Buford reconciles routing metadata promptly while the admitted pair exchanges
-directly using independently verified current native destinations. A stale roster
-UUID alone does not cancel a verified claim or create another approval conversation.
+review reservation, verify actual native continuity, current authority/adoption,
+known measured headroom, effective ceiling and retained budget/reserve; begin useful
+work immediately in this turn under context-policy's continuation rule. An active
+turn's `session-not-complete` result alone does not revoke the claim or require
+another startup-only turn. Preserve that actual result without manufacturing ALLOW.
+Fresh/changed substantial assignments retain their actual admission gate; identity
+conflicts, missing proof/metrics, inadequate headroom and actual holds still block
+the affected action. No routine Buford acknowledgment or second user prompt is owed.
+Buford reconciles routing promptly while pairs use independently verified current
+native destinations. A stale roster UUID alone does not cancel a verified claim.
+
+For Buford, immediate useful work means inspecting live sessions/windows/context,
+current LIT claims and pending Git workflows; using user-authorized helper
+subagents for bounded read-only context/status/ticket/CI/merge-gate fact gathering;
+coordinating existing native authors/reviewers; and advancing eligible landing
+transitions while preparing the next released tasks. Keep native authorship,
+independence, exact-candidate CI, the holder-bound safe merge door, own-main CI and
+installed acceptance intact. This is execution inside the current campaign, not a
+new monitor, service or general workflow project.
 
 When tempted to say "I must wait for Buford again," check the actual boundary:
-unchanged released work plus verified continuity and completed admission proceeds;
+unchanged released work with verified continuity and measured headroom proceeds;
 new scope, unratified behavior, denied effects and live-resource acquisition do not.
 One lane's failed handoff does not suspend independently admitted lanes. Preserve
 the failed lane's no-replay boundary and route that specific recovery to its owner.
@@ -255,19 +295,16 @@ behavior; no new monitoring service, ticket hierarchy or review-budget reset.
 
 ### Evidence and reporting
 
-Use existing LIT comments and the acceptance matrix to report what actually moved:
-reviewed revisions landed with required main/post-main CI; assertions accepted on
-the bound candidate; and the oldest blocked transition with owner and next action.
-Include review/integration waiting, failed scenarios and invalidated evidence when
-they affect the next action. Do not infer completion or speed from comment counts,
-proposal versions, startup receipts or ticket counts. No timer-driven idle loops or
-extra monitoring service.
+Keep one concise result per deliverable on its existing LIT record: exact revision,
+independent verdict pointer, focused checks/required CI, installed evidence or the
+remaining blocker with owner and next action. Preserve independently attributed
+review/runtime evidence; link it rather than copying it into repeated status posts.
+Update the existing campaign checklist at a meaningful delivery milestone. No
+separate status PR, routine startup/adoption receipt or central acknowledgment is
+required. Recheck on actual changes/events; report measured outcomes, not inferred
+completion percentages, dates or speedups. Failed or invalidated proof stays visible.
 
-Bound workflow adoption to one working session. Then deliver eligible work under
-this amendment instead of starting another general workflow-redesign project.
-Report measured results only; no date, completion percentage or speedup is inferred
-from ticket counts or the earlier counterfactual model.
-
-An independent release decision must name the exact candidate, evidence across
-all six categories, residual dispositions and verified operating/recovery runbooks.
-Production remains unaccepted until that decision and applicable release authority.
+Accept the solo deployment only for an exact installed candidate with every
+repository-derived solo feature group evidenced, local protections and bounded failure/restart/restore
+smoke passing, applicable B7 binding satisfied and no unresolved solo blocker.
+This is solo acceptance; production readiness remains explicitly unaccepted.

@@ -170,12 +170,15 @@ and native receipt before another attempt; never resend the whole work record or
 blindly press Return. An actual denial remains binding. Pair actors deliver their
 own handoffs directly; routine Buford relay and acknowledgment loops are unnecessary.
 
-For same-claim continuations, use context-policy's verified-continuation admission
-rule rather than repeating requests for central ALLOW. Record Startup and the
-completed-turn admission result once; deliver to independently verified current
-native peers. Buford reconciles canonical metadata without blocking unchanged
-authorized work merely for an old UUID. Missing native proof, failed admission and
-actual holds still block the affected action. Report progress through landings,
+For same-claim continuations, use context-policy's verified-continuation rule and
+begin useful work immediately after actual native/authority/headroom checks.
+Record inspection and any actual admission result honestly with the next
+substantive task result. An active-turn-only `session-not-complete` is not ALLOW
+and does not demand a startup-only end. Deliver to independently verified current
+native peers; routine central acknowledgment is not a release gate. Buford
+reconciles metadata without blocking unchanged authorized work merely for an old
+UUID. Missing native proof/metrics, inadequate headroom and actual holds still
+block the affected action; fresh/changed substantial assignments retain admission. Report progress through landings,
 accepted assertions and the next owned blocker under release-campaign.md; a startup
 or delivery acknowledgment is not an acceptance result.
 
@@ -205,18 +208,17 @@ native pointer does not waive any workflow gate or release a pause.
 
 ## User summaries
 
-Report briefly: what landed and by whom; what each agent picks up next; remaining
-implementation-unit and review/release-arc counts, plus the actual remaining list
-from live `lit ls`. Exclude parent/epic double counting and distinguish blocked
-leaves, unfiled known gaps and release decisions. A ticket count is not automatically
-the original plan's atomic-unit count. Interrupt otherwise only for a decision or
-blocker requiring the user.
+Report one concise result: what landed or was observed, exact evidence and next
+owned action or blocker. Use existing Trial193 package/claim records; a routine
+update does not require a full backlog/count/status inventory. Give counts only
+when requested or useful, distinguishing parent/leaf records and source versus
+installed completion. Interrupt otherwise only for a decision requiring the user.
 
 ## Transition state
 
-The 2026-11-03 accepted release campaign governs bounded preparation, reviewer
-pooling, author feature publishing, phase milestones and context-boundary
-handoffs. Disk edits alone do not prove native adoption. Previously, the user
+The current release campaign and solo-execution-plan.md govern scope,
+reviewer pooling, feature publishing, phase milestones and context-boundary
+handoffs. Historical roadmap/checkpoint text does not override the current scope-derived queue. Disk edits alone do not prove native adoption. Previously, the user
 released the now-closed 25-unit batch and repair pause at c12
 cmt-0c59889e-442c-4b5c-a01c-15847302ac02; unrelated paused scopes remain held. Unmerged custom-form
 amendments are abandoned, preserved as history and must not be published. Existing
@@ -226,7 +228,8 @@ notification service or measured billed-token reduction is claimed.
 
 ## Operational events
 
-The local session monitor may issue metadata-only alerts carrying this ticket and
-a durable event-file pointer. Those alerts are not assignments or work records.
-No notifications while repair_paused is true. Receipt is still not acknowledgment.
-Use context-policy.md for admission and refresh; no model-driven empty polling.
+The persistent session-context watch service and metadata notifications remain
+disabled under context-policy.md. Do not start or re-enable a monitor/service for
+continuation or delivery. Existing event-file pointers are evidence, not assignments,
+release/admission receipts or a reason to poll; use bounded live checks at real
+work transitions and preserve repair_paused.
