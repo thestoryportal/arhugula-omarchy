@@ -27,6 +27,15 @@ The command refuses a mismatched transcript or ambiguous role. It changes only
 Buford's identity, transcript and notification destination. Verify native model,
 effort, permissions, release and measured headroom separately before work.
 
+All session-control writers, including peer, pause and budget updates, must call
+`adopt_root.update_control(path, transform)`. The transform receives the latest
+control while the stable adjacent `session-control.json.lock` is held, and returns
+the complete replacement. Do not write the JSON directly or remove the lock file:
+advisory locking cannot protect against a writer that bypasses this boundary.
+Replacement and directory fsync finish before the lock is released; any sync
+failure is reported even if replacement has already become visible. Inspect the
+current route after such a failure rather than assuming no change occurred.
+
 `process_observer.py` preserves the seven R6 observation/classification function ASTs
 and fifteen synthetic witnesses identified by `process_observer_provenance.json`.
 It has no scenario executor. Host-bound scenario, authorization and result files
