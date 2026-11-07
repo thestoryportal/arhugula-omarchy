@@ -1,0 +1,40 @@
+{
+  "source_sha256": "a5df99bdcd3a257fb1d2a22ede4d3063b36b65233d48cdd19afa561b5203b2f1",
+  "test_source_sha256": "04b8c72219b4a8ab85b430c5e3704d2e40dec20d50726085886fc5ada7faf574",
+  "function_sha256": {
+    "now": "efe66840abd2abf3a179abd4cceff84f70ada0f3fffa814eddae79378206b200",
+    "parse_stat": "a593b3b01d22600e6d120e120f0486a876464c766fef65524a9f63fb5db0d040",
+    "read_proc": "b928e07d85db056d80911daab35eebda463b005bbcb283984b1287dd0b551c89",
+    "process_key": "40decbbab5c875b89983fa58ee0eba0fd7902054dafaf94177affdbfd8c64edc",
+    "bind_pidfd": "f59363af64892c5dc66bc074899a52da557fc059e364c350dcd285ce21524b3c",
+    "observe": "545298ec4d80a8ffc707f737aa404c85ebd5b03bb236f446688afbe559909d93",
+    "classify": "b8771d5f8c08a883b539b6a0101df316f823a22c322827d38ec58dd2b2748427"
+  },
+  "test_methods": [
+    "test_nominal_lifetime_roles",
+    "test_same_tick_parent_graph_ignores_arrival_order",
+    "test_reused_timeout_pid_is_unknown",
+    "test_child_parent_lifetime_must_match",
+    "test_later_unattributable_error_blocks",
+    "test_observed_r6_missing_stat_without_lifetime_proof_blocks",
+    "test_bound_terminal_lifetime_retains_disappearance",
+    "test_pid_reuse_keeps_missing_stat_blocking",
+    "test_permission_error_keeps_terminal_annotation_blocking",
+    "test_pidfd_bind_error_remains_blocking",
+    "test_pidfd_binding_requires_same_live_lifetime",
+    "test_observer_marks_only_signaled_bound_lifetime",
+    "test_bracketed_stat_rejects_identity_change",
+    "test_completed_observation_after_deadline_is_overrun",
+    "test_observation_expires_mid_scan"
+  ],
+  "scope": "Seven original observer function ASTs unchanged after formatting; synthetic tests retained. Host-bound execution remains frozen evidence, no scenario executor or authorization promoted.",
+  "function_ast_sha256": {
+    "now": "9c985f1438209ffc3f5cb64e672e0fbb0b6915d3cc2b09d1712c0939ae7ff5f4",
+    "parse_stat": "8a7688da183a4fae720fc4d5bc31c3b34c957bad58c27e3e68a00587dae04566",
+    "read_proc": "3bd3ea7acbda8e1412bac1f4ab2dd39ef3fccd1b728f57b42cdeb5d176b2f139",
+    "process_key": "6787037b53f9112b563d03de5054870f91ab29cd4c3a99929b8a43a8e0f72fa5",
+    "bind_pidfd": "1016799fee1b7a89878be3129eb773bbcff6154751ae5e0ab880aecb1c9d034c",
+    "observe": "e2f6db1d65c737ecee3f79e99dec40414356eb87fda9aca75ff4f0b8154f3b34",
+    "classify": "e3735d7d552f1399439934c3fbf68a28ee6697628cf424c68c151c6bb8336a87"
+  }
+}

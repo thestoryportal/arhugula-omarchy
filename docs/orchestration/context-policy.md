@@ -131,6 +131,12 @@ actual current native identity and continuity evidence; a peer's textual report
 alone is insufficient. Hold identity conflicts, missing actual continuity/adoption
 evidence, failed measurement/headroom, changed selection/scope and explicit holds
 for their controlling owner.
+
+For an existing Codex Buford successor, `tools/delivery_watch/adopt_root.py`
+reconciles the calling native identity/transcript and notification destination
+without changing peers, pauses or budgets. Supply canonical session-control.json
+and the verified actual rollout path; the native metadata must match the calling
+CODEX_THREAD_ID. This records routing only, never admission or a model change.
 Do not grant new permissions, alter budgets/ceilings, overwrite peer routing or
 replay an uncertain handoff to make admission pass. This rule supersedes routine
 "finish Startup, then wait for completed-turn ALLOW" and "wait for Buford ALLOW"
